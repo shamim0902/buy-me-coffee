@@ -178,9 +178,9 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     add_filter('plugin_row_meta', function($links, $file) {
         if ('buy-me-coffee/buy-me-coffee.php' == $file) {
             $row_meta = [
-                'preview' => '<a rel="noopener" href="'. esc_url(site_url('?share_coffee')) . '" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr(esc_html__('Preview', 'buy-me-coffee')) . '" target="_blank">' . esc_html__('Preview', 'buy-me-coffee') . '</a>',
-                'docs' => '<a rel="noopener" href="https://wpminers.com/buymecoffee/docs/installation/install-buy-me-coffee-plugin/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr(esc_html__('View Documentation', 'buy-me-coffee')) . '" target="_blank">' . esc_html__('Docs', 'buy-me-coffee') . '</a>',
-                'demo' => '<a rel="noopener" href="https://wpminers.com/buymecoffee-demo/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr(esc_html__('Demo', 'buy-me-coffee')) . '" target="_blank">' . esc_html__('Demo', 'buy-me-coffee') . '</a>',
+                'preview' => '<a rel="noopener" href="'. esc_url(site_url('?share_coffee')) . '" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('Preview', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Preview', 'buy-me-coffee') . '</a>',
+                'docs' => '<a rel="noopener" href="https://wpminers.com/buymecoffee/docs/installation/install-buy-me-coffee-plugin/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('View Documentation', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Docs', 'buy-me-coffee') . '</a>',
+                'demo' => '<a rel="noopener" href="https://wpminers.com/buymecoffee-demo/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('Demo', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Demo', 'buy-me-coffee') . '</a>',
             ];
             return array_merge($links, $row_meta);
         }
