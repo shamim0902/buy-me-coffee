@@ -29,7 +29,7 @@ class API
     public static function makeRequest($path, $version = 'v1', $method = 'POST', $args = [])
     {
         if (empty($path)) {
-            throw new \Exception(esc_html__('API path is required', 'fluent-cart'));
+            throw new \Exception(esc_html__('API path is required', 'buy-me-coffee'));
         }
 
         $paypal_api_url = static::$testApiUrl . '/' . $version . '/' . $path;
