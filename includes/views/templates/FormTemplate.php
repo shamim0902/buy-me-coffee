@@ -1,5 +1,7 @@
 <?php if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
+
     use BuyMeCoffee\Helpers\ArrayHelper as Arr;
  ?>
 
@@ -26,8 +28,9 @@
         <?php
 
         // check if receipt page
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Public receipt page display
         if (isset($_REQUEST['buymecoffee_success']) && isset($_REQUEST['hash'])) {
-            $hash = sanitize_text_field($_REQUEST['hash']);
+            $hash = sanitize_text_field(wp_unslash($_REQUEST['hash']));
             $paymentData = (new \BuyMeCoffee\Models\Supporters())->getByHash($hash);
             include BUYMECOFFEE_DIR . 'includes/views/templates/Confirmation.php';
         } else {
@@ -35,6 +38,7 @@
         }
 
         if ($quote && !isset($_REQUEST['buymecoffee_success'])):
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
             ?>
             <div class="buymecoffee_your_content_wrapper">
                 <div class="buymecoffee_your_content">

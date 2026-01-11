@@ -11,7 +11,8 @@ class IPN
 {
     public function ipnVerificationProcess()
     {
-        if (isset($_SERVER['REQUEST_METHOD']) && sanitize_text_field($_SERVER['REQUEST_METHOD']) != 'POST') {
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized below
+        if (isset($_SERVER['REQUEST_METHOD']) && sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) != 'POST') {
             return;
         }
 
@@ -21,6 +22,7 @@ class IPN
         if (ini_get('allow_url_fopen')) {
             $post_data = file_get_contents('php://input');
         } else {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Required for PayPal IPN to handle large POST data
             ini_set('post_max_size', '12M');
         }
         $encoded_data = 'cmd=_notify-validate';
@@ -28,7 +30,7 @@ class IPN
         if ($post_data || strlen($post_data) > 0) {
             $encoded_data .= $arg_separator . $post_data;
         } else {
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            // phpcs:disable WordPress.Security.NonceVerification.Missing -- PayPal IPN webhook callback
             if (empty($_POST)) {
                 return;
             } else {
@@ -36,6 +38,7 @@ class IPN
                     $encoded_data .= $arg_separator . "$key=" . urlencode($value);
                 }
             }
+            // phpcs:enable WordPress.Security.NonceVerification.Missing
         }
 
         parse_str($encoded_data, $encoded_data_array);
@@ -56,6 +59,7 @@ class IPN
 
         $encoded_data_array = wp_parse_args($encoded_data_array, $defaults);
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- PayPal IPN callback, verified by PayPal
         if (!is_array($encoded_data_array) && !empty($encoded_data_array)) {
             return;
         }

@@ -37,7 +37,7 @@ class AdminAjaxHandler
             ), 403);
         }
 
-        $route = sanitize_text_field($_REQUEST['route']);
+        $route = isset($_REQUEST['route']) ? sanitize_text_field(wp_unslash($_REQUEST['route'])) : '';
 
         $validRoutes = array(
             'get_data' => 'getPaymentSettings',
@@ -61,11 +61,12 @@ class AdminAjaxHandler
         );
 
         if (isset($validRoutes[$route])) {
-            do_action('buy-me-coffee/doing_ajax_forms_' . $route);
-            $data = isset($_REQUEST['data']) ? $this->sanitizeTextArray($_REQUEST['data']) : [];
+            do_action('buymecoffee_doing_ajax_forms_' . $route);
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Data is sanitized in sanitizeTextArray method
+            $data = isset($_REQUEST['data']) ? $this->sanitizeTextArray(wp_unslash($_REQUEST['data'])) : [];
             return $this->{$validRoutes[$route]}($data);
         }
-        do_action('buy-me-coffee/admin_ajax_handler_catch', $route);
+        do_action('buymecoffee_admin_ajax_handler_catch', $route);
     }
 
     public function getAllMethods()
@@ -136,7 +137,7 @@ class AdminAjaxHandler
     public function getPaymentSettings($request)
     {
         $method = Arr::get($request, 'method');
-        do_action('buy-me-coffee/get_payment_settings_' . $method);
+        do_action('buymecoffee_get_payment_settings_' . $method);
     }
 
     public function resetDefaultSettings($request)

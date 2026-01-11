@@ -24,6 +24,7 @@ class PayPal extends BaseMethods
         add_action('buymecoffee_make_payment_paypal', array($this, 'makePayment'), 10, 3);
         add_action('buymecoffee_paypal_action_web_accept', array($this, 'updateStatus'), 10, 2);
         add_action("buymecoffee_ipn_endpoint_paypal", array($this, 'verifyIpn'), 10, 2);
+        add_action('buymecoffee_get_payment_settings_paypal', array($this, 'getPaymentSettings'));
         add_filter('buymecoffee_before_save_paypal', array($this, 'validateProSettings'), 10, 1);
     }
 
@@ -131,9 +132,9 @@ class PayPal extends BaseMethods
     public function paymentConfirmation()
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $chargeId = isset($_REQUEST['charge_id']) ? sanitize_text_field($_REQUEST['charge_id']) : '';
+        $chargeId = isset($_REQUEST['charge_id']) ? sanitize_text_field(wp_unslash($_REQUEST['charge_id'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $hash = isset($_REQUEST['hash']) ?  sanitize_text_field($_REQUEST['hash']) : '';
+        $hash = isset($_REQUEST['hash']) ?  sanitize_text_field(wp_unslash($_REQUEST['hash'])) : '';
 
         $this->updatePayment($chargeId, $hash);
     }
@@ -322,6 +323,7 @@ class PayPal extends BaseMethods
         $transaction = (new Transactions())->find($payment_id);
 
         if (defined('BUYMECOFFEE_PAYPAL_IPN_DEBUG')) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when BUYMECOFFEE_PAYPAL_IPN_DEBUG is defined
             error_log('IPN For Transaction: ' . wp_json_encode($transaction));
         }
 

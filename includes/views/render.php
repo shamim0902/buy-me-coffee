@@ -1,4 +1,7 @@
 <?php if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly   ?>
+<?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
+?>
 
 <div id="buy-me-coffee_app" class="buy-me-coffee_app">
     <div class="buymecoffee_app">

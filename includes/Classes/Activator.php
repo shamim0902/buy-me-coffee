@@ -18,6 +18,7 @@ class Activator
             if (function_exists('get_sites') && function_exists('get_current_network_id')) {
                 $site_ids = get_sites(array('fields' => 'ids', 'network_id' => get_current_network_id()));
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required for multisite activation on older WordPress versions
                 $site_ids = $wpdb->get_col($wpdb->prepare("SELECT blog_id FROM %s WHERE site_id = %s;", $wpdb->blogs, $wpdb->siteid ));
             }
             // Install the plugin for all these sites.
@@ -102,6 +103,7 @@ class Activator
     private function runSQL($sql, $tableName)
     {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required to check table existence during plugin activation
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $tableName)) != $tableName) {
             require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
             dbDelta($sql);

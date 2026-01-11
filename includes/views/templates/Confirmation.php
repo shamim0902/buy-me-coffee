@@ -90,8 +90,7 @@ if ($paymentData): ?> <div class="buymecoffee_confirmation">
                 </strong>
             </div>
                 <!--                <strong>Date:</strong>-->
-                <p style="text-align: center;font-size: 12px;margin: 8px;font-family: monospace;"><?php $timestamp = strtotime($paymentData->created_at??'');
-                    $formatted_date = gmdate("jS F Y \a\\t g:i A", $timestamp); echo esc_html($formatted_date); ?></p>
+                <p style="text-align: center;font-size: 12px;margin: 8px;font-family: monospace;"><?php echo esc_html(gmdate("jS F Y \a\\t g:i A", strtotime($paymentData->created_at ?? ''))); ?></p>
         </div>
         <hr/>
         <div class='content'>

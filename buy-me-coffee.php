@@ -4,7 +4,7 @@
 Plugin Name: Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal
 Plugin URI: https://wpminers.com/buymecoffee/
 Description: Easy way to collect donations like "buy me a coffee" directly your own Stripe and PayPal for free
-Version: 1.0.5
+Version: 1.0.6
 Author: wpminers
 Author URI: http://www.wpminers.com/
 License: GPLv2 or later
@@ -34,7 +34,7 @@ if (!defined('ABSPATH')) {
 }
 if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_VERSION_LITE', true);
-    define('BUYMECOFFEE_VERSION', '1.0.5');
+    define('BUYMECOFFEE_VERSION', '1.0.6');
     define('BUYMECOFFEE_MAIN_FILE', __FILE__);
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
@@ -129,12 +129,15 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
         public function registerIpnHooks()
         {
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- IPN webhook listener
             if (isset($_REQUEST['buymecoffee_ipn_listener']) && isset($_REQUEST['method'])) {
                 add_action('wp', function () {
-                    $paymentMethod = sanitize_text_field($_REQUEST['method']);
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- IPN webhook listener
+                    $paymentMethod = sanitize_text_field(wp_unslash($_REQUEST['method']));
                     do_action('buymecoffee_ipn_endpoint_' . $paymentMethod);
                 });
             }
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
         }
 
         public function textDomain()
@@ -164,7 +167,8 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
     // disabled admin-notice on dashboard
     add_action('admin_init', function () {
-        if (isset($_GET['page']) && $_GET['page'] === 'buy-me-coffee.php') {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin page check only
+        if (isset($_GET['page']) && sanitize_text_field(wp_unslash($_GET['page'])) === 'buy-me-coffee.php') {
             remove_all_actions('admin_notices');
         }
     });

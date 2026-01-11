@@ -139,8 +139,10 @@ class Render
             $customAmount = intval(Arr::get($args, 'custom', $defaultAmount));
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameter
         if (isset($_GET['custom'])) {
             $isCustomPay = true;
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameter
             $customAmount = intval($_GET['custom']);
         }
 

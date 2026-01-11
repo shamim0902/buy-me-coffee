@@ -111,7 +111,7 @@ class Menu
 
     public function enqueueAssets()
     {
-        do_action('buy-me-coffee/render_admin_app');
+        do_action('buymecoffee_render_admin_app');
 
         Vite::enqueueScript(
             'buy-me-coffee_boot',
@@ -122,7 +122,7 @@ class Menu
         );
 
         // 3rd party developers can now add their scripts here
-        do_action('buy-me-coffee/booting_admin_app');
+        do_action('buymecoffee_booting_admin_app');
 
         Vite::enqueueScript(
             'buy-me-coffee_js',
@@ -135,7 +135,7 @@ class Menu
         //enqueue css file using wp_enqueue (already compiled with vite)
         Vite::enqueueStyle('buy-me-coffee_admin_css', 'scss/admin/app.scss', array(), BUYMECOFFEE_VERSION, true);
 
-        $BuyMeCoffeeAdminVars = apply_filters('buy-me-coffee/admin_app_vars', array(
+        $BuyMeCoffeeAdminVars = apply_filters('buymecoffee_admin_app_vars', array(
             'assets_url' => Vite::staticPath(),
             'ajaxurl' => admin_url('admin-ajax.php'),
             'preview_url' => site_url('?share_coffee'),

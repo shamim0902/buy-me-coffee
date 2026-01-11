@@ -24,6 +24,7 @@ class Stripe extends BaseMethods
 
         add_action('buymecoffee_make_payment_stripe', array($this, 'makePayment'), 10, 3);
         add_action("buymecoffee_ipn_endpoint_stripe", array($this, 'verifyIpn'), 10, 2);
+        add_action('buymecoffee_get_payment_settings_stripe', array($this, 'getPaymentSettings'));
     }
 
     public function makePayment($transactionId, $entryId, $form_data)
@@ -62,10 +63,12 @@ class Stripe extends BaseMethods
 
     public function paymentConfirmation()
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         if (!isset($_REQUEST['intentId'])) {
             return;
         }
-        $intentId = sanitize_text_field($_REQUEST['intentId']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
+        $intentId = sanitize_text_field(wp_unslash($_REQUEST['intentId']));
         (new PaymentHelper())->updatePaymentData($intentId);
     }
 
@@ -148,10 +151,13 @@ class Stripe extends BaseMethods
     {
         $data = (new IPN())->IPNData();
 
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r -- Debug logging for Stripe webhook
         error_log(print_r($data));
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
         error_log("data event");
 
         if (!$data) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
             error_log('invalid data');
             return;
         }
@@ -162,6 +168,7 @@ class Stripe extends BaseMethods
         $orderHash = $this->getOrderHash($invoice);
 
         if (!$invoice || is_wp_error($invoice)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
             error_log('invoice not found');
             return;
         }
@@ -242,7 +249,7 @@ class Stripe extends BaseMethods
     public function maybeLoadModalScript()
     {
         //phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
-        wp_enqueue_script('wpm-buymecoffee-checkout-sdk-' . $this->method, 'https://js.stripe.com/v3/');
+        wp_enqueue_script('wpm-buymecoffee-checkout-sdk-' . $this->method, 'https://js.stripe.com/v3/', array(), null, true);
         Vite::enqueueScript('wpm-buymecoffee-checkout-handler-' . $this->method, 'js/PaymentMethods/stripe-checkout.js', ['wpm-buymecoffee-checkout-sdk-stripe', 'jquery'], '1.0.1', true);
     }
 

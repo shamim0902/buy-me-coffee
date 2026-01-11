@@ -12,6 +12,7 @@ class SubmissionHandler
 {
     public function handleSubmission()
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission, no nonce required
         if (!isset($_REQUEST['form_data'])) {
             wp_send_json_error(array(
                 'message' => __("Invalid form data", 'buy-me-coffee')
@@ -19,12 +20,17 @@ class SubmissionHandler
         }
 
         //Let's sanitize all data
-        $form_data = $this->sanitizeFormData($_REQUEST['form_data']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Form data is sanitized in sanitizeFormData method
+        $form_data = $this->sanitizeFormData(wp_unslash($_REQUEST['form_data']));
 
-        $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field($_REQUEST['payment_method']) : 'paypal';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
+        $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : 'paypal';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
         $paymentTotal = isset($_REQUEST['payment_total']) ? intval($_REQUEST['payment_total']) : 0;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
         $quantity = isset($_REQUEST['coffee_count']) ? intval($_REQUEST['coffee_count']) : 1;
-        $currency = isset($_REQUEST['currency']) ? sanitize_text_field($_REQUEST['currency']) : false;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
+        $currency = isset($_REQUEST['currency']) ? sanitize_text_field(wp_unslash($_REQUEST['currency'])) : false;
 
         if (!$currency) {
             $currency = PaymentHelper::getCurrency();

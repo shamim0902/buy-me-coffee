@@ -1,5 +1,7 @@
 <?php if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly   ?>
-<?php use BuyMeCoffee\Helpers\ArrayHelper as Arr ;?>
+<?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
+use BuyMeCoffee\Helpers\ArrayHelper as Arr ;?>
 
 <div class="buymecoffee_form_preview_wrapper <?php echo sanitize_text_field(Arr::get($template, 'advanced.formShadow')) == 'yes' ? 'buymecoffee_form_preview_shadow' : '' ;?>">
     <style>
@@ -27,11 +29,15 @@
     <h3 class="buymecoffee_form_to">
         Buy
         <span class="buymecoffee_form_to"><?php
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameters
             if (isset($_GET['for'])) {
-                $template['yourName'] = sanitize_text_field($_GET['for']);
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameters
+                $template['yourName'] = sanitize_text_field(wp_unslash($_GET['for']));
             }
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameters
             if (isset($_GET['custom_coffee'])) {
-                $template['custom_coffee'] = esc_html(sanitize_text_field($_GET['custom_coffee']));
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameters
+                $template['custom_coffee'] = esc_html(sanitize_text_field(wp_unslash($_GET['custom_coffee'])));
             }
             echo esc_html($template['yourName'])
             ?></span> <br/>

@@ -2,8 +2,8 @@
 Contributors: wpminers, hasanuzzamanshamim
 Tags: buy me a coffee, donation, payments, stripe payments, fundraising
 Requires at least: 4.5
-Tested up to: 6.7.2
-Stable tag: 1.0.5
+Tested up to: 6.9
+Stable tag: 1.0.6
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -112,33 +112,38 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 3. Guided Quick setup
 4. Buy me a coffee Preview
 5. Stripe Payment settings
-6. Customizer for default template
+6. Customize settings for default template
 7. Filterable Donors/Supporters page
 8. Donor/Supporters Profile page
 
 ## Changelog
-= 1.0.5 April 10, 2025=
+= 1.0.6 January 11, 2026 =
+- Adds PayPal settings validation
+- Fixes translation issue
+- Enhanced security
+
+= 1.0.5 April 10, 2025 =
 - Fixes Chart height issue
 - Fixes Styling issues
 
-= 1.0.4 December 01, 2024=
+= 1.0.4 December 01, 2024 =
 - Adds PayPal Standard Payment on site confirmation
 - Adds New Supporters/Donor profile page
 - Adds Supporters table filter and search
 - Fixes Styling issues
 
-= 1.0.3 August 26, 2024=
+= 1.0.3 August 26, 2024 =
 - Fixes Styling issue
 - Fixes Customizer module issue
 - Fixes Checkout button issue
 
-= 1.0.2 March 10, 2024=
+= 1.0.2 March 10, 2024 =
 - Adds Realtime theme customizer
 
-= 1.0.1 March 07, 2024=
+= 1.0.1 March 07, 2024 =
 - Adds PayPal Pro Payment Gateway
 
-= 1.0.0 March 03, 2024=
+= 1.0.0 March 03, 2024 =
 - Initial release
 
 # Development Docs

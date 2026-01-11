@@ -1114,9 +1114,11 @@ class QueryBuilderHandler
      */
     public function paginate($perPage = null, $columns = array('*'))
     {
-        $currentPage = intval($_GET['page']) ?: 1;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Query builder pagination
+        $currentPage = isset($_GET['page']) ? intval(wp_unslash($_GET['page'])) : 1;
 
-        $perPage = $perPage ?: intval($_REQUEST['per_page']) ?: 15;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Query builder pagination
+        $perPage = $perPage ?: (isset($_REQUEST['per_page']) ? intval(wp_unslash($_REQUEST['per_page'])) : 15);
 
         $skip = $perPage * ($currentPage - 1);
 

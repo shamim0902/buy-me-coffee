@@ -84,7 +84,8 @@
                         this.webhook_url = response.data.webhook_url
                     })
                     .fail(error => {
-                        this.$message.error(error?.responseJSON?.data?.message);
+                        const message = error?.responseJSON?.data?.message || 'Failed to load Stripe settings';
+                        this.$message.error(message);
                     })
                     .always(() => {
                         this.fetching = false;
@@ -105,7 +106,8 @@
                         this.$handleSuccess(response.data.message);
                     })
                     .fail(error => {
-                        this.$message.error(error?.responseJSON?.data?.message);
+                        const message = error?.responseJSON?.data?.message || 'Failed to save Stripe settings';
+                        this.$message.error(message);
                     })
                     .always(() => {
                         this.saving = false;
