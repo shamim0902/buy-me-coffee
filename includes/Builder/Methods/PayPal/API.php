@@ -23,7 +23,7 @@ class API
         } catch (\Exception $e) {
             $message = $e->getMessage() ?: 'Unable to verify PayPal transaction';
             $code = $e->getCode() ?: 500;
-            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
+            throw new \Exception(esc_html($message), intval($code));
         }
 
     }
@@ -45,7 +45,7 @@ class API
         } catch (\Exception $e) {
             $message = $e->getMessage() ?: 'Unable to get access token';
             $code = $e->getCode() ?: 500;
-            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
+            throw new \Exception(esc_html($message), intval($code));
         }
 
         $headers = array(
@@ -99,7 +99,7 @@ class API
         } catch (\Exception $e) {
             $message = $e->getMessage();
             $code = $e->getCode() ?: 500;
-            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
+            throw new \Exception(esc_html($message), intval($code));
         }
         $headers = array(
             "Authorization" => "Bearer " . $accessToken,
@@ -113,7 +113,7 @@ class API
         if (is_wp_error($response)) {
             $message = $response->get_error_message();
             $code = $response->get_error_code() ?: 500;
-            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
+            throw new \Exception(esc_html($message), intval($code));
         }
         $http_code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -191,7 +191,7 @@ class API
         ));
 
         if (is_wp_error($response)) {
-            throw new \Exception(esc_html__($response->get_error_message(), 'buy-me-coffee'));
+            throw new \Exception(esc_html($response->get_error_message()));
         }
 
         $http_code = wp_remote_retrieve_response_code($response);
@@ -204,7 +204,7 @@ class API
             $error = json_decode($body, true);
             $errorMessage = $error['error_description'] ?? $error['error'];
             // Handle authentication error.
-            throw new \Exception(esc_html__($errorMessage, 'buy-me-coffee'), intval($http_code));
+            throw new \Exception(esc_html($errorMessage), intval($http_code));
         }
     }
 

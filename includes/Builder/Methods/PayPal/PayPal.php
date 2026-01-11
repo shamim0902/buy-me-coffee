@@ -87,6 +87,7 @@ class PayPal extends BaseMethods
 
             if (is_wp_error($response)) {
                 wp_send_json_error(array(
+                    /* translators: %s: Error message from PayPal API */
                     'message' => sprintf(__('PayPal API connection failed: %s', 'buy-me-coffee'), $response->get_error_message())
                 ), 400);
             }
@@ -99,6 +100,7 @@ class PayPal extends BaseMethods
                 $errorMessage = isset($error['error_description']) ? $error['error_description'] : (isset($error['error']) ? $error['error'] : 'Invalid credentials');
 
                 wp_send_json_error(array(
+                    /* translators: %s: Error message from PayPal API describing why credentials are invalid */
                     'message' => sprintf(__('PayPal credentials validation failed: %s. Please check your Client ID and Secret Key.', 'buy-me-coffee'), $errorMessage)
                 ), 400);
             }
@@ -106,6 +108,7 @@ class PayPal extends BaseMethods
             // If we reach here, credentials are valid
         } catch (\Exception $e) {
             wp_send_json_error(array(
+                /* translators: %s: Exception error message */
                 'message' => sprintf(__('PayPal validation error: %s', 'buy-me-coffee'), $e->getMessage())
             ), 400);
         }

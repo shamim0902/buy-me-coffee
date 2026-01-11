@@ -71,10 +71,11 @@ class DemoPage
             if ($profileImage == '') {
                 $profileImage = Vite::staticPath() . 'images/profile.png';
             }
+
             //escaped in template, ignoring phpcs here now
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo View::make('templates.BasicTemplate', [
-                'template' => $template,
+                'template' => $this->sanitizeTemplate($template), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 'type' => 'button',
                 'quote' => esc_html($quote),
                 'show_title' => esc_html(ArrayHelper::get($template, 'formTitle') == 'yes'),
@@ -99,6 +100,92 @@ class DemoPage
         add_filter('template_include', function ($original) {
             return locate_template(array('page.php', 'single.php', 'index.php'));
         }, 999);
+    }
+
+    private function sanitizeTemplate($template)
+    {
+        if (!is_array($template)) {
+            return [];
+        }
+
+        // Define sanitization rules for root level fields
+        $rootFields = [
+            'yourName' => ['type' => 'text', 'default' => ''],
+            'buttonText' => ['type' => 'text', 'default' => ''],
+            'enableMessage' => ['type' => 'text', 'default' => 'no'],
+            'formTitle' => ['type' => 'text', 'default' => 'no'],
+            'enableName' => ['type' => 'text', 'default' => 'no'],
+            'enableEmail' => ['type' => 'text', 'default' => 'no'],
+            'defaultAmount' => ['type' => 'int', 'default' => 5],
+            'custom_coffee' => ['type' => 'int', 'default' => 5],
+            'openMode' => ['type' => 'text', 'default' => 'page'],
+            'currency' => ['type' => 'text', 'default' => 'USD'],
+        ];
+
+        // Define sanitization rules for advanced fields
+        $advancedFields = [
+            'image' => ['type' => 'url', 'default' => ''],
+            'enable' => ['type' => 'text', 'default' => 'yes'],
+            'bgColor' => ['type' => 'text', 'default' => ''],
+            'color' => ['type' => 'text', 'default' => ''],
+            'formShadow' => ['type' => 'text', 'default' => 'no'],
+            'minWidth' => ['type' => 'int', 'default' => 180],
+            'textAlign' => ['type' => 'text', 'default' => 'center'],
+            'minHeight' => ['type' => 'int', 'default' => 43],
+            'fontSize' => ['type' => 'int', 'default' => 21],
+            'radius' => ['type' => 'int', 'default' => 4],
+            'button_style' => ['type' => 'text', 'default' => ''],
+            'bg_style' => ['type' => 'text', 'default' => ''],
+            'border_style' => ['type' => 'text', 'default' => ''],
+            'quote' => ['type' => 'text', 'default' => ''],
+        ];
+
+        $sanitized = [];
+
+        // Sanitize root level fields
+        foreach ($rootFields as $field => $config) {
+            $sanitized[$field] = $this->sanitizeField($template, $field, $config['type'], $config['default']);
+        }
+
+        // Sanitize advanced fields
+        if (isset($template['advanced']) && is_array($template['advanced'])) {
+            $sanitized['advanced'] = [];
+            foreach ($advancedFields as $field => $config) {
+                $sanitized['advanced'][$field] = $this->sanitizeField($template['advanced'], $field, $config['type'], $config['default']);
+            }
+        } else {
+            $sanitized['advanced'] = [];
+        }
+
+        // Preserve any other fields that might exist
+        foreach ($template as $key => $value) {
+            if (!isset($sanitized[$key])) {
+                if (is_array($value)) {
+                    $sanitized[$key] = array_map('sanitize_text_field', $value);
+                } else {
+                    $sanitized[$key] = sanitize_text_field($value);
+                }
+            }
+        }
+
+        return $sanitized;
+    }
+
+    private function sanitizeField($data, $field, $type, $default)
+    {
+        if (!isset($data[$field])) {
+            return $default;
+        }
+
+        switch ($type) {
+            case 'int':
+                return absint($data[$field]);
+            case 'url':
+                return esc_url_raw($data[$field]);
+            case 'text':
+            default:
+                return sanitize_text_field($data[$field]);
+        }
     }
 
     public static function getSanitizedArguments($args): array
