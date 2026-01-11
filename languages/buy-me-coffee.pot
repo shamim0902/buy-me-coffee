@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Buy me coffee widgets - fundraise into own account\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-03-06 17:28+0000\n"
+"POT-Creation-Date: 2026-01-11 06:50+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: \n"
@@ -16,19 +16,27 @@ msgstr ""
 "X-Loco-Version: 2.6.6; wp-6.5-beta3\n"
 "X-Domain: buy-me-coffee"
 
-#: includes/Classes/Menu.php:21 includes/views/templates/BasicTemplate.php:10
+#: includes/Builder/Methods/PayPal/API.php:34
+msgid "API path is required"
+msgstr ""
+
+#. Name of the plugin
+msgid "Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal"
+msgstr ""
+
+#: includes/Classes/Menu.php:21 includes/views/templates/BasicTemplate.php:11
 msgid "Buy Me Coffee"
 msgstr ""
 
-#: buy-me-coffee.php:181 includes/Classes/Menu.php:37
+#: includes/Classes/Menu.php:37
 msgid "Dashboard"
 msgstr ""
 
-#: buy-me-coffee.php:184
+#: buy-me-coffee.php:187
 msgid "Demo"
 msgstr ""
 
-#: buy-me-coffee.php:183
+#: buy-me-coffee.php:186
 msgid "Docs"
 msgstr ""
 
@@ -38,24 +46,23 @@ msgid ""
 "Stripe and PayPal for free"
 msgstr ""
 
-#. Name of the plugin
-msgid "Fundraise with Stripe and PayPal - Buy Me a Coffee button & widgets"
-msgstr ""
-
 #: includes/Classes/Menu.php:54
 msgid "Gateways"
 msgstr ""
 
-#. URI of the plugin
 #. Author URI of the plugin
 msgid "http://www.wpminers.com/"
+msgstr ""
+
+#. URI of the plugin
+msgid "https://wpminers.com/buymecoffee/"
 msgstr ""
 
 #: includes/Classes/AdminAjaxHandler.php:36
 msgid "Invalid buymecoffee_nonce"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:16
+#: includes/Controllers/SubmissionHandler.php:18
 msgid "Invalid form data"
 msgstr ""
 
@@ -63,24 +70,54 @@ msgstr ""
 msgid "Invalid nonce"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:331
+#: includes/Builder/Methods/PayPal/PayPal.php:431
 msgid "Invalid request"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:78
-#: includes/Builder/Methods/Stripe/Stripe.php:95
+#: includes/Models/Supporters.php:122
+msgid "No supporters found!"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:169
+#: includes/Builder/Methods/Stripe/Stripe.php:106
 msgid "Payment Modal is opening, Please complete the payment"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:350
+#: includes/Builder/Methods/PayPal/PayPal.php:468
 msgid "Payment updated successfully"
 msgstr ""
 
-#: includes/Builder/Render.php:274
+#. %s: Error message from PayPal API
+#: includes/Builder/Methods/PayPal/PayPal.php:92
+#, php-format
+msgid "PayPal API connection failed: %s"
+msgstr ""
+
+#. %s: Error message from PayPal API describing why credentials are invalid
+#: includes/Builder/Methods/PayPal/PayPal.php:105
+#, php-format
+msgid ""
+"PayPal credentials validation failed: %s. Please check your Client ID and "
+"Secret Key."
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:52
+msgid ""
+"PayPal Pro requires both Client ID and Secret Key. Please provide valid "
+"credentials."
+msgstr ""
+
+#. %s: Exception error message
+#: includes/Builder/Methods/PayPal/PayPal.php:113
+#, php-format
+msgid "PayPal validation error: %s"
+msgstr ""
+
+#: includes/Builder/Render.php:276
 msgid "Please activate at least one payment method!"
 msgstr ""
 
-#: buy-me-coffee.php:182
+#: buy-me-coffee.php:185
 msgid "Preview"
 msgstr ""
 
@@ -88,20 +125,24 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:143
-#: includes/Classes/AdminAjaxHandler.php:156
+#: includes/Classes/AdminAjaxHandler.php:151
+#: includes/Classes/AdminAjaxHandler.php:164
 msgid "Settings successfully updated"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:40
+msgid "Sorry no transaction created!"
 msgstr ""
 
 #: includes/Classes/Menu.php:43
 msgid "Supporters"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:94
+#: includes/Controllers/SubmissionHandler.php:101
 msgid "Thanks for your support! <3"
 msgstr ""
 
-#: buy-me-coffee.php:183
+#: buy-me-coffee.php:186
 msgid "View Documentation"
 msgstr ""
 
@@ -109,10 +150,10 @@ msgstr ""
 msgid "wpminers"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:175
+#: includes/Builder/Methods/PayPal/PayPal.php:266
 msgid "You are redirected for payment."
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:178
+#: includes/Builder/Methods/PayPal/PayPal.php:269
 msgid "Your are redirecting to paypal now"
 msgstr ""
