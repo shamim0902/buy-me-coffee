@@ -119,7 +119,7 @@ class Supporters extends Model
             ->first();
 
         if (!$supporter) {
-            throw new Exception(__('No supporters found!', 'buy-me-coffee'));
+            throw new Exception(esc_html__('No supporters found!', 'buy-me-coffee'));
         }
 
         //get transaction

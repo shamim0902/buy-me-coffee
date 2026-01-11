@@ -24,6 +24,93 @@ class PayPal extends BaseMethods
         add_action('buymecoffee_make_payment_paypal', array($this, 'makePayment'), 10, 3);
         add_action('buymecoffee_paypal_action_web_accept', array($this, 'updateStatus'), 10, 2);
         add_action("buymecoffee_ipn_endpoint_paypal", array($this, 'verifyIpn'), 10, 2);
+        add_filter('buymecoffee_before_save_paypal', array($this, 'validateProSettings'), 10, 1);
+    }
+
+    public function validateProSettings($settings)
+    {
+        // Only validate if payment type is 'pro'
+        if (!isset($settings['payment_type']) || $settings['payment_type'] !== 'pro') {
+            return $settings;
+        }
+
+        // Get the payment mode to determine which keys to validate
+        $mode = isset($settings['payment_mode']) ? $settings['payment_mode'] : 'test';
+
+        if ($mode === 'test') {
+            $clientId = isset($settings['test_public_key']) ? trim($settings['test_public_key']) : '';
+            $clientSecret = isset($settings['test_secret_key']) ? trim($settings['test_secret_key']) : '';
+        } else {
+            $clientId = isset($settings['live_public_key']) ? trim($settings['live_public_key']) : '';
+            $clientSecret = isset($settings['live_secret_key']) ? trim($settings['live_secret_key']) : '';
+        }
+
+        // Check if keys are provided
+        if (empty($clientId) || empty($clientSecret)) {
+            wp_send_json_error(array(
+                'message' => __('PayPal Pro requires both Client ID and Secret Key. Please provide valid credentials.', 'buy-me-coffee')
+            ), 400);
+        }
+
+        // Validate credentials by attempting to get an access token
+        try {
+            // Temporarily set the settings for API validation
+            $tempSettings = new PayPalSettings();
+
+            // Create a mock settings object for validation
+            $validationSettings = array(
+                'payment_mode' => $mode,
+                'test_public_key' => isset($settings['test_public_key']) ? $settings['test_public_key'] : '',
+                'test_secret_key' => isset($settings['test_secret_key']) ? $settings['test_secret_key'] : '',
+                'live_public_key' => isset($settings['live_public_key']) ? $settings['live_public_key'] : '',
+                'live_secret_key' => isset($settings['live_secret_key']) ? $settings['live_secret_key'] : '',
+            );
+
+            // Test the credentials by getting access token
+            $apiUrl = $mode === 'test'
+                ? 'https://api-m.sandbox.paypal.com/v1/oauth2/token'
+                : 'https://api.paypal.com/v1/oauth2/token';
+
+            $auth = base64_encode($clientId . ':' . $clientSecret);
+
+            $response = wp_remote_post($apiUrl, array(
+                'headers' => array(
+                    'Authorization' => 'Basic ' . $auth,
+                    'Accept' => 'application/json',
+                    'Accept-Language' => 'en_US',
+                ),
+                'body' => array(
+                    'grant_type' => 'client_credentials',
+                ),
+                'timeout' => 30
+            ));
+
+            if (is_wp_error($response)) {
+                wp_send_json_error(array(
+                    'message' => sprintf(__('PayPal API connection failed: %s', 'buy-me-coffee'), $response->get_error_message())
+                ), 400);
+            }
+
+            $http_code = wp_remote_retrieve_response_code($response);
+            $body = wp_remote_retrieve_body($response);
+
+            if ($http_code !== 200) {
+                $error = json_decode($body, true);
+                $errorMessage = isset($error['error_description']) ? $error['error_description'] : (isset($error['error']) ? $error['error'] : 'Invalid credentials');
+
+                wp_send_json_error(array(
+                    'message' => sprintf(__('PayPal credentials validation failed: %s. Please check your Client ID and Secret Key.', 'buy-me-coffee'), $errorMessage)
+                ), 400);
+            }
+
+            // If we reach here, credentials are valid
+        } catch (\Exception $e) {
+            wp_send_json_error(array(
+                'message' => sprintf(__('PayPal validation error: %s', 'buy-me-coffee'), $e->getMessage())
+            ), 400);
+        }
+
+        return $settings;
     }
 
     public function sanitize($settings)

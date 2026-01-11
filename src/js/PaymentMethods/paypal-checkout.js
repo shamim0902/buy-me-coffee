@@ -5,6 +5,21 @@ class PaypalCheckout {
     }
 
     init() {
+        // Check if PayPal SDK is loaded
+        if (typeof paypal === 'undefined') {
+
+            // Check if SDK script exists in the page
+            const sdkScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
+            if (sdkScript) {
+                // Wait for the script to load and try again
+                setTimeout(() => this.init(), 200);
+            } else {
+                console.error('PayPal SDK script not found in DOM. Please check PayPal configuration.');
+                this.form.find('.buymecoffee_pay_methods')?.parent().prepend("<p style='color: red;'>PayPal SDK failed to load. Please check your PayPal Client ID configuration.</p>");
+            }
+            return;
+        }
+
         this.form.find('.wpm_submit_button, .buymecoffee_pay_method').hide()
 
         let paypalButtonContainer = jQuery("<div class='buymecoffee_paypal_button_wrap' style='padding: 0px;'></div>")

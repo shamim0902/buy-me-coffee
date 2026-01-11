@@ -108,7 +108,13 @@ import ClipboardJS from 'clipboard';
                         this.fetching = false;
                     })
                     .fail(error => {
-                        this.$message.error(error.responseJSON.data.message);
+                        ElMessage({
+                            message: error?.responseJSON?.data?.message || 'Failed to load PayPal settings',
+                            type: 'error',
+                            offset: 40,
+                            dangerouslyUseHTMLString: true,
+                            duration: 5000
+                        });
                     })
                     .always(() => {
                         this.fetching = false;
@@ -126,10 +132,22 @@ import ClipboardJS from 'clipboard';
                     buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
                 })
                     .then(response => {
-                        this.$handleSuccess(response?.data?.message);
+                        ElMessage({
+                            message: response?.data?.message || 'PayPal settings saved successfully',
+                            type: 'success',
+                            offset: 40,
+                            dangerouslyUseHTMLString: true,
+                            duration: 3000
+                        });
                     })
                     .fail(error => {
-                        this.$message.error(error?.responseJSON?.data?.message);
+                        ElMessage({
+                            message: error?.responseJSON?.data?.message || 'Failed to save PayPal settings',
+                            type: 'error',
+                            offset: 40,
+                            dangerouslyUseHTMLString: true,
+                            duration: 5000
+                        });
                     })
                     .always(() => {
                         this.saving = false;
@@ -153,6 +171,9 @@ import ClipboardJS from 'clipboard';
     }
 </script>
 
+<script setup>
+import { ElMessage } from 'element-plus'
+</script>
 <style lang="scss">
 
 </style>

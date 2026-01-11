@@ -37,9 +37,9 @@ class Vite
      * @param null $version
      * @param bool $inFooter
      * @return Vite
-     * 
+     *
      * @throws Exception If dev mode is on and file not found in manifest
-     * 
+     *
      */
     private function enqueueScript($handle, $src, $dependency = [], $version = null, $inFooter = false)
     {
@@ -77,7 +77,7 @@ class Vite
         } else {
             $srcPath = static::getDevPath() . $src;
         }
-    
+
         wp_enqueue_style(
             $handle,
             $srcPath,
@@ -132,7 +132,13 @@ class Vite
     private function addModuleToScript($tag, $handle, $src)
     {
         if (in_array($handle, (static::$instance)->moduleScripts)) {
-            $tag = '<script type="module" src="' . esc_url($src) . '"></script>';
+            return wp_get_script_tag(
+                [
+                    'src'  => esc_url($src),
+                    'type' => 'module',
+                    'id'   => $handle . '-js'
+                ]
+            );
         }
         return $tag;
     }

@@ -21,7 +21,9 @@ class API
             }
             return $payment_intent;
         } catch (\Exception $e) {
-            throw new \Exception(esc_html($e->getMessage()), $e->getCode());
+            $message = $e->getMessage() ?: 'Unable to verify PayPal transaction';
+            $code = $e->getCode() ?: 500;
+            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
         }
 
     }
@@ -41,7 +43,9 @@ class API
         try {
             $accessToken = static::getAccessToken();
         } catch (\Exception $e) {
-            throw new \Exception(esc_html($e->getMessage()));
+            $message = $e->getMessage() ?: 'Unable to get access token';
+            $code = $e->getCode() ?: 500;
+            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
         }
 
         $headers = array(
@@ -93,7 +97,9 @@ class API
         try {
             $accessToken = static::getAccessToken();
         } catch (\Exception $e) {
-            throw new \Exception(esc_html($e->getMessage()));
+            $message = $e->getMessage();
+            $code = $e->getCode() ?: 500;
+            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
         }
         $headers = array(
             "Authorization" => "Bearer " . $accessToken,
@@ -105,7 +111,9 @@ class API
         ]);
 
         if (is_wp_error($response)) {
-            throw new \Exception(esc_html($response->get_error_message()), $response->get_error_code());
+            $message = $response->get_error_message();
+            $code = $response->get_error_code() ?: 500;
+            throw new \Exception(esc_html__($message, 'buy-me-coffee'), intval($code));
         }
         $http_code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -139,7 +147,7 @@ class API
         if (isset($body['details'])) {
             $message = $body['details'][0]['issue'];
         }
-        throw new \Exception(esc_html($message), $http_code);
+        throw new \Exception(esc_html($message), intval($http_code));
     }
 
     protected static function getAuthAPI($mode = 'test')
@@ -167,23 +175,36 @@ class API
 
     public static function makeAccessTokenRequest($apiUrl, $headers, $data)
     {
-        $ch = curl_init($apiUrl);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Convert headers array to associative array for wp_remote_post
+        $wp_headers = array();
+        foreach ($headers as $header) {
+            $parts = explode(':', $header, 2);
+            if (count($parts) === 2) {
+                $wp_headers[trim($parts[0])] = trim($parts[1]);
+            }
+        }
+
+        $response = wp_remote_post($apiUrl, array(
+            'headers' => $wp_headers,
+            'body'    => http_build_query($data),
+            'timeout' => 30
+        ));
+
+        if (is_wp_error($response)) {
+            throw new \Exception(esc_html__($response->get_error_message(), 'buy-me-coffee'));
+        }
+
+        $http_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
 
         if ($http_code == 200) {
-            $response_data = json_decode($response, true);
+            $response_data = json_decode($body, true);
             return $response_data["access_token"];
         } else {
-            $error = json_decode($response, true);
+            $error = json_decode($body, true);
             $errorMessage = $error['error_description'] ?? $error['error'];
             // Handle authentication error.
-            throw new \Exception(esc_html($errorMessage));
+            throw new \Exception(esc_html__($errorMessage, 'buy-me-coffee'), intval($http_code));
         }
     }
 

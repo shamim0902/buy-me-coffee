@@ -42,6 +42,16 @@ class QueryBuilderHandler
     protected $adapterInstance;
 
     /**
+     * @var string|null
+     */
+    protected $adapter;
+
+    /**
+     * @var array|null
+     */
+    protected $adapterConfig;
+
+    /**
      * The PDO fetch parameters to use
      *
      * @var array
@@ -282,7 +292,7 @@ class QueryBuilderHandler
         }
 
         $queryArr = $this->adapterInstance->$type($this->statements, $dataToBePassed);
-        
+
         return  $this->container->build(
             '\\WpFluent\\QueryBuilder\\QueryObject',
             array($queryArr['sql'], $queryArr['bindings'])

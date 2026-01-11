@@ -174,7 +174,6 @@ export default {
       font-size: 23px;
       font-family: cursive;
       color: #000000;
-      text-shadow: 1px 1px 2px black;
     }
   }
 }

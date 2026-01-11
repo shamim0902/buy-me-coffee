@@ -77,7 +77,7 @@ class DemoPage
                 'template' => $template,
                 'type' => 'button',
                 'quote' => esc_html($quote),
-                'show_title' => ArrayHelper::get($template, 'formTitle') == 'yes',
+                'show_title' => esc_html(ArrayHelper::get($template, 'formTitle') == 'yes'),
                 'profile_image' => esc_url($profileImage),
                 'name' => esc_html(ArrayHelper::get($template, 'yourName')),
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
