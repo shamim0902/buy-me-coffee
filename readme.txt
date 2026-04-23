@@ -11,7 +11,7 @@ Easy way to collect donations like "buy me a coffee" directly your own Stripe an
 
 == Description ==
 
-[User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.com/buymecoffee-demo)
+[User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.com/buymecoffee-demo) | [Visit Plugin Site](https://wpminers.com/buymecoffee)
 
 Stripe onsite and PayPal pro module allow you to get paid right on your site. Buy Me a Coffee offers you different templates like donate a coffee or donate a custom amount.
 [youtube https://www.youtube.com/watch?v=m3T5LQ1DOEc&ab_channel=WPMiners]
