@@ -16,7 +16,8 @@ export default [
         name: 'Dashboard',
         component: Dashboard,
         meta: {
-            active: 'dashboard'
+            active: 'dashboard',
+            breadcrumb: 'Dashboard'
         }
     },
     {
@@ -24,35 +25,51 @@ export default [
         name: 'Supporters',
         component: Supporters,
         meta: {
-            active: 'supporters'
+            active: 'supporters',
+            breadcrumb: 'Supporters'
         }
     },
     {
         path: '/settings',
         name: 'Settings',
         component: Settings,
+        meta: {
+            breadcrumb: 'Settings'
+        }
     },
     {
         path: '/supporter/:id',
         name: 'Supporter',
         component: Supporter,
+        meta: {
+            breadcrumb: 'Supporter Detail'
+        }
     },
     {
         path: '/notifications',
         name: 'Notifications',
         component: Notifications,
+        meta: {
+            breadcrumb: 'Notifications'
+        },
         exact: true,
         children: [
             {
                 path: '/email',
                 name: 'Emails',
                 component: Emails,
+                meta: {
+                    breadcrumb: 'Emails'
+                },
                 exact: true
             },
             {
                 path: '/webhook',
                 name: 'Webhook',
                 component: Webhook,
+                meta: {
+                    breadcrumb: 'Webhook'
+                },
                 exact: true
             }
         ]
@@ -61,26 +78,33 @@ export default [
         path: '/gateway',
         name: 'Gateway',
         component: Gateway,
-        exact: true,
-        children: [
-            {
-                path: '/paypal',
-                name: 'paypal',
-                component: PayPal,
-                exact: true
-            },
-            {
-                path: '/stripe',
-                name: 'stripe',
-                component: Stripe,
-                exact: true
-            },
-        ]
+        meta: {
+            breadcrumb: 'Payment Gateways'
+        },
+    },
+    {
+        path: '/stripe',
+        name: 'stripe',
+        component: Stripe,
+        meta: {
+            breadcrumb: 'Stripe Settings'
+        },
+    },
+    {
+        path: '/paypal',
+        name: 'paypal',
+        component: PayPal,
+        meta: {
+            breadcrumb: 'PayPal Settings'
+        },
     },
     {
         path: '/quick-setup',
         name: 'Onboarding',
         component: Onboarding,
+        meta: {
+            breadcrumb: 'Quick Setup'
+        },
         exact: true
     }
 ];

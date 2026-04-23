@@ -1,172 +1,263 @@
 <template>
   <div>
-    <el-table v-loading="fetching" element-loading-text="loading..."
-        class="customers_table"
-        :data="supporters"
-        >
-      <el-table-column sortable prop="id" v-if="!hide_columns.includes('id')"
-          width="80"
-          label="Id">
-      </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('date')"
-          width="180"
-          label="Date">
-        <template #default="scope">
-          <span>{{ scope.row.created_at }}</span>
+    <el-table
+      v-loading="loading"
+      element-loading-text="Loading supporters..."
+      :data="supporters"
+      class="bmc-table"
+      :row-class-name="() => 'bmc-table__row'"
+      @row-click="(row) => handleView(row.id)"
+    >
+      <!-- Supporter (name + email stacked) -->
+      <el-table-column label="Supporter" min-width="220">
+        <template #default="{ row }">
+          <div class="flex flex-col gap-0.5">
+            <span
+              class="bmc-supporter-name"
+              @click.stop="handleView(row.id)"
+            >
+              {{ row.supporters_name || 'Anonymous' }}
+            </span>
+            <span class="bmc-supporter-email">{{ row.supporters_email }}</span>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('name')"
-          prop="supporters_name"
-          width="200"
-          label="Name">
-        <template #default="scope">
-          <a class="text-blue-700 cursor-pointer" @click="handleGet(scope.row.id)">{{ scope.row.supporters_name }}</a>
+
+      <!-- Amount -->
+      <el-table-column label="Amount" width="140">
+        <template #default="{ row }">
+          <span class="bmc-amount" v-html="row.amount_formatted"></span>
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('amount')"
-          label="Amount">
-        <template #default="scope">
-          <span class="wpm_supporters_amount" v-html="scope.row.amount_formatted"></span>
+
+      <!-- Status -->
+      <el-table-column label="Status" width="120">
+        <template #default="{ row }">
+          <StatusBadge :status="row.payment_status" />
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('status')"
-          prop="payment_status"
-          label="Status">
-        <template #default="scope">
-          <span :class="'buymecoffee_status buymecoffee_status_' + scope.row.payment_status" v-html="scope.row.payment_status"></span>
+
+      <!-- Method -->
+      <el-table-column label="Method" width="110">
+        <template #default="{ row }">
+          <span class="bmc-method">{{ row.payment_method ? ucFirst(row.payment_method) : '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('method')"
-          label="Method">
-        <template #default="scope">
-          <img width="48" class="buymecoffee_paid_by_image" v-if="maybeGetMethodImage(scope.row.payment_method)" :src="maybeGetMethodImage(scope.row.payment_method)">
-          <span v-else :class="'buymecoffee_payment_type buymecoffee_payment_type_' + scope.row.payment_method" style="margin-left: 10px">{{ scope.row.payment_method ? scope.row.payment_method : '-' }}</span>
+
+      <!-- Mode -->
+      <el-table-column label="Mode" width="90">
+        <template #default="{ row }">
+          <span
+            v-if="row.payment_mode"
+            class="bmc-mode"
+            :class="row.payment_mode === 'live' ? 'bmc-mode--live' : 'bmc-mode--test'"
+          >
+            {{ row.payment_mode.toUpperCase() }}
+          </span>
+          <span v-else class="bmc-method">-</span>
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('mode')"
-          label="Mode">
-        <template #default="scope">
-          <span :class="'buymecoffee_payment_mode buymecoffee_payment_mode_' + scope.row.payment_mode" style="margin-left: 10px">{{ scope.row.payment_mode ? scope.row.payment_mode : '-' }}</span>
+
+      <!-- Date -->
+      <el-table-column label="Date" width="160">
+        <template #default="{ row }">
+          <span class="bmc-date">{{ row.created_at }}</span>
         </template>
       </el-table-column>
-      <el-table-column
-          v-if="!hide_columns.includes('operations')"
-          label="Operations">
-        <template #default="scope">
-          <el-button-group>
-            <el-button
-                round
-                size="small"
-                icon="View"
-                @click="handleGet(scope.row.id)"></el-button>
-            <el-popconfirm @confirm="handleDelete(scope.row.id)" title="Are you sure to delete this?">
-              <template #reference>
-                <el-button
-                    round
-                    size="small"
-                    type="danger"
-                    icon="Delete">
-                </el-button>
-              </template>
-            </el-popconfirm>
-          </el-button-group>
+
+      <!-- Actions -->
+      <el-table-column label="Actions" width="100" align="right">
+        <template #default="{ row }">
+          <div class="flex items-center justify-end gap-1" @click.stop>
+            <button class="bmc-action-btn" title="View" @click="handleView(row.id)">
+              <Eye :size="15" />
+            </button>
+            <button class="bmc-action-btn bmc-action-btn--danger" title="Delete" @click="confirmDelete(row.id)">
+              <Trash2 :size="15" />
+            </button>
+          </div>
         </template>
       </el-table-column>
+
+      <!-- Empty state -->
+      <template #empty>
+        <EmptyState
+          v-if="!loading"
+          title="No supporters found"
+          description="Supporters will appear here once someone makes a contribution."
+          icon="Heart"
+        />
+      </template>
     </el-table>
-    <br/>
-    <el-pagination
-        v-if="hide_pagination !== 'yes'"
-        @current-change="handleSizeChange"
-        :page-size="posts_per_page"
-        :page-sizes="[50, 100, 200, 300]"
-        background="background"
-        layout="size, sizes, prev, pager, next, total"
-        @size-change="sizeChanged"
-        :page-count="Math.ceil(total / posts_per_page)"
-        :total="total"
-    />
   </div>
 </template>
+
 <script>
+import { Eye, Trash2 } from 'lucide-vue-next';
+import { ElMessageBox } from 'element-plus';
+import StatusBadge from './UI/StatusBadge.vue';
+import EmptyState from './UI/EmptyState.vue';
+
 export default {
-  name: "Supporters",
-  data() {
-    return  {
-      currentPage : this.current
-    }
+  name: 'SupportersTable',
+  components: {
+    Eye,
+    Trash2,
+    StatusBadge,
+    EmptyState
   },
   props: {
-    fetching: {
-      type: Boolean,
-      required: true
-    },
     supporters: {
       type: Array,
-      required: true
+      default: () => []
     },
-    posts_per_page: {
-      type: Number,
-    },
-    total: {
-      type: Number || String,
-    },
-    current: {
-      type: Number || String,
-    },
-    hide_pagination: {
-      type: String,
-      default: 'no'
-    },
-    hide_columns: {
-      type: Array,
-      default: []
+    loading: {
+      type: Boolean,
+      default: false
     }
   },
+  emits: ['deleted'],
   methods: {
-    sizeChanged(val) {
-      this.$emit('sizeChanged', val);
+    ucFirst(text) {
+      if (!text) return '';
+      return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
     },
-    handleSizeChange(val) {
-      this.currentPage = val-1;
-      this.$emit('pageChanged', this.currentPage);
+    handleView(id) {
+      this.$router.push({ name: 'Supporter', params: { id } });
     },
-    handleGet(id) {
-      this.$router.push({ name: 'Supporter', params: { id: id } })
+    confirmDelete(id) {
+      ElMessageBox.confirm('This supporter record will be permanently removed.', 'Delete supporter?', {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      }).then(() => this.handleDelete(id)).catch(() => {});
     },
     handleDelete(id) {
       this.$post({
         action: 'buymecoffee_admin_ajax',
         route: 'delete_supporter',
-        data: {
-          id: id,
-        },
+        data: { id },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-      }).then(() => {
-        this.$handleSuccess('This record has been deleted.')
-        this.$emit('fetchSupporters');
-      }).catch((e) => {
-        this.$handleError(e)
       })
-    },
-    maybeGetMethodImage(method) {
-      if (method === 'paypal') {
-        return window.BuyMeCoffeeAdmin.assets_url + 'images/' + 'PayPal.svg';
-      } else if (method === 'stripe') {
-        return window.BuyMeCoffeeAdmin.assets_url + 'images/' + 'stripe.svg';
-      } else {
-        return false;
-      }
-    },
+        .then(() => {
+          this.$handleSuccess('Supporter has been deleted successfully.');
+          this.$emit('deleted');
+        })
+        .fail((error) => {
+          this.$handleError(error);
+        });
+    }
   }
-}
+};
 </script>
 
-<style scoped lang="scss">
+<style scoped>
+.bmc-table {
+  --el-table-border-color: var(--border-secondary);
+  --el-table-header-bg-color: var(--bg-secondary);
+  --el-table-header-text-color: var(--text-secondary);
+  --el-table-row-hover-bg-color: var(--bg-secondary);
+  --el-table-text-color: var(--text-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 
+.bmc-table :deep(.bmc-table__row) {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-default);
+}
+
+.bmc-table :deep(th .cell) {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-sans);
+}
+
+.bmc-table :deep(td .cell) {
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+}
+
+.bmc-supporter-name {
+  font-weight: 600;
+  color: var(--color-primary-600);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-default);
+}
+.bmc-supporter-name:hover {
+  color: var(--color-primary-700);
+  text-decoration: underline;
+}
+
+.bmc-supporter-email {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.bmc-amount {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.bmc-method {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.bmc-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.bmc-mode--live {
+  background: var(--color-success-50);
+  color: var(--color-success-700);
+  border: 1px solid var(--color-success-500);
+}
+.bmc-mode--test {
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+  border: 1px solid var(--color-warning-500);
+}
+
+.bmc-date {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Action buttons */
+.bmc-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-default);
+}
+.bmc-action-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--color-neutral-300);
+}
+.bmc-action-btn--danger:hover {
+  background: var(--color-error-50);
+  color: var(--color-error-600);
+  border-color: var(--color-error-500);
+}
 </style>

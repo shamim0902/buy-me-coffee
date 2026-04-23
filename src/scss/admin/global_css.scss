@@ -1,328 +1,58 @@
-a:focus{
-    outline: none !important;
-    box-shadow: none !important;
-}
-a:active {
-    outline: 0 !important;
-}
-.main-content {
-    background: white;
-    width: 100%;
-    margin-right: 26px;
-    border: 1px solid #ffa92b;
-    border-radius: 15px;
-    .el-collapse-item__header {
-        background: none;
-    }
-    .el-collapse-item__wrap {
-        background: none;
-    }
-    .wpm-btm-preview {
-        display: flex;
-        align-content: space-around;
-        justify-content: flex-start;
-        flex-wrap: wrap;
-        flex-direction: column;
-    }
-}
+// ============================================================
+// Buy Me Coffee — Global CSS (minimal, most styles are in Vue components)
+// ============================================================
 
-.buymecoffee_report_count{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
-    img{
-        width: 80px;
-    }
-}
-
-.wpm-template {
-    &-inner {
-
-    }
-    &-bottom {
-        margin-top: 20px;
-    }
-}
-.buymecoffee_menu_title {
-    font-weight: 200;
-    font-size: 22px;
-}
-.buymecoffee_title {
-    font-size: 17px;
-}
-.buymecoffee_menu_graph_title {
-    font-weight: 200;
-    font-size: 18px;
-}
-input::placeholder {
-    font-style: italic;
-    font-weight: 100;
-}
-
-.wpm_currency_select {
-    input {
-        border: none;
-        background: #fff;
-    }
-    .is-focus input{
-        border: none !important;
-        outline: none !important;
-    }
-}
-
-.buymecoffee {
-    &_payment_settings {
-        background: #f6fffc;;
-        max-width: 100%;
-        padding: 24px;
-        border-radius: 7px;
-        min-height: 500px;
-    }
-    &-editor {
-        box-shadow: rgb(17 12 46 / 15%) 0px 48px 100px 0px;
-        border-radius: 6px;
-    }
-    &_template_section {
-        border: 1px solid #e7e7e7cc;
-        border-radius: 6px;
-        padding: 16px;
-        margin-bottom: 20px;
-    }
-}
-
-.buy-me-coffee_app{
-    padding: 6px 16px 6px 0px;
-}
-
-.upcoming_feature_notice {
-    position: absolute;
-    z-index: 99;
-    background: #99e9b4;
-    width: 448px;
-    box-shadow: 1px 2px 11px #ccc;
-    text-align: center;
-    font-size: 25px;
-    padding: 36px 0px;
-    border-radius: 16px;
-    margin: 125px auto;
-    color: #636363;
-    font-family: monospace;
-}
-
-
-//settings page
-.buymecoffee_settings_image {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    align-content: center;
-    gap: 20px;
-    img {
-        width: 120px;
-        border-radius: 50%;
-        border: 4px solid #ccc;
-    }
-    button {
-        padding: 10px;
-        line-height: 16px;
-        background: rgba(141, 202, 255, 0.84);
-        border: none;
-        border-radius: 6px;
-        width:64px;
-        cursor: pointer;
-    }
-}
-
-    //dashboard css
-    span.buymecoffee_payment_type {
-        padding: 2px 6px;
-        border-radius: 5px;
-        text-transform: capitalize;
-        border: 1px solid #ccc;
-        background: #42a5ff6e;
-    }
-
-    .buymecoffee_status {
-        padding: 2px 6px;
-        border-radius: 5px;
-        color: #141414;
-        text-transform: capitalize;
-        border: 1px solid #ccc;
-        font-size: 12px;
-        &_paid {
-            border: 1px solid #1affb280;
-            background: #c6ffec80;
-        }
-        &_pending {
-            border: 1px solid rgba(255, 235, 59, 0.55);
-            background: #fef9c3;
-        }
-        &_cancelled {
-            border: 1px solid #ff0b0b;
-            background: #ff0b0b;
-            color: #fff;
-        }
-        &_failed {
-            border: 1px solid #ff0b0b;
-            background: #ffa2a2;
-        }
-        &_refunded {
-            border: 1px solid rgb(137, 137, 137);
-            background: #c0c0c0;
-        }
-    }
-
-    .customers_table table tr {
-        background-color: #f2fffe !important;
-    }
-    thead th {
-        background: #f1fffe !important;
-        color: #3f7098;
-    }
-
-    .buymecoffee_payment_mode {
-        text-transform: uppercase;
-        font-family: monospace;
-        font-weight: 600;
-        font-size: 14px;
-        &_live {
-            color: #4CAF50;
-        }
-        &_test {
-            color: #607D8B;
-        }
-    }
-
-
-    //gateways
-
-.buymecoffee_gateways {
-    box-shadow: rgb(17 12 46 / 15%) 0px 8px 100px 0px;
-    background: #f6fffc;
-    border-radius: 6px;
-    padding: 24px;
-    display: flex;
-    min-height: 500px;
-    flex-direction: column;
-}
-
-.buymecoffee_gateway_menu {
-    display: flex;
-    justify-content: center;
-}
-
-.buymecoffee_gateway_item {
-    gap: 20px;
-    max-width: 400px;
-    display: flex;
-    align-items: center;
-    border: 1px solid #dbdbdb;
-    padding: 1px 20px;
-    cursor:pointer;
-    img {
-        filter: grayscale(1);
-        opacity: 0.6;
-    }
-    .active {
-        img{
-            opacity: 1;
-            filter: grayscale(0);
-        }
-    }
-
-    &:hover {
-        box-shadow: rgb(50 50 93 / 25%) 2px 2px 3px 0px, rgb(0 0 0 / 30%) 0px 30px 60px -30px;
-    }
-}
-
-//supporter
-table.wpm_supporter_payments {
-    td{
-        padding: 12px;
-    }
-}
-
-//quick setup
-.quick_payment_section .buymecoffee_payment_settings {
-    background: none !important;
-    box-shadow: none !important;
-}
-
-.quick_setup_tour {
-    transition-duration: 2s;
-    padding: 24px;
-    text-align: center;
-    margin-bottom: 24px;
-    background: linear-gradient(84deg, #fffeda54, #cee8fd);
-    box-shadow: rgb(17 12 46 / 15%) 1px 7px 100px 8px;
-    border-radius: 7px;
-    font-size: 16px;
-    color: #6d6c6c;
-    cursor: pointer;
-    line-height: 36px;
-    &:hover {
-        color: #977f1e;
-    }
-    i {
-        font-size: 30px;
-        margin-right:12px
-    }
-}
-
-//global menu settings
+// App container
 div#buy-me-coffee_app {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
     max-width: 100%;
-    padding-top: 24px;
-}
-.buymecoffee_body {
-    width: 92%;
 }
 
-.buymecoffee_app_menu {
-    padding: 16px;
-    max-width: 72px;
-    background: #f6fffc;
-    box-shadow: rgb(17 12 46 / 15%) 0px 8px 100px 0px;
-    border-radius: 6px;
-    min-height: 450px;
-    li{
-        margin-bottom: 42px!important;
-        a {
-            display: flex;
-            text-decoration: none;
-            font-size: 12px;
-            flex-direction: column;
-            align-items: center;
-            margin: 0;
-            color: #0cc7c0;
-        }
-        img {
-            filter: drop-shadow(1px 1px 0px #03a9f4);
-        }
+// WP admin sets svg:not(:root) { overflow: hidden } which clips Lucide icon strokes.
+// Override for everything inside our app root.
+div#buy-me-coffee_app svg {
+    overflow: visible;
+}
+
+// Legacy status classes (kept for backward compatibility with any 3rd-party extensions)
+.buymecoffee_status {
+    padding: 2px 8px;
+    border-radius: 9999px;
+    text-transform: capitalize;
+    font-size: 12px;
+    font-weight: 500;
+    &_paid {
+        background: var(--color-success-50);
+        color: var(--color-success-700);
+        border: 1px solid var(--color-success-500);
     }
-    .active {
-        //a {
-            filter: hue-rotate(43deg);
-        //}
-        &::before {
-            width: 0;
-            height: 0;
-            border-top: 10px solid #0000;
-            border-bottom: 10px solid #0000;
-            border-right: 10px solid #81cda1;
-            content: '';
-            filter: hue-rotate(43deg);
-            position: absolute;
-            left: -26px;
-            top: 8px;
-        }
+    &_pending {
+        background: var(--color-warning-50);
+        color: var(--color-warning-700);
+        border: 1px solid var(--color-warning-500);
+    }
+    &_failed {
+        background: var(--color-error-50);
+        color: var(--color-error-700);
+        border: 1px solid var(--color-error-500);
+    }
+    &_refunded {
+        background: var(--color-neutral-100);
+        color: var(--color-neutral-600);
+        border: 1px solid var(--color-neutral-300);
+    }
+    &_cancelled {
+        background: var(--color-error-100);
+        color: var(--color-error-700);
+        border: 1px solid var(--color-error-500);
     }
 }
 
-body::-webkit-scrollbar {
-    display: none;  /* Safari and Chrome */
+// Payment mode badges
+.buymecoffee_payment_mode {
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 12px;
+    &_live { color: var(--color-success-600); }
+    &_test { color: var(--color-neutral-500); }
 }

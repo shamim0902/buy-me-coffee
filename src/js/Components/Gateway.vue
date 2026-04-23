@@ -1,82 +1,167 @@
 <template>
-    <div class="buymecoffee_main_container input_green_border">
-        <el-row class="buymecoffee_gateways">
-            <h1 class="buymecoffee_menu_title">Payment Gateways</h1>
-           <div class="buymecoffee_gateway_menu">
-             <div v-for="(gateway, index) in gateways" :key="index" class="buymecoffee_gateway_item" @click="() => this.$router.push({ name: gateway.route })">
-               <div :class="'buymecoffee_gateway_' + gateway.route + (gateway.route === current_route ? ' active' : '')">
-                 <img :src="gateway.image"
-                      style="width:70px; max-width: 70px;"
-                      class="image" />
-               </div>
-             </div>
-         </div>
-          <router-view/>
-        </el-row>
+    <div class="relative min-h-[200px]">
+        <CoffeeLoader :loading="loading" />
+        <PageTitle title="Payment Gateways" subtitle="Configure your payment methods" />
 
+        <div class="bmc-gateways">
+            <div
+                v-for="(gateway, index) in gatewayList"
+                :key="index"
+                class="bmc-gateway-card"
+                @click="$router.push({ name: gateway.route })"
+            >
+                <div class="bmc-gateway-card__icon">
+                    <CreditCard :size="22" />
+                </div>
+                <div class="bmc-gateway-card__body">
+                    <div class="bmc-gateway-card__header">
+                        <h3 class="bmc-gateway-card__name">{{ gateway.title }}</h3>
+                        <span v-if="gateway.status" class="bmc-gateway-card__status bmc-gateway-card__status--connected">
+                            <Check :size="14" /> Connected
+                        </span>
+                        <span v-else class="bmc-gateway-card__status bmc-gateway-card__status--inactive">
+                            Not Connected
+                        </span>
+                    </div>
+                    <p class="bmc-gateway-card__desc">{{ gateway.description }}</p>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script>
- export default {
+import { CreditCard, Check } from 'lucide-vue-next';
+import CoffeeLoader from './UI/CoffeeLoader.vue';
+import PageTitle from './UI/PageTitle.vue';
+
+export default {
     name: 'Gateway',
+    components: { CreditCard, Check, PageTitle, CoffeeLoader },
     data() {
         return {
-            gateways: [
-            ],
-            current_route: this.$route.name
+            gateways: {},
+            loading: true
+        };
+    },
+    computed: {
+        gatewayList() {
+            if (Array.isArray(this.gateways)) return this.gateways;
+            return Object.values(this.gateways);
         }
     },
     methods: {
-      getImage(image){
-        return window.BuyMeCoffeeAdmin.assets_url + '/images/' + image;
-      },
-        // All methods go here
-        goto() {
-            this.$router.push({ name: 'stripe' })
-        },
         getAllMethods() {
+            this.loading = true;
             this.$get({
                 action: 'buymecoffee_admin_ajax',
                 route: 'gateways',
                 buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
             })
-                .then((response) => {
-                    this.gateways = response.data;
-                })
-                .catch((error) => {
-                    console.log(error);
-                });
+            .then((response) => {
+                this.gateways = response.data;
+            })
+            .catch((error) => {
+                console.log(error);
+            })
+            .always(() => {
+                this.loading = false;
+            });
         }
     },
-    computed: {
-        // All computed properties go here
-    },
-    watch: {
-        // All watchers go here
-    }
-    ,
     mounted() {
         this.getAllMethods();
     }
- }
+};
 </script>
+
 <style scoped>
-.bottom {
-  margin-top: 13px;
-  line-height: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.bmc-gateways {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 20px;
+    min-height: 120px;
 }
 
-.button {
-  padding: 0;
-  min-height: auto;
+.bmc-gateway-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.bmc-gateway-card:hover {
+    border-color: var(--color-primary-300, #a5b4fc);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
 }
 
-.image {
-  width: 100%;
-  display: block;
+.bmc-gateway-card__icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.bmc-gateway-card:hover .bmc-gateway-card__icon {
+    background: var(--color-primary-50, #eef2ff);
+    border-color: var(--color-primary-200, #c7d2fe);
+    color: var(--color-primary-600, #4f46e5);
+}
+
+.bmc-gateway-card__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.bmc-gateway-card__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.bmc-gateway-card__name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.bmc-gateway-card__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.bmc-gateway-card__status--connected {
+    color: var(--color-success-600);
+}
+.bmc-gateway-card__status--inactive {
+    color: var(--text-tertiary);
+}
+
+.bmc-gateway-card__desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+    .bmc-gateways {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

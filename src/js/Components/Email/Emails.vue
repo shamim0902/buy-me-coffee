@@ -1,88 +1,87 @@
 <template>
-  <div class="buymecoffee_email">
-    <el-row>
-      <el-col :span="12">
-        <h1 class="buymecoffee_menu_title"></h1>
-      </el-col>
-      <el-col :span="12">
-      </el-col>
-    </el-row>
-    <el-row>
-      <el-table :data="tableData" style="width: 100%">
-        <el-table-column prop="name" label="Name" width="180">
-        </el-table-column>
-        <el-table-column prop="trigger_on" label="Trigger On" width="180">
-          <template #default="scope">
-            <el-popover effect="light" trigger="hover" placement="top" width="auto">
-              <template #default>
-                <div>Event: {{ scope.row.trigger_on }}</div>
-                <div>{{ scope.row.trigger_on === 'on_submit' ? 'This will trigger before the payment.' : 'Trigger only the payment paid!' }}</div>
-              </template>
-              <template #reference>
-                <el-tag>{{ scope.row.trigger_on }}</el-tag>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
-        <el-table-column label="Operations">
-          <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.$index, scope.row)">
-              Edit
-            </el-button>
-            <el-button
-                size="small"
-                type="danger"
-                @click="handleDelete(scope.$index, scope.row)"
-            >
-              Delete
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-row>
-  </div>
+    <div>
+        <el-table :data="tableData" class="w-full" :header-cell-style="{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }">
+            <el-table-column prop="name" label="Name" min-width="180">
+                <template #default="scope">
+                    <span class="text-sm font-medium text-[var(--text-primary)]">{{ scope.row.name }}</span>
+                </template>
+            </el-table-column>
+
+            <el-table-column prop="trigger_on" label="Trigger" min-width="180">
+                <template #default="scope">
+                    <span
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                        :class="scope.row.trigger_on === 'on_submit'
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
+                            : 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'"
+                    >
+                        {{ scope.row.trigger_on === 'on_submit' ? 'On Submit' : 'On Payment Paid' }}
+                    </span>
+                </template>
+            </el-table-column>
+
+            <el-table-column label="Actions" width="180" align="right">
+                <template #default="scope">
+                    <div class="flex items-center justify-end gap-2">
+                        <button
+                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 bg-white text-[var(--text-secondary)] hover:bg-neutral-50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                            @click="handleEdit(scope.$index, scope.row)"
+                        >
+                            <Pencil :size="13" />
+                            Edit
+                        </button>
+                        <button
+                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            @click="handleDelete(scope.$index, scope.row)"
+                        >
+                            <Trash2 :size="13" />
+                            Delete
+                        </button>
+                    </div>
+                </template>
+            </el-table-column>
+        </el-table>
+    </div>
 </template>
+
 <script>
+import { Pencil, Trash2 } from 'lucide-vue-next';
+
 export default {
-  name: "Emails",
-  data() {
-    return {
-      tableData: [
-        {
-          name: "John Brown",
-          trigger_on: 'on_submit',
-          address: "New York No. 1 Lake Park",
-        },
-        {
-          name: "Jim Green",
-          trigger_on: 'on_submit',
-          address: "London No. 1 Lake Park",
-        },
-        {
-          name: "Joe Black",
-          trigger_on: 'on_payment_paid',
-          address: "Sydney No. 1 Lake Park",
-        },
-        {
-          name: "Jon Snow",
-          trigger_on: 'on_payment_paid',
-          address: "Ottawa No. 1 Lake Park",
-        },
-      ],
-    };
-  },
-  methods: {
-    handleEdit(index, row) {
-      console.log(index, row);
+    name: 'Emails',
+    components: {
+        Pencil,
+        Trash2,
     },
-    handleDelete(index, row) {
-      this.tableData.splice(index, 1);
+    data() {
+        return {
+            tableData: [
+                {
+                    name: 'John Brown',
+                    trigger_on: 'on_submit',
+                },
+                {
+                    name: 'Jim Green',
+                    trigger_on: 'on_submit',
+                },
+                {
+                    name: 'Joe Black',
+                    trigger_on: 'on_payment_paid',
+                },
+                {
+                    name: 'Jon Snow',
+                    trigger_on: 'on_payment_paid',
+                },
+            ],
+        };
     },
-  }
-}
+    methods: {
+        handleEdit(index, row) {
+            console.log('Edit:', index, row);
+        },
+        handleDelete(index, row) {
+            this.tableData.splice(index, 1);
+        },
+    },
+};
 </script>
-
-
-<style scoped lang="scss">
-
-</style>

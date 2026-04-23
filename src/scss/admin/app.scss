@@ -1,3 +1,5 @@
+@use './design-tokens.scss';
+@use './dark-mode.scss';
 @use './element-plus.scss';
 @use './global_css.scss';
 
@@ -5,43 +7,59 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --el-color-primary: #14a3b7;
+// ── Accessibility ─────────────────────────────────────────
+*:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
+// ── Element Plus Form Refinements ─────────────────────────
 .el-input__wrapper {
   padding: 0px !important;
 }
 .input_fade_border {
-    .el-input__inner, .el-select__wrapper {
-        border: none !important;
-        box-shadow: none;
-        border-bottom: 1px solid #e4e7ed !important;
-        &:focus, &:active {
-          border: none !important;
-        }
+  .el-input__inner, .el-select__wrapper {
+    border: none !important;
+    box-shadow: none;
+    border-bottom: 1px solid var(--border-primary) !important;
+    &:focus, &:active {
+      border: none !important;
     }
+  }
 }
 .el-textarea__inner, .input_green_border .el-input__inner {
   &:focus, &:active {
     outline: none !important;
     box-shadow: none !important;
   }
-  border: 1px solid #14a3b7 !important;
+  border: 1px solid var(--color-primary-500) !important;
 }
 .wpm_currency_select {
   border: none;
   .el-input__wrapper {
-    border: 1px solid #14a3b7 !important;
+    border: 1px solid var(--color-primary-500) !important;
     .el-input__inner {
-      border:none !important;
+      border: none !important;
     }
     &:focus {
       outline: none;
-        box-shadow: none;
+      box-shadow: none;
     }
   }
 }
 .notice.notice-error {
   display: none !important;
+}
+
+// ── Reduced Motion ────────────────────────────────────────
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

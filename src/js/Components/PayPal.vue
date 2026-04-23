@@ -1,179 +1,231 @@
 <template>
-    <div class="buymecoffee_main_container" v-loading="fetching">
-        <div class="buymecoffee_wrapper buymecoffee_payment_settings">
-            <div class="buymecoffee_header">
-                <h3 class="buymecoffee_title">
-                    <router-link style="text-decoration: none;" :to="{name: 'Gateway'}"></router-link>PayPal Gateway Settings:
-                </h3>
+    <div class="relative min-h-[200px]">
+        <CoffeeLoader :loading="fetching" />
+        <!-- Header card: back + title + enable toggle -->
+        <div class="bg-white rounded-xl border border-neutral-200 shadow-xs px-5 py-4 mb-4 flex items-center gap-4">
+            <button
+                class="flex items-center gap-1 text-sm font-medium cursor-pointer border-0 bg-transparent flex-shrink-0"
+                style="color: var(--text-secondary)"
+                @click="$router.push({ name: 'Gateway' })"
+            >
+                <ArrowLeft :size="15" />
+            </button>
+            <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-semibold text-[var(--text-primary)]">PayPal</h3>
+                <p class="text-xs text-[var(--text-secondary)]">Accept payments via PayPal</p>
             </div>
-            <div style="margin-bottom: 23px;">
-                <label>Enable PayPal Payment
-                    <el-switch active-value="yes" inactive-value="no" active-text="Enable PayPal" v-model="settings.enable"></el-switch>
-                </label>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="text-xs text-[var(--text-secondary)]">{{ settings.enable === 'yes' ? 'Enabled' : 'Disabled' }}</span>
+                <el-switch
+                    v-model="settings.enable"
+                    active-value="yes"
+                    inactive-value="no"
+                />
             </div>
-            <div class="buymecoffee_section_body" :class="settings.enable !== 'yes' ? 'payment-inactive' : ''">
-                <el-form :label-position="labelPosition" rel="paypal_settings" :model="settings" label-width="220px">
-                  <el-form-item label="PayPal Payment Mode">
-                    <el-radio-group v-model="settings.payment_mode">
-                      <el-radio label="test">Sandbox Mode</el-radio>
-                      <el-radio label="live">Live Mode</el-radio>
-                    </el-radio-group>
-                  </el-form-item>
-                  <el-tabs v-model="settings.payment_type" class="demo-tabs">
-                    <el-tab-pane label="PayPal pro" name="pro">
-                      <div v-if="settings.payment_mode === 'test'">
-                        <el-form-item label="Test Public key">
-                          <el-input type="text" size="small" v-model="settings.test_public_key"
-                                    placeholder="Public key from paypal dashboard"/>
-                        </el-form-item>
-                        <el-form-item label="Test Secret key">
-                          <el-input type="password" size="small" v-model="settings.test_secret_key"
-                                    placeholder="Public key from paypal dashboard"/>
-                        </el-form-item>
-                      </div>
-                      <div v-else>
-                        <el-form-item label="Live Public key">
-                          <el-input type="text" size="small" v-model="settings.live_public_key"
-                                    placeholder="Public key from paypal dashboard"/>
-                        </el-form-item>
-                        <el-form-item label="Live Secret key">
-                          <el-input type="password" size="small" v-model="settings.live_secret_key"
-                                    placeholder="Public key from paypal dashboard"/>
-                        </el-form-item>
-                      </div>
-                    </el-tab-pane>
-                    <el-tab-pane label="Paypal Standard" name="standard">
-                        <el-form-item label="Paypal Email">
-                          <el-input type="text" size="small" v-model="settings.paypal_email"
-                                    placeholder="Paypal Email Address"/>
-                        </el-form-item>
-                        <el-form-item label="Disable PayPal IPN Verification">
-                          <el-switch active-value="yes" inactive-value="no" v-model="settings.disable_ipn_verification"/>
-                          <p>If you are unable to use Payment Data Transfer and payments are not getting marked as
-                            complete, then check this box. This forces the site to use a slightly less secure method of
-                            verifying purchases.</p>
-                        </el-form-item>
-                    </el-tab-pane>
-                  </el-tabs>
-                  <div class="buymecoffee_settings_section">
-                    <p>Please use IPN url to get marked paid on you site.</p>
-                    <b>IPN URL: </b>
-                    <el-tooltip effect="dark"
-                                content="Click to copy"
-                                title="Click to copy"
-                                placement="top">
-                      <code class="copy"
-                            data-clipboard-action="copy"
-                            :data-clipboard-text='webhook_url'>
-                        <i class="el-icon-document"></i> {{webhook_url}}
-                      </code>
-                    </el-tooltip>
-                  </div>
+        </div>
 
-                    <div class="action_right mt-4">
-                        <el-button @click="saveSettings()" type="primary" size="default">Save PayPal Settings</el-button>
+        <div :class="settings.enable !== 'yes' ? 'opacity-50 pointer-events-none' : ''">
+            <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-5 mb-4 space-y-4">
+                <!-- Mode row -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-sm font-medium text-[var(--text-primary)]">Payment Mode</span>
+                        <p v-if="settings.payment_mode === 'test'" class="text-xs text-amber-600 mt-0.5 flex items-center gap-1 m-0">
+                            <AlertTriangle :size="12" /> Sandbox — no real charges
+                        </p>
                     </div>
-                </el-form>
+                    <el-radio-group v-model="settings.payment_mode" size="small">
+                        <el-radio-button value="test">Test</el-radio-button>
+                        <el-radio-button value="live">Live</el-radio-button>
+                    </el-radio-group>
+                </div>
+
+                <div class="h-px bg-neutral-100"></div>
+
+                <!-- Type row -->
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-[var(--text-primary)]">Payment Type</span>
+                    <el-radio-group v-model="settings.payment_type" size="small">
+                        <el-radio-button value="pro">Pro</el-radio-button>
+                        <el-radio-button value="standard">Standard</el-radio-button>
+                    </el-radio-group>
+                </div>
+
+                <div class="h-px bg-neutral-100"></div>
+
+                <!-- Pro: API Keys -->
+                <div v-if="settings.payment_type === 'pro'" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                            {{ settings.payment_mode === 'live' ? 'Live' : 'Test' }} Public Key
+                        </label>
+                        <el-input
+                            v-model="activePublicKey"
+                            type="password"
+                            placeholder="Public key from PayPal dashboard"
+                            show-password
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                            {{ settings.payment_mode === 'live' ? 'Live' : 'Test' }} Secret Key
+                        </label>
+                        <el-input
+                            v-model="activeSecretKey"
+                            type="password"
+                            placeholder="Secret key from PayPal dashboard"
+                            show-password
+                        />
+                    </div>
+                </div>
+
+                <!-- Standard: Email + IPN toggle -->
+                <div v-if="settings.payment_type === 'standard'" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">PayPal Email Address</label>
+                        <el-input
+                            v-model="settings.paypal_email"
+                            type="text"
+                            placeholder="your-email@example.com"
+                        />
+                    </div>
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                        <div>
+                            <span class="text-sm font-medium text-[var(--text-primary)]">Disable IPN Verification</span>
+                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">Enable if payments aren't being marked complete (less secure).</p>
+                        </div>
+                        <el-switch
+                            v-model="settings.disable_ipn_verification"
+                            active-value="yes"
+                            inactive-value="no"
+                            class="ml-4 flex-shrink-0"
+                        />
+                    </div>
+                </div>
+
+                <div class="h-px bg-neutral-100"></div>
+
+                <!-- IPN URL -->
+                <div>
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                            <span class="text-sm font-medium text-[var(--text-primary)]">IPN URL</span>
+                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">Add to your PayPal account to receive payment notifications.</p>
+                        </div>
+                        <a
+                            href="https://developer.paypal.com/dashboard/"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] hover:underline flex-shrink-0 mt-0.5"
+                        >
+                            Dashboard <ExternalLink :size="11" />
+                        </a>
+                    </div>
+                    <CodeBlock :code="webhook_url" />
+                </div>
             </div>
+        </div>
+
+        <!-- Save -->
+        <div class="flex justify-end">
+            <el-button type="primary" :loading="saving" @click="saveSettings()">
+                Save PayPal Settings
+            </el-button>
         </div>
     </div>
 </template>
-<script type="text/babel">
-import ClipboardJS from 'clipboard';
-    export default {
-        name: 'paypal_settings',
-        data() {
-            return {
-                settings: {},
-                saving: false,
-                fetching: false,
-                labelPosition: 'right',
-                webhook_url: ''
-            }
-        },
-        methods: {
-            getSettings() {
-                this.fetching = true;
-                this.$get({
-                    action: 'buymecoffee_admin_ajax',
-                    route: 'get_data',
-                    data: {
-                      method: 'paypal',
-                    },
-                    buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-                })
-                    .then((response) => {
-                        this.settings = response.data.settings;
-                        this.webhook_url = response.data.webhook_url;
-                        this.fetching = false;
-                    })
-                    .fail(error => {
-                        ElMessage({
-                            message: error?.responseJSON?.data?.message || 'Failed to load PayPal settings',
-                            type: 'error',
-                            offset: 40,
-                            dangerouslyUseHTMLString: true,
-                            duration: 5000
-                        });
-                    })
-                    .always(() => {
-                        this.fetching = false;
-                    });
+
+<script>
+import { AlertTriangle, ExternalLink, ArrowLeft } from 'lucide-vue-next';
+import CoffeeLoader from './UI/CoffeeLoader.vue';
+import CodeBlock from './UI/CodeBlock.vue';
+
+export default {
+    name: 'PayPalSettings',
+    components: { AlertTriangle, ExternalLink, ArrowLeft, CodeBlock, CoffeeLoader },
+    data() {
+        return {
+            settings: {
+                enable: 'no',
+                payment_mode: 'test',
+                payment_type: 'standard',
+                test_public_key: '',
+                test_secret_key: '',
+                live_public_key: '',
+                live_secret_key: '',
+                paypal_email: '',
+                disable_ipn_verification: 'no'
             },
-            saveSettings() {
-                this.saving = true;
-                this.$post({
-                    action: 'buymecoffee_admin_ajax',
-                    route: 'save_payment_settings',
-                    data: {
-                      method: 'paypal',
-                      settings: this.settings,
-                    },
-                    buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-                })
-                    .then(response => {
-                        ElMessage({
-                            message: response?.data?.message || 'PayPal settings saved successfully',
-                            type: 'success',
-                            offset: 40,
-                            dangerouslyUseHTMLString: true,
-                            duration: 3000
-                        });
-                    })
-                    .fail(error => {
-                        ElMessage({
-                            message: error?.responseJSON?.data?.message || 'Failed to save PayPal settings',
-                            type: 'error',
-                            offset: 40,
-                            dangerouslyUseHTMLString: true,
-                            duration: 5000
-                        });
-                    })
-                    .always(() => {
-                        this.saving = false;
-                    });
+            saving: false,
+            fetching: false,
+            webhook_url: '',
+        }
+    },
+    computed: {
+        activePublicKey: {
+            get() {
+                return this.settings.payment_mode === 'live'
+                    ? this.settings.live_public_key
+                    : this.settings.test_public_key;
+            },
+            set(val) {
+                if (this.settings.payment_mode === 'live') {
+                    this.settings.live_public_key = val;
+                } else {
+                    this.settings.test_public_key = val;
+                }
             }
         },
-        mounted() {
-            this.getSettings();
-            jQuery(document).ready(function($) {
-              var clipboard = new ClipboardJS('.copy');
-              clipboard.on('success', function(e) {
-                $(e.trigger).text("Copied!");
-                e.clearSelection();
-                //todo: add timeout to revert text
-                setTimeout(function() {
-                  $(e.trigger).text(e.text);
-                }, 1000);
-              });
-            });
+        activeSecretKey: {
+            get() {
+                return this.settings.payment_mode === 'live'
+                    ? this.settings.live_secret_key
+                    : this.settings.test_secret_key;
+            },
+            set(val) {
+                if (this.settings.payment_mode === 'live') {
+                    this.settings.live_secret_key = val;
+                } else {
+                    this.settings.test_secret_key = val;
+                }
+            }
         }
-    }
+    },
+    methods: {
+        getSettings() {
+            this.fetching = true;
+            this.$get({
+                action: 'buymecoffee_admin_ajax',
+                route: 'get_data',
+                data: { method: 'paypal' },
+                buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
+            })
+                .then((response) => {
+                    this.settings = response.data.settings;
+                    this.webhook_url = response.data.webhook_url;
+                })
+                .fail(error => {
+                    const message = error?.responseJSON?.data?.message || 'Failed to load PayPal settings';
+                    this.$message.error(message);
+                })
+                .always(() => { this.fetching = false; });
+        },
+        saveSettings() {
+            this.saving = true;
+            this.$post({
+                action: 'buymecoffee_admin_ajax',
+                route: 'save_payment_settings',
+                data: { method: 'paypal', settings: this.settings },
+                buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
+            })
+                .then(response => { this.$handleSuccess(response.data.message); })
+                .fail(error => {
+                    const message = error?.responseJSON?.data?.message || 'Failed to save PayPal settings';
+                    this.$message.error(message);
+                })
+                .always(() => { this.saving = false; });
+        }
+    },
+    mounted() { this.getSettings(); }
+}
 </script>
-
-<script setup>
-import { ElMessage } from 'element-plus'
-</script>
-<style lang="scss">
-
-</style>

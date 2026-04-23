@@ -15,6 +15,7 @@ class Vite
     private string $resourceDirectory = 'src/';
     private array $moduleScripts = [];
     private bool $isScriptFilterAdded = false;
+    private array $manifestData = [];
 
 
     public static function __callStatic($method, $params)

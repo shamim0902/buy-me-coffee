@@ -1,0 +1,186 @@
+// ============================================================
+// Buy Me Coffee - Design Token System
+// ============================================================
+// Font imports are in app.scss (cannot use @import inside @use'd files)
+
+:root {
+  // ── Fonts ──────────────────────────────────────────────────
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  // ── Primary (Teal) ────────────────────────────────────────
+  --color-primary-50:  #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #0d9488;
+  --color-primary-600: #0f766e;
+  --color-primary-700: #115e59;
+  --color-primary-800: #134e4a;
+  --color-primary-900: #042f2e;
+
+  // ── Neutrals (Slate) ──────────────────────────────────────
+  --color-neutral-0:   #ffffff;
+  --color-neutral-25:  #fcfcfd;
+  --color-neutral-50:  #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  // ── Semantic ──────────────────────────────────────────────
+  --color-success-50:  #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+
+  --color-warning-50:  #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+
+  --color-error-50:    #fef2f2;
+  --color-error-100:   #fee2e2;
+  --color-error-500:   #ef4444;
+  --color-error-600:   #dc2626;
+  --color-error-700:   #b91c1c;
+
+  --color-info-50:     #eff6ff;
+  --color-info-100:    #dbeafe;
+  --color-info-500:    #3b82f6;
+  --color-info-600:    #2563eb;
+  --color-info-700:    #1d4ed8;
+
+  // ── Accent (charts, highlights) ───────────────────────────
+  --color-accent-violet: #8b5cf6;
+  --color-accent-amber:  #f59e0b;
+  --color-accent-rose:   #f43f5e;
+  --color-accent-sky:    #0ea5e9;
+
+  // ── Semantic Tokens (light mode defaults) ─────────────────
+  --bg-primary:     var(--color-neutral-0);
+  --bg-secondary:   var(--color-neutral-50);
+  --bg-tertiary:    var(--color-neutral-100);
+  --bg-elevated:    var(--color-neutral-0);
+  --bg-sidebar:     var(--color-neutral-0);
+  --bg-hover:       var(--color-neutral-100);
+
+  --text-primary:   var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary:  var(--color-neutral-400);
+  --text-inverse:   var(--color-neutral-0);
+  --text-link:      var(--color-primary-600);
+
+  --border-primary:   var(--color-neutral-200);
+  --border-secondary: var(--color-neutral-100);
+  --border-focus:     var(--color-primary-500);
+
+  // ── Typography Scale ──────────────────────────────────────
+  --text-xs:   0.75rem;   // 12px
+  --text-sm:   0.8125rem; // 13px
+  --text-base: 0.875rem;  // 14px
+  --text-lg:   1rem;      // 16px
+  --text-xl:   1.125rem;  // 18px
+  --text-2xl:  1.5rem;    // 24px
+  --text-3xl:  1.875rem;  // 30px
+  --text-4xl:  2.25rem;   // 36px
+
+  --leading-tight:  1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  // ── Spacing (8px base) ────────────────────────────────────
+  --space-0:  0;
+  --space-1:  0.25rem;  // 4px
+  --space-2:  0.5rem;   // 8px
+  --space-3:  0.75rem;  // 12px
+  --space-4:  1rem;     // 16px
+  --space-5:  1.25rem;  // 20px
+  --space-6:  1.5rem;   // 24px
+  --space-8:  2rem;     // 32px
+  --space-10: 2.5rem;   // 40px
+  --space-12: 3rem;     // 48px
+  --space-16: 4rem;     // 64px
+  --space-20: 5rem;     // 80px
+
+  // ── Border Radius ─────────────────────────────────────────
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-full: 9999px;
+
+  // ── Shadows ───────────────────────────────────────────────
+  --shadow-xs:   0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm:   0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg:   0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-ring: 0 0 0 3px rgb(13 148 136 / 0.15);
+
+  // ── Motion ────────────────────────────────────────────────
+  --duration-fast:    100ms;
+  --duration-normal:  200ms;
+  --duration-slow:    300ms;
+  --duration-slower:  500ms;
+
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in:      cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:     cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  // ── Layout ────────────────────────────────────────────────
+  --sidebar-width-expanded:  240px;
+  --sidebar-width-collapsed: 64px;
+  --header-height:           56px;
+  --content-max-width:       1280px;
+
+  // ── Element Plus Overrides ────────────────────────────────
+  --el-color-primary:           var(--color-primary-500);
+  --el-color-primary-light-3:   var(--color-primary-300);
+  --el-color-primary-light-5:   var(--color-primary-200);
+  --el-color-primary-light-7:   var(--color-primary-100);
+  --el-color-primary-light-8:   var(--color-primary-100);
+  --el-color-primary-light-9:   var(--color-primary-50);
+  --el-color-primary-dark-2:    var(--color-primary-700);
+
+  --el-color-success:           var(--color-success-500);
+  --el-color-warning:           var(--color-warning-500);
+  --el-color-danger:            var(--color-error-500);
+  --el-color-info:              var(--color-neutral-500);
+
+  --el-border-radius-base:      var(--radius-md);
+  --el-border-radius-small:     var(--radius-sm);
+  --el-border-radius-round:     var(--radius-full);
+
+  --el-font-family:             var(--font-sans);
+  --el-font-size-base:          var(--text-base);
+  --el-font-size-small:         var(--text-sm);
+  --el-font-size-extra-small:   var(--text-xs);
+
+  --el-bg-color:                var(--bg-primary);
+  --el-bg-color-overlay:        var(--bg-primary);
+  --el-bg-color-page:           var(--bg-secondary);
+
+  --el-text-color-primary:      var(--text-primary);
+  --el-text-color-regular:      var(--text-secondary);
+  --el-text-color-secondary:    var(--text-tertiary);
+  --el-text-color-placeholder:  var(--color-neutral-400);
+
+  --el-border-color:            var(--border-primary);
+  --el-border-color-light:      var(--border-secondary);
+  --el-border-color-lighter:    var(--border-secondary);
+
+  --el-box-shadow:              var(--shadow-md);
+  --el-box-shadow-light:        var(--shadow-sm);
+}

@@ -39,7 +39,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
-    define('BUYMECOFFEE_DEVELOPMENT', 'yes');
+    define('BUYMECOFFEE_PRODUCTION', 'yes');
 
     class BuyMeCoffee
     {
@@ -177,6 +177,12 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     add_action('wp', function () {
         $demoPage = new \BuyMeCoffee\Classes\DemoPage();
         $demoPage->register();
+    });
+
+    // Full-page admin app (outside WP admin chrome)
+    add_action('wp', function () {
+        $adminPage = new \BuyMeCoffee\Classes\AdminPage();
+        $adminPage->register();
     });
 
     add_filter('plugin_row_meta', function($links, $file) {

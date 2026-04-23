@@ -19,130 +19,48 @@ class Menu
         }
 
         $title = __('Buy Me Coffee', 'buy-me-coffee');
-        global $submenu;
-
-        $capability = 'manage_options';
 
         add_menu_page(
             $title,
             $title,
-            $capability,
+            'manage_options',
             'buy-me-coffee.php',
             [$this, 'render'],
             'dashicons-coffee',
             68
         );
-
-        $submenu['buy-me-coffee.php']['my_profile'] = array(
-            __('Dashboard', 'buy-me-coffee'),
-            $menuPermission,
-            'admin.php?page=buy-me-coffee.php#/',
-        );
-
-        $submenu['buy-me-coffee.php']['supporters'] = array(
-            __('Supporters', 'buy-me-coffee'),
-            $menuPermission,
-            'admin.php?page=buy-me-coffee.php#/supporters',
-        );
-
-        $submenu['buy-me-coffee.php']['settings'] = array(
-            __('Settings', 'buy-me-coffee'),
-            $menuPermission,
-            'admin.php?page=buy-me-coffee.php#/settings',
-        );
-        $submenu['buy-me-coffee.php']['gateways'] = array(
-            __('Gateways', 'buy-me-coffee'),
-            $menuPermission,
-            'admin.php?page=buy-me-coffee.php#/stripe',
-        );
-//        $submenu['buy-me-coffee.php']['notifications'] = array(
-//            __('Notifications', 'buy-me-coffee'),
-//            $menuPermission,
-//            'admin.php?page=buy-me-coffee.php#/notifications',
-//        );
     }
 
     public function render()
     {
-        wp_enqueue_media();
-        $this->enqueueAssets();
-
-        ob_start();
+        $appUrl = site_url('?buymecoffee_admin');
         ?>
-        <div id="buy-me-coffee_app" class="buy-me-coffee_app">
-            <div class="buymecoffee_body">
-                <div class="bmc_route_wrapper">
-                    <router-view></router-view>
+        <div class="wrap" style="display:flex; align-items:center; justify-content:center; min-height:70vh;">
+            <div style="text-align:center; max-width:480px;">
+                <div style="margin-bottom:24px;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>
+                    </svg>
                 </div>
-            </div>
-            <div class="buymecoffee_app_menu">
-                <ul>
-                    <li class="buymecoffee_menu_dashboard">
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/')); ?>" >
-                            <img width="30" src="<?php echo esc_url(Vite::staticPath() . 'images/dashboard.svg'); ?>" />
-                            Report
-                        </a>
-                    </li>
-                    <li class="buymecoffee_menu_supporters">
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/supporters')); ?>" >
-                            <img width="30" src="<?php echo esc_url(Vite::staticPath() . 'images/handshake.svg'); ?>" />
-                            Donor
-                        </a>
-                    </li>
-                    <li class="buymecoffee_menu_settings">
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/settings')); ?>" >
-                            <img width="30" src="<?php echo esc_url(Vite::staticPath() . 'images/settings.svg'); ?>" />
-                            Settings
-                        </a>
-                    </li>
-                    <li class="buymecoffee_menu_gateway">
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/stripe')); ?>" >
-                            <img width="30" src="<?php echo esc_url(Vite::staticPath() . 'images/bank.svg'); ?>" />
-                            Gateways
-                        </a>
-                    </li>
-                </ul>
+                <h1 style="font-size:24px; font-weight:600; margin-bottom:8px; color:#1e293b;">
+                    <?php esc_html_e('Buy Me Coffee', 'buy-me-coffee'); ?>
+                </h1>
+                <p style="font-size:15px; color:#64748b; margin-bottom:28px; line-height:1.6;">
+                    <?php esc_html_e('Manage your donations, supporters, and payment settings in the full dashboard.', 'buy-me-coffee'); ?>
+                </p>
+                <a href="<?php echo esc_url($appUrl); ?>"
+                   style="display:inline-flex; align-items:center; gap:8px; padding:12px 28px; background:#0d9488; color:#fff; text-decoration:none; border-radius:8px; font-size:15px; font-weight:500; transition:background 0.2s;"
+                   onmouseover="this.style.background='#0f766e'"
+                   onmouseout="this.style.background='#0d9488'"
+                >
+                    <?php esc_html_e('Open Dashboard', 'buy-me-coffee'); ?>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+                <p style="font-size:13px; color:#94a3b8; margin-top:16px;">
+                    <?php esc_html_e('The dashboard opens in a dedicated full-screen view.', 'buy-me-coffee'); ?>
+                </p>
             </div>
         </div>
         <?php
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        echo ob_get_clean();
-    }
-
-    public function enqueueAssets()
-    {
-        do_action('buymecoffee_render_admin_app');
-
-        Vite::enqueueScript(
-            'buy-me-coffee_boot',
-            'js/boot.js',
-            array(),
-            BUYMECOFFEE_VERSION,
-            true
-        );
-
-        // 3rd party developers can now add their scripts here
-        do_action('buymecoffee_booting_admin_app');
-
-        Vite::enqueueScript(
-            'buy-me-coffee_js',
-            'js/main.js',
-            array('jquery'),
-            BUYMECOFFEE_VERSION,
-            true
-        );
-
-        //enqueue css file using wp_enqueue (already compiled with vite)
-        Vite::enqueueStyle('buy-me-coffee_admin_css', 'scss/admin/app.scss', array(), BUYMECOFFEE_VERSION, true);
-
-        $BuyMeCoffeeAdminVars = apply_filters('buymecoffee_admin_app_vars', array(
-            'assets_url' => Vite::staticPath(),
-            'ajaxurl' => admin_url('admin-ajax.php'),
-            'preview_url' => site_url('?share_coffee'),
-            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
-        ));
-
-
-        wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $BuyMeCoffeeAdminVars);
     }
 }

@@ -1,0 +1,69 @@
+// ============================================================
+// Buy Me Coffee - Dark Mode Overrides
+// ============================================================
+
+html.dark {
+  --bg-primary:     var(--color-neutral-900);
+  --bg-secondary:   var(--color-neutral-800);
+  --bg-tertiary:    var(--color-neutral-700);
+  --bg-elevated:    var(--color-neutral-800);
+  --bg-sidebar:     var(--color-neutral-950);
+  --bg-hover:       var(--color-neutral-700);
+
+  --text-primary:   var(--color-neutral-50);
+  --text-secondary: var(--color-neutral-400);
+  --text-tertiary:  var(--color-neutral-500);
+  --text-inverse:   var(--color-neutral-900);
+  --text-link:      var(--color-primary-400);
+
+  --border-primary:   var(--color-neutral-700);
+  --border-secondary: var(--color-neutral-800);
+  --border-focus:     var(--color-primary-400);
+
+  --shadow-xs:   0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-sm:   0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg:   0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+  --shadow-ring: 0 0 0 3px rgb(13 148 136 / 0.25);
+
+  // Element Plus dark overrides
+  --el-bg-color:                var(--bg-primary);
+  --el-bg-color-overlay:        var(--bg-elevated);
+  --el-bg-color-page:           var(--bg-secondary);
+  --el-text-color-primary:      var(--text-primary);
+  --el-text-color-regular:      var(--text-secondary);
+  --el-text-color-secondary:    var(--text-tertiary);
+  --el-border-color:            var(--border-primary);
+  --el-border-color-light:      var(--border-secondary);
+  --el-border-color-lighter:    var(--border-secondary);
+  --el-fill-color-blank:        var(--bg-primary);
+  --el-fill-color:              var(--color-neutral-700);
+  --el-fill-color-light:        var(--color-neutral-800);
+  --el-fill-color-lighter:      var(--color-neutral-800);
+
+  // Table
+  --el-table-bg-color:          var(--bg-primary);
+  --el-table-tr-bg-color:       var(--bg-primary);
+  --el-table-header-bg-color:   var(--bg-secondary);
+  --el-table-row-hover-bg-color: var(--bg-hover);
+  --el-table-border-color:      var(--border-primary);
+
+  // Dialog
+  --el-dialog-bg-color:         var(--bg-elevated);
+
+  // Card
+  --el-card-bg-color:           var(--bg-elevated);
+
+  // Input
+  --el-input-bg-color:          var(--bg-secondary);
+  --el-input-text-color:        var(--text-primary);
+  --el-input-border-color:      var(--border-primary);
+
+  // Menu
+  --el-menu-bg-color:           var(--bg-sidebar);
+  --el-menu-text-color:         var(--text-secondary);
+  --el-menu-active-color:       var(--color-primary-400);
+
+  color-scheme: dark;
+}
