@@ -3,6 +3,7 @@
 // ============================================================
 
 html.dark {
+  // ── Semantic tokens ───────────────────────────────────────
   --bg-primary:     var(--color-neutral-900);
   --bg-secondary:   var(--color-neutral-800);
   --bg-tertiary:    var(--color-neutral-700);
@@ -27,43 +28,384 @@ html.dark {
   --shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
   --shadow-ring: 0 0 0 3px rgb(13 148 136 / 0.25);
 
-  // Element Plus dark overrides
+  // ── Element Plus CSS variable overrides ───────────────────
   --el-bg-color:                var(--bg-primary);
   --el-bg-color-overlay:        var(--bg-elevated);
   --el-bg-color-page:           var(--bg-secondary);
   --el-text-color-primary:      var(--text-primary);
   --el-text-color-regular:      var(--text-secondary);
   --el-text-color-secondary:    var(--text-tertiary);
+  --el-text-color-placeholder:  var(--color-neutral-600);
   --el-border-color:            var(--border-primary);
   --el-border-color-light:      var(--border-secondary);
   --el-border-color-lighter:    var(--border-secondary);
-  --el-fill-color-blank:        var(--bg-primary);
+  --el-fill-color-blank:        var(--bg-secondary);
   --el-fill-color:              var(--color-neutral-700);
   --el-fill-color-light:        var(--color-neutral-800);
   --el-fill-color-lighter:      var(--color-neutral-800);
-
-  // Table
-  --el-table-bg-color:          var(--bg-primary);
-  --el-table-tr-bg-color:       var(--bg-primary);
-  --el-table-header-bg-color:   var(--bg-secondary);
-  --el-table-row-hover-bg-color: var(--bg-hover);
-  --el-table-border-color:      var(--border-primary);
-
-  // Dialog
-  --el-dialog-bg-color:         var(--bg-elevated);
-
-  // Card
-  --el-card-bg-color:           var(--bg-elevated);
+  --el-disabled-bg-color:       var(--color-neutral-800);
+  --el-disabled-text-color:     var(--color-neutral-600);
+  --el-disabled-border-color:   var(--color-neutral-700);
 
   // Input
   --el-input-bg-color:          var(--bg-secondary);
   --el-input-text-color:        var(--text-primary);
   --el-input-border-color:      var(--border-primary);
+  --el-input-hover-border:      var(--color-neutral-500);
+  --el-input-focus-border:      var(--color-primary-400);
+  --el-input-placeholder-color: var(--color-neutral-600);
+
+  // Table
+  --el-table-bg-color:           var(--bg-primary);
+  --el-table-tr-bg-color:        var(--bg-primary);
+  --el-table-header-bg-color:    var(--bg-secondary);
+  --el-table-row-hover-bg-color: var(--bg-hover);
+  --el-table-border-color:       var(--border-primary);
+  --el-table-text-color:         var(--text-primary);
+  --el-table-header-text-color:  var(--text-secondary);
+
+  // Dialog
+  --el-dialog-bg-color:          var(--bg-elevated);
+
+  // Card
+  --el-card-bg-color:            var(--bg-elevated);
 
   // Menu
-  --el-menu-bg-color:           var(--bg-sidebar);
-  --el-menu-text-color:         var(--text-secondary);
-  --el-menu-active-color:       var(--color-primary-400);
+  --el-menu-bg-color:            var(--bg-sidebar);
+  --el-menu-text-color:          var(--text-secondary);
+  --el-menu-active-color:        var(--color-primary-400);
+
+  // Popper / dropdown
+  --el-popper-border-radius:     8px;
 
   color-scheme: dark;
+
+  // ── Element Plus component overrides (enforce bg/border) ──
+
+  // Inputs & textareas
+  .el-input__wrapper,
+  .el-textarea__inner {
+    background-color: var(--bg-secondary) !important;
+    box-shadow: 0 0 0 1px var(--border-primary) inset !important;
+    color: var(--text-primary);
+  }
+
+  .el-input__wrapper:hover,
+  .el-textarea__inner:hover {
+    box-shadow: 0 0 0 1px var(--color-neutral-500) inset !important;
+  }
+
+  .el-input__wrapper.is-focus,
+  .el-textarea__inner:focus {
+    box-shadow: 0 0 0 1px var(--color-primary-400) inset !important;
+  }
+
+  .el-input__inner,
+  .el-textarea__inner {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+  }
+
+  .el-input__inner::placeholder,
+  .el-textarea__inner::placeholder {
+    color: var(--color-neutral-600) !important;
+  }
+
+  // Password toggle icon
+  .el-input__password {
+    color: var(--text-tertiary) !important;
+  }
+
+  // Input prefix/suffix icons
+  .el-input__prefix-inner,
+  .el-input__suffix-inner {
+    color: var(--text-tertiary);
+  }
+
+  // Input number
+  .el-input-number {
+    .el-input__wrapper {
+      background-color: var(--bg-secondary) !important;
+    }
+    .el-input-number__decrease,
+    .el-input-number__increase {
+      background-color: var(--bg-tertiary) !important;
+      border-color: var(--border-primary) !important;
+      color: var(--text-secondary) !important;
+    }
+    .el-input-number__decrease:hover,
+    .el-input-number__increase:hover {
+      color: var(--color-primary-400) !important;
+    }
+  }
+
+  // Select
+  .el-select__wrapper {
+    background-color: var(--bg-secondary) !important;
+    box-shadow: 0 0 0 1px var(--border-primary) inset !important;
+    color: var(--text-primary) !important;
+  }
+  .el-select__wrapper:hover {
+    box-shadow: 0 0 0 1px var(--color-neutral-500) inset !important;
+  }
+  .el-select__wrapper.is-focused {
+    box-shadow: 0 0 0 1px var(--color-primary-400) inset !important;
+  }
+  .el-select__placeholder {
+    color: var(--color-neutral-600) !important;
+  }
+  .el-select__selected-item {
+    color: var(--text-primary) !important;
+  }
+
+  // Select dropdown
+  .el-select-dropdown {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-primary) !important;
+  }
+  .el-select-dropdown__item {
+    color: var(--text-secondary) !important;
+  }
+  .el-select-dropdown__item:hover,
+  .el-select-dropdown__item.hover {
+    background-color: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+  }
+  .el-select-dropdown__item.is-selected {
+    color: var(--color-primary-400) !important;
+    background-color: rgba(13, 148, 136, 0.12) !important;
+  }
+
+  // Radio buttons (mode toggles)
+  .el-radio-button__inner {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-secondary) !important;
+  }
+  .el-radio-button__inner:hover {
+    color: var(--text-primary) !important;
+  }
+  .el-radio-button__original-radio:checked + .el-radio-button__inner {
+    background-color: var(--color-primary-500) !important;
+    border-color: var(--color-primary-500) !important;
+    color: #fff !important;
+    box-shadow: -1px 0 0 0 var(--color-primary-500) !important;
+  }
+
+  // Switch — already works via CSS vars, just ensure label text
+  .el-switch__label {
+    color: var(--text-secondary) !important;
+  }
+
+  // Slider
+  .el-slider__runway {
+    background-color: var(--bg-tertiary) !important;
+  }
+  .el-slider__bar {
+    background-color: var(--color-primary-500) !important;
+  }
+  .el-slider__button {
+    border-color: var(--color-primary-400) !important;
+    background-color: var(--bg-primary) !important;
+  }
+
+  // Color picker
+  .el-color-picker__trigger {
+    border-color: var(--border-primary) !important;
+    background-color: var(--bg-secondary) !important;
+  }
+
+  // Popper (tooltip, dropdown, popconfirm)
+  .el-popper {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-primary) !important;
+  }
+  .el-popper.is-light {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-primary) !important;
+  }
+  .el-popper__arrow::before {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-primary) !important;
+  }
+
+  // Popconfirm
+  .el-popconfirm__main {
+    color: var(--text-primary) !important;
+  }
+
+  // Button
+  .el-button--default {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-primary) !important;
+  }
+  .el-button--default:hover {
+    background-color: var(--bg-hover) !important;
+    border-color: var(--color-neutral-500) !important;
+    color: var(--text-primary) !important;
+  }
+
+  // Tabs
+  .el-tabs__nav-wrap::after {
+    background-color: var(--border-primary) !important;
+  }
+  .el-tabs__item {
+    color: var(--text-secondary) !important;
+  }
+  .el-tabs__item.is-active {
+    color: var(--color-primary-400) !important;
+  }
+  .el-tabs__active-bar {
+    background-color: var(--color-primary-400) !important;
+  }
+
+  // Dialog
+  .el-dialog {
+    background-color: var(--bg-elevated) !important;
+    border: 1px solid var(--border-primary);
+  }
+  .el-dialog__header {
+    border-bottom-color: var(--border-primary) !important;
+  }
+  .el-dialog__title {
+    color: var(--text-primary) !important;
+  }
+  .el-dialog__footer {
+    border-top-color: var(--border-primary) !important;
+  }
+
+  // Message box
+  .el-message-box {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-primary) !important;
+  }
+  .el-message-box__title {
+    color: var(--text-primary) !important;
+  }
+  .el-message-box__content {
+    color: var(--text-secondary) !important;
+  }
+
+  // Table
+  .el-table {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+  }
+  .el-table th.el-table__cell {
+    background-color: var(--bg-secondary) !important;
+  }
+  .el-table td.el-table__cell,
+  .el-table th.el-table__cell.is-leaf {
+    border-bottom-color: var(--border-primary) !important;
+  }
+  .el-table--border .el-table__cell,
+  .el-table__inner-wrapper::before {
+    border-color: var(--border-primary) !important;
+  }
+  .el-table__row:hover > td {
+    background-color: var(--bg-hover) !important;
+  }
+
+  // Pagination
+  .el-pagination {
+    color: var(--text-secondary) !important;
+  }
+  .el-pager li {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+  }
+  .el-pager li.is-active {
+    background-color: var(--color-primary-500) !important;
+    color: #fff !important;
+  }
+  .el-pagination button {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+  }
+
+  // Loading overlay
+  .el-loading-mask {
+    background-color: rgba(15, 23, 42, 0.7) !important;
+  }
+
+  // ── Tailwind class overrides (components use bg-white etc.) ──
+
+  #buy-me-coffee_app {
+    // Cards / containers
+    .bg-white {
+      background-color: var(--bg-primary) !important;
+    }
+    .bg-neutral-50 {
+      background-color: var(--bg-secondary) !important;
+    }
+    .bg-neutral-100 {
+      background-color: var(--bg-tertiary) !important;
+    }
+
+    // Borders
+    .border-neutral-200 {
+      border-color: var(--border-primary) !important;
+    }
+    .border-neutral-100 {
+      border-color: var(--border-secondary) !important;
+    }
+    .divide-neutral-100 > * + * {
+      border-color: var(--border-secondary) !important;
+    }
+
+    // Text
+    .text-neutral-900,
+    .text-neutral-800 {
+      color: var(--text-primary) !important;
+    }
+    .text-neutral-600,
+    .text-neutral-700 {
+      color: var(--text-secondary) !important;
+    }
+    .text-neutral-400,
+    .text-neutral-500 {
+      color: var(--text-tertiary) !important;
+    }
+
+    // Amber info boxes (test mode warnings)
+    .bg-amber-50 {
+      background-color: rgba(120, 80, 0, 0.2) !important;
+    }
+    .border-amber-200 {
+      border-color: rgba(180, 120, 0, 0.4) !important;
+    }
+    .text-amber-600,
+    .text-amber-700 {
+      color: #fbbf24 !important;
+    }
+
+    // Blue info boxes
+    .bg-blue-50 {
+      background-color: rgba(30, 64, 175, 0.15) !important;
+    }
+    .border-blue-200 {
+      border-color: rgba(59, 130, 246, 0.3) !important;
+    }
+
+    // Green / emerald
+    .bg-emerald-50 {
+      background-color: rgba(6, 78, 59, 0.2) !important;
+    }
+    .border-emerald-200 {
+      border-color: rgba(16, 185, 129, 0.3) !important;
+    }
+
+    // Horizontal dividers
+    .bg-neutral-100.h-px,
+    .h-px.bg-neutral-100 {
+      background-color: var(--border-primary) !important;
+    }
+
+    // Code blocks (inline)
+    code {
+      background-color: var(--bg-tertiary) !important;
+      color: var(--text-secondary) !important;
+    }
+  }
 }

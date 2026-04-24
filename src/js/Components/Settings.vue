@@ -1,302 +1,381 @@
 <template>
-  <div class="bmc-settings relative min-h-[200px]">
+  <div class="relative min-h-[200px]">
     <CoffeeLoader :loading="fetching" />
-    <PageTitle title="Settings" subtitle="Configure your donation page" />
 
     <template v-if="!fetching">
-      <!-- General Settings -->
-      <div class="bmc-card">
-        <div class="bmc-card__header">
-          <div>
-            <h2 class="bmc-card__title">General Settings</h2>
-            <p class="bmc-card__subtitle">Control what information is collected from supporters</p>
-          </div>
-        </div>
+      <div class="bmc-settings-layout">
 
-        <el-form label-position="top">
-          <!-- Toggle: Show form title -->
-          <div class="bmc-toggle-row">
-            <div class="bmc-toggle-row__content">
-              <p class="bmc-toggle-row__label">Show form title</p>
-              <p class="bmc-toggle-row__desc">Display the title section on the donation form</p>
+        <!-- ── Content (full width, section chosen by sidebar sub-nav) ── -->
+        <div class="bmc-settings-content">
+
+          <!-- General -->
+          <section v-show="active === 'general'">
+            <div class="bmc-section-header">
+              <h2 class="bmc-section-title">General Settings</h2>
+              <p class="bmc-section-sub">Control what information is collected from supporters</p>
             </div>
-            <el-switch
-              v-model="template.formTitle"
-              active-value="yes"
-              inactive-value="no"
-            />
-          </div>
 
-          <!-- Your Name (shown when form title is enabled) -->
-          <div v-if="template.formTitle === 'yes'" class="bmc-field-indent">
-            <el-form-item label="Your Name">
-              <el-input v-model="template.yourName" placeholder="Enter your name" />
-              <p class="bmc-field-hint">
-                You can also use URL params, e.g. <code>https://page-link&amp;for=John</code>
-              </p>
-            </el-form-item>
-          </div>
-
-          <!-- Toggle: Collect name -->
-          <div class="bmc-toggle-row">
-            <div class="bmc-toggle-row__content">
-              <p class="bmc-toggle-row__label">Collect supporter name</p>
-              <p class="bmc-toggle-row__desc">Ask supporters for their name when donating</p>
-            </div>
-            <el-switch
-              v-model="template.enableName"
-              active-value="yes"
-              inactive-value="no"
-            />
-          </div>
-
-          <!-- Toggle: Collect email -->
-          <div class="bmc-toggle-row">
-            <div class="bmc-toggle-row__content">
-              <p class="bmc-toggle-row__label">Collect supporter email</p>
-              <p class="bmc-toggle-row__desc">Ask supporters for their email address</p>
-            </div>
-            <el-switch
-              v-model="template.enableEmail"
-              active-value="yes"
-              inactive-value="no"
-            />
-          </div>
-
-          <!-- Toggle: Collect message -->
-          <div class="bmc-toggle-row">
-            <div class="bmc-toggle-row__content">
-              <p class="bmc-toggle-row__label">Collect message</p>
-              <p class="bmc-toggle-row__desc">Allow supporters to leave a message with their donation</p>
-            </div>
-            <el-switch
-              v-model="template.enableMessage"
-              active-value="yes"
-              inactive-value="no"
-            />
-          </div>
-
-          <div class="bmc-form-grid">
-            <!-- Default coffee price -->
-            <el-form-item label="Default coffee price">
-              <el-input-number
-                v-model="template.defaultAmount"
-                :min="1"
-                :step="1"
-                controls-position="right"
-                class="w-full"
-              />
-            </el-form-item>
-
-            <!-- Currency -->
-            <el-form-item label="Currency">
-              <el-select
-                v-model="template.currency"
-                filterable
-                placeholder="Select Currency"
-                class="w-full"
-              >
-                <el-option
-                  v-for="(currencyName, currencyKey) in currencies"
-                  :key="currencyKey"
-                  :label="`${currencyKey} - ${currencyName}`"
-                  :value="currencyKey"
-                />
-              </el-select>
-            </el-form-item>
-          </div>
-        </el-form>
-      </div>
-
-      <!-- Appearance -->
-      <div class="bmc-card">
-        <div class="bmc-card__header">
-          <div>
-            <h2 class="bmc-card__title">Appearance</h2>
-            <p class="bmc-card__subtitle">Customize the look and feel of your donation button and form</p>
-          </div>
-        </div>
-
-        <div class="bmc-appearance-grid">
-          <!-- Left column: settings -->
-          <div class="bmc-appearance-grid__settings">
-            <el-form label-position="top">
-              <el-form-item label="Button text">
-                <el-input v-model="template.buttonText" placeholder="Buy me a coffee" />
-              </el-form-item>
-
-              <div class="bmc-form-grid">
-                <el-form-item label="Background color">
-                  <div class="bmc-color-field">
-                    <el-color-picker
-                      v-model="template.advanced.bgColor"
-                      show-alpha
-                      :predefine="predefineColors"
-                      @active-change="(val) => template.advanced.bgColor = val"
-                    />
-                    <span class="bmc-color-field__value">{{ template.advanced.bgColor }}</span>
-                  </div>
-                </el-form-item>
-
-                <el-form-item label="Text color">
-                  <div class="bmc-color-field">
-                    <el-color-picker
-                      v-model="template.advanced.color"
-                      show-alpha
-                      :predefine="predefineColors"
-                      @active-change="(val) => template.advanced.color = val"
-                    />
-                    <span class="bmc-color-field__value">{{ template.advanced.color }}</span>
-                  </div>
-                </el-form-item>
+            <!-- Form fields rows -->
+            <div class="bmc-card">
+              <!-- Show form title -->
+              <div class="bmc-toggle-row">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Show form title</p>
+                  <p class="bmc-toggle-row__desc">Display the title section on the donation form</p>
+                </div>
+                <el-switch v-model="template.formTitle" active-value="yes" inactive-value="no" />
               </div>
 
-              <el-form-item label="Border radius (px)">
-                <div class="flex items-center gap-4">
-                  <el-slider
-                    v-model="radiusNumber"
-                    :min="0"
-                    :max="50"
-                    :show-tooltip="true"
-                    class="flex-1"
-                  />
+              <!-- Your name (conditional) -->
+              <div v-if="template.formTitle === 'yes'" class="bmc-sub-field">
+                <label class="bmc-label">Your name</label>
+                <el-input v-model="template.yourName" placeholder="Enter your name" />
+                <p class="bmc-hint">
+                  You can also use URL params, e.g. <code>https://page-link&amp;for=John</code>
+                </p>
+              </div>
+
+              <!-- Collect name -->
+              <div class="bmc-toggle-row">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Collect supporter name</p>
+                  <p class="bmc-toggle-row__desc">Ask supporters for their name when donating</p>
+                </div>
+                <el-switch v-model="template.enableName" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Collect email -->
+              <div class="bmc-toggle-row">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Collect supporter email</p>
+                  <p class="bmc-toggle-row__desc">Ask supporters for their email address</p>
+                </div>
+                <el-switch v-model="template.enableEmail" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Collect message -->
+              <div class="bmc-toggle-row bmc-toggle-row--last">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Collect message</p>
+                  <p class="bmc-toggle-row__desc">Allow supporters to leave a message with their donation</p>
+                </div>
+                <el-switch v-model="template.enableMessage" active-value="yes" inactive-value="no" />
+              </div>
+            </div>
+
+            <!-- Pricing -->
+            <div class="bmc-card">
+              <div class="bmc-section-header bmc-section-header--sm">
+                <h3 class="bmc-section-title bmc-section-title--sm">Pricing</h3>
+              </div>
+              <div class="bmc-two-col">
+                <div>
+                  <label class="bmc-label">Default coffee price</label>
                   <el-input-number
-                    v-model="radiusNumber"
-                    :min="0"
-                    :max="50"
+                    v-model="template.defaultAmount"
+                    :min="1"
+                    :step="1"
                     controls-position="right"
-                    size="small"
-                    class="w-24"
+                    style="width: 100%"
                   />
                 </div>
-              </el-form-item>
-
-              <!-- Toggle: Form shadow -->
-              <div class="bmc-toggle-row bmc-toggle-row--compact">
-                <div class="bmc-toggle-row__content">
-                  <p class="bmc-toggle-row__label">Form shadow</p>
-                  <p class="bmc-toggle-row__desc">Add a subtle shadow to the form container</p>
+                <div>
+                  <label class="bmc-label">Currency</label>
+                  <el-select
+                    v-model="template.currency"
+                    filterable
+                    placeholder="Select Currency"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="(currencyName, currencyKey) in currencies"
+                      :key="currencyKey"
+                      :label="`${currencyKey} — ${currencyName}`"
+                      :value="currencyKey"
+                    />
+                  </el-select>
                 </div>
-                <el-switch
-                  v-model="template.advanced.formShadow"
-                  active-value="yes"
-                  inactive-value="no"
-                />
+              </div>
+            </div>
+          </section>
+
+          <!-- Appearance -->
+          <section v-show="active === 'appearance'">
+            <div class="bmc-section-header">
+              <h2 class="bmc-section-title">Appearance</h2>
+              <p class="bmc-section-sub">Customize your profile and donation button style</p>
+            </div>
+
+            <div class="bmc-appearance-grid">
+              <!-- ── Left: settings ── -->
+              <div>
+
+                <!-- Profile card -->
+                <div class="bmc-card">
+                  <h3 class="bmc-card-title">
+                    <UserCircle2 :size="15" />
+                    Profile
+                  </h3>
+
+                  <!-- Avatar upload -->
+                  <div class="bmc-avatar-row">
+                    <div class="bmc-avatar-wrap" @click="$refs.mediaBtn.$el.click()">
+                      <img
+                        class="bmc-avatar-img"
+                        :src="template.advanced.image || fullPath('profile.png')"
+                        alt="Profile"
+                      />
+                      <div class="bmc-avatar-overlay">
+                        <Camera :size="18" />
+                        <span>Change</span>
+                      </div>
+                    </div>
+                    <div class="bmc-avatar-meta">
+                      <p class="bmc-avatar-meta__title">Profile Photo</p>
+                      <p class="bmc-avatar-meta__hint">Shown above your donation form. Recommended 200×200 px.</p>
+                      <div class="bmc-avatar-meta__actions">
+                        <MediaButton ref="mediaBtn" @onMediaSelected="onMediaSelected" />
+                        <button
+                          v-if="template.advanced.image"
+                          type="button"
+                          class="bmc-text-btn bmc-text-btn--danger"
+                          @click.stop="template.advanced.image = ''"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Quote -->
+                  <div class="bmc-field-row" style="margin-top: 20px; margin-bottom: 0">
+                    <label class="bmc-label">Quote / tagline</label>
+                    <el-input
+                      v-model="template.advanced.quote"
+                      type="textarea"
+                      :rows="2"
+                      placeholder="e.g. Support my open-source work ☕"
+                    />
+                    <p class="bmc-hint">Displayed beneath your profile photo on the donation page.</p>
+                  </div>
+                </div>
+
+                <!-- Button style card -->
+                <div class="bmc-card">
+                  <h3 class="bmc-card-title">
+                    <MousePointerClick :size="15" />
+                    Button Style
+                  </h3>
+
+                  <!-- Button text -->
+                  <div class="bmc-field-row">
+                    <label class="bmc-label">Button label</label>
+                    <el-input v-model="template.buttonText" placeholder="Buy me a coffee" />
+                  </div>
+
+                  <!-- Colors -->
+                  <div class="bmc-field-row">
+                    <label class="bmc-label">Colors</label>
+                    <div class="bmc-color-stack">
+                      <!-- Background color -->
+                      <div class="bmc-color-swatch-row">
+                        <div
+                          class="bmc-color-swatch"
+                          :style="{ background: template.advanced.bgColor }"
+                        />
+                        <div class="bmc-color-swatch-info">
+                          <span class="bmc-color-swatch-info__label">Background</span>
+                          <span class="bmc-color-swatch-info__value">{{ template.advanced.bgColor }}</span>
+                        </div>
+                        <el-color-picker
+                          v-model="template.advanced.bgColor"
+                          show-alpha
+                          :predefine="predefineColors"
+                          @active-change="(val) => template.advanced.bgColor = val"
+                        />
+                      </div>
+                      <!-- Text color -->
+                      <div class="bmc-color-swatch-row">
+                        <div
+                          class="bmc-color-swatch"
+                          :style="{ background: template.advanced.color }"
+                        />
+                        <div class="bmc-color-swatch-info">
+                          <span class="bmc-color-swatch-info__label">Text</span>
+                          <span class="bmc-color-swatch-info__value">{{ template.advanced.color }}</span>
+                        </div>
+                        <el-color-picker
+                          v-model="template.advanced.color"
+                          show-alpha
+                          :predefine="predefineColors"
+                          @active-change="(val) => template.advanced.color = val"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Border radius -->
+                  <div class="bmc-field-row">
+                    <div class="bmc-label-row">
+                      <label class="bmc-label">Corner radius</label>
+                      <span class="bmc-label-value">{{ radiusNumber }}px</span>
+                    </div>
+                    <div class="bmc-slider-row">
+                      <button
+                        class="bmc-radius-preset"
+                        :class="{ 'bmc-radius-preset--active': radiusNumber === 0 }"
+                        @click="radiusNumber = 0"
+                        title="Square"
+                      >
+                        <span class="bmc-radius-preview bmc-radius-preview--0" />
+                      </button>
+                      <button
+                        class="bmc-radius-preset"
+                        :class="{ 'bmc-radius-preset--active': radiusNumber === 8 }"
+                        @click="radiusNumber = 8"
+                        title="Rounded"
+                      >
+                        <span class="bmc-radius-preview bmc-radius-preview--8" />
+                      </button>
+                      <button
+                        class="bmc-radius-preset"
+                        :class="{ 'bmc-radius-preset--active': radiusNumber === 50 }"
+                        @click="radiusNumber = 50"
+                        title="Pill"
+                      >
+                        <span class="bmc-radius-preview bmc-radius-preview--50" />
+                      </button>
+                      <el-slider
+                        v-model="radiusNumber"
+                        :min="0"
+                        :max="50"
+                        :show-tooltip="false"
+                        style="flex: 1; margin: 0 4px 0 12px"
+                      />
+                      <el-input-number
+                        v-model="radiusNumber"
+                        :min="0"
+                        :max="50"
+                        controls-position="right"
+                        size="small"
+                        style="width: 80px"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Form shadow toggle -->
+                  <div class="bmc-toggle-row bmc-toggle-row--last" style="margin-top: 4px">
+                    <div class="bmc-toggle-row__text">
+                      <p class="bmc-toggle-row__label">Drop shadow</p>
+                      <p class="bmc-toggle-row__desc">Add a subtle shadow to the donation form</p>
+                    </div>
+                    <el-switch v-model="template.advanced.formShadow" active-value="yes" inactive-value="no" />
+                  </div>
+                </div>
+
               </div>
 
-              <!-- Profile image -->
-              <el-form-item label="Profile image">
-                <div class="bmc-image-upload">
-                  <img
-                    class="bmc-image-upload__preview"
-                    :src="template.advanced.image || fullPath('profile.png')"
-                    alt="Profile"
-                  />
-                  <div class="bmc-image-upload__actions">
-                    <MediaButton @onMediaSelected="onMediaSelected" />
+              <!-- ── Right: live preview ── -->
+              <div class="bmc-preview-sticky">
+                <div class="bmc-preview-panel">
+                  <p class="bmc-preview-panel__label">
+                    <Eye :size="13" />
+                    Live Preview
+                  </p>
+
+                  <!-- Mini donation form mockup -->
+                  <div class="bmc-preview-mockup">
+                    <img
+                      class="bmc-preview-mockup__avatar"
+                      :src="template.advanced.image || fullPath('profile.png')"
+                      alt=""
+                    />
+                    <p v-if="template.advanced.quote" class="bmc-preview-mockup__quote">
+                      "{{ template.advanced.quote }}"
+                    </p>
+                    <p v-else class="bmc-preview-mockup__quote bmc-preview-mockup__quote--placeholder">
+                      Your tagline appears here
+                    </p>
+
+                    <div class="bmc-preview-mockup__amounts">
+                      <span class="bmc-preview-mockup__pill">1x</span>
+                      <span class="bmc-preview-mockup__pill bmc-preview-mockup__pill--active">3x</span>
+                      <span class="bmc-preview-mockup__pill">5x</span>
+                    </div>
+
                     <button
-                      v-if="template.advanced.image"
                       type="button"
-                      class="bmc-image-upload__remove"
-                      @click="template.advanced.image = ''"
+                      class="bmc-preview-btn"
+                      :style="previewButtonStyle"
                     >
-                      Remove
+                      <Coffee :size="14" />
+                      {{ template.buttonText || 'Buy me a coffee' }}
                     </button>
                   </div>
+
+                  <a class="bmc-preview-panel__link" :href="previewUrl" target="_blank">
+                    <ExternalLink :size="13" />
+                    Open full donation page
+                  </a>
                 </div>
-              </el-form-item>
-
-              <el-form-item label="Quote">
-                <el-input
-                  v-model="template.advanced.quote"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="Add an inspirational quote or message..."
-                />
-              </el-form-item>
-            </el-form>
-          </div>
-
-          <!-- Right column: live preview -->
-          <div class="bmc-appearance-grid__preview">
-            <div class="bmc-preview-panel">
-              <p class="bmc-preview-panel__label">
-                <Eye :size="14" />
-                Live Preview
-              </p>
-              <div class="bmc-preview-panel__stage">
-                <button
-                  type="button"
-                  class="bmc-preview-btn"
-                  :style="previewButtonStyle"
-                  @click="openPreview"
-                >
-                  <Coffee :size="16" />
-                  {{ template.buttonText || 'Buy me a coffee' }}
-                </button>
               </div>
-              <a
-                class="bmc-preview-panel__link"
-                :href="previewUrl"
-                target="_blank"
-              >
-                <Eye :size="14" />
-                Open full preview
-              </a>
             </div>
-          </div>
+          </section>
+
+          <!-- Shortcodes -->
+          <section v-show="active === 'shortcodes'">
+            <div class="bmc-section-header">
+              <h2 class="bmc-section-title">Shortcodes</h2>
+              <p class="bmc-section-sub">Embed your donation form or button anywhere on your site</p>
+            </div>
+
+            <div class="bmc-card">
+              <div class="bmc-shortcodes-grid">
+                <CodeBlock label="Button only" code="[buymecoffee_button]" />
+                <CodeBlock label="Donation form" code="[buymecoffee_form]" />
+                <CodeBlock label="Full page layout" code="[buymecoffee_basic]" />
+              </div>
+            </div>
+
+            <div class="bmc-card">
+              <h3 class="bmc-section-title bmc-section-title--sm" style="margin-bottom: 12px">Custom amount</h3>
+              <p class="text-sm" style="color: var(--text-secondary); margin: 0 0 12px">
+                You can pre-fill a specific coffee price using the <code class="bmc-inline-code">custom</code> attribute:
+              </p>
+              <CodeBlock label="Custom amount (e.g. $10)" code="[buymecoffee_basic custom=10]" />
+            </div>
+
+            <div class="bmc-card">
+              <h3 class="bmc-section-title bmc-section-title--sm" style="margin-bottom: 12px">Standalone donation page</h3>
+              <p class="text-sm" style="color: var(--text-secondary); margin: 0 0 12px">
+                Share this URL directly to send supporters to a full-screen donation page:
+              </p>
+              <CodeBlock label="Donation page URL" :code="previewUrl" />
+            </div>
+          </section>
+
         </div>
+
       </div>
 
-      <!-- Shortcodes -->
-      <div class="bmc-card">
-        <div class="bmc-card__header">
-          <div>
-            <h2 class="bmc-card__title">Shortcodes</h2>
-            <p class="bmc-card__subtitle">Embed your donation form or button anywhere on your site</p>
-          </div>
-        </div>
-
-        <div class="bmc-shortcodes-grid">
-          <CodeBlock label="Button only" code="[buymecoffee_button]" />
-          <CodeBlock label="Donation form" code="[buymecoffee_form]" />
-          <CodeBlock label="Full page layout" code="[buymecoffee_basic]" />
-        </div>
-
-        <div class="bmc-shortcode-tip">
-          <p class="bmc-shortcode-tip__text">
-            You can also use the block editor to insert these components, or use a custom amount:
-            <code>[buymecoffee_basic custom=10]</code>
-          </p>
-          <a
-            class="bmc-shortcode-tip__link"
-            :href="previewUrl"
-            target="_blank"
-          >
-            <Eye :size="14" />
-            Preview page
-          </a>
-        </div>
-      </div>
-
-      <!-- Action Bar -->
+      <!-- ── Sticky action bar ── -->
       <div class="bmc-action-bar">
         <el-popconfirm
-          title="Are you sure you want to reset all settings to their defaults?"
+          title="Reset all settings to their defaults?"
           confirm-button-text="Yes, reset"
           cancel-button-text="Cancel"
           @confirm="resetDefault"
         >
           <template #reference>
             <el-button :loading="resetting" plain>
-              <RotateCcw :size="15" class="mr-1.5" />
+              <RotateCcw :size="14" style="margin-right: 5px" />
               Reset to Default
             </el-button>
           </template>
         </el-popconfirm>
 
         <el-button type="primary" :loading="saving" @click="saveSettings">
-          <Save :size="15" class="mr-1.5" />
+          <Save :size="14" style="margin-right: 5px" />
           Save Settings
         </el-button>
       </div>
@@ -305,7 +384,7 @@
 </template>
 
 <script>
-import { Save, RotateCcw, Eye, Coffee } from 'lucide-vue-next';
+import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick } from 'lucide-vue-next';
 import PageTitle from './UI/PageTitle.vue';
 import CodeBlock from './UI/CodeBlock.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
@@ -313,16 +392,8 @@ import MediaButton from './Parts/MediaButton.vue';
 
 export default {
   name: 'Settings',
-  components: {
-    Save,
-    RotateCcw,
-    Eye,
-    Coffee,
-    PageTitle,
-    CodeBlock,
-    MediaButton,
-    CoffeeLoader
-  },
+  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
+
   data() {
     return {
       fetching: true,
@@ -331,18 +402,8 @@ export default {
       currencies: {},
       previewUrl: window.BuyMeCoffeeAdmin.preview_url,
       predefineColors: [
-        '#ff4500',
-        '#ff8c00',
-        '#ffd700',
-        '#90ee90',
-        '#00ced1',
-        '#1e90ff',
-        '#c71585',
-        'rgba(255, 69, 0, 0.68)',
-        'rgb(255, 120, 0)',
-        '#c7158577',
-        '#FFF',
-        '#000000'
+        '#ff813f', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6',
+        '#ec4899', '#ef4444', '#ffffff', '#000000',
       ],
       template: {
         yourName: '',
@@ -352,50 +413,40 @@ export default {
         enableName: 'no',
         enableEmail: 'no',
         defaultAmount: 5,
-        custom_coffee: '',
-        openMode: 'page',
         currency: 'USD',
         advanced: {
           image: '',
-          enable: '',
           bgColor: '#ff813f',
           color: '#ffffff',
           formShadow: 'no',
-          minWidth: '',
-          textAlign: '',
-          minHeight: '',
           fontSize: '16',
           radius: '8',
-          button_style: '',
-          bg_style: '',
-          border_style: '',
-          quote: ''
-        }
-      }
+          quote: '',
+        },
+      },
     };
   },
+
   computed: {
+    active() {
+      return this.$route.query.tab || 'general';
+    },
     radiusNumber: {
-      get() {
-        return parseInt(this.template.advanced.radius) || 0;
-      },
-      set(val) {
-        this.template.advanced.radius = String(val);
-      }
+      get() { return parseInt(this.template.advanced.radius) || 0; },
+      set(val) { this.template.advanced.radius = String(val); },
     },
     previewButtonStyle() {
       return {
         backgroundColor: this.template.advanced.bgColor,
         color: this.template.advanced.color,
-        borderRadius: (this.template.advanced.radius || 0) + 'px'
+        borderRadius: (this.template.advanced.radius || 0) + 'px',
       };
-    }
+    },
   },
+
   methods: {
     onMediaSelected(selected) {
-      if (selected.length) {
-        this.template.advanced.image = selected[0].url;
-      }
+      if (selected.length) this.template.advanced.image = selected[0].url;
     },
     fullPath(path) {
       return window.BuyMeCoffeeAdmin.assets_url + 'images/' + path;
@@ -408,18 +459,15 @@ export default {
       this.$get({
         action: 'buymecoffee_admin_ajax',
         route: 'get_settings',
-        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-      })
-        .then((res) => {
-          this.template = res.data.template;
-          this.currencies = res.data.currencies;
-        })
-        .fail((error) => {
-          this.$message.error(error?.responseJSON?.data?.message || 'Failed to load settings');
-        })
-        .always(() => {
-          this.fetching = false;
-        });
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then((res) => {
+        this.template = res.data.template;
+        this.currencies = res.data.currencies;
+      }).fail((error) => {
+        this.$message.error(error?.responseJSON?.data?.message || 'Failed to load settings');
+      }).always(() => {
+        this.fetching = false;
+      });
     },
     saveSettings() {
       this.saving = true;
@@ -427,95 +475,107 @@ export default {
         action: 'buymecoffee_admin_ajax',
         route: 'save_settings',
         data: this.template,
-        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-      })
-        .then((response) => {
-          this.$handleSuccess(response.data.message);
-        })
-        .fail((error) => {
-          this.$message.error(error?.responseJSON?.data?.message || 'Failed to save settings');
-        })
-        .always(() => {
-          this.saving = false;
-        });
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then((response) => {
+        this.$handleSuccess(response.data.message);
+      }).fail((error) => {
+        this.$message.error(error?.responseJSON?.data?.message || 'Failed to save settings');
+      }).always(() => {
+        this.saving = false;
+      });
     },
     resetDefault() {
       this.resetting = true;
       this.$post({
         action: 'buymecoffee_admin_ajax',
         route: 'reset_template_settings',
-        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
-      })
-        .then((response) => {
-          this.$handleSuccess(response.data.message);
-          this.template = response.data.settings;
-        })
-        .fail((error) => {
-          this.$message.error(error?.responseJSON?.data?.message || 'Failed to reset settings');
-        })
-        .always(() => {
-          this.resetting = false;
-        });
-    }
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then((response) => {
+        this.$handleSuccess(response.data.message);
+        this.template = response.data.settings;
+      }).fail((error) => {
+        this.$message.error(error?.responseJSON?.data?.message || 'Failed to reset settings');
+      }).always(() => {
+        this.resetting = false;
+      });
+    },
   },
+
   mounted() {
     this.getSettings();
-  }
+  },
 };
 </script>
 
 <style scoped>
-.bmc-settings {
-  max-width: 960px;
-}
-
-/* Card */
-.bmc-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-}
-
-.bmc-card__header {
+/* ─── Layout ─────────────────────────────── */
+.bmc-settings-layout {
   margin-bottom: 20px;
 }
 
-.bmc-card__title {
+/* ─── Content area ───────────────────────── */
+.bmc-settings-content {
+  min-width: 0;
+}
+
+/* ─── Section header ─────────────────────── */
+.bmc-section-header {
+  margin-bottom: 16px;
+}
+
+.bmc-section-header--sm {
+  margin-bottom: 12px;
+}
+
+.bmc-section-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
-  line-height: 1.4;
 }
 
-.bmc-card__subtitle {
+.bmc-section-title--sm {
+  font-size: 14px;
+}
+
+.bmc-section-sub {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: 4px 0 0;
+  margin: 3px 0 0;
 }
 
-/* Toggle rows */
+/* ─── Cards ──────────────────────────────── */
+.bmc-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.bmc-card--no-mb {
+  margin-bottom: 0;
+}
+
+/* ─── Toggle rows ────────────────────────── */
 .bmc-toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0;
+  padding: 13px 0;
   border-bottom: 1px solid var(--border-primary);
 }
 
-.bmc-toggle-row:first-child {
-  padding-top: 0;
+.bmc-toggle-row--last {
+  border-bottom: none;
 }
 
 .bmc-toggle-row--compact {
-  border-bottom: none;
   padding: 10px 0;
 }
 
-.bmc-toggle-row__content {
+.bmc-toggle-row__text {
   flex: 1;
   min-width: 0;
 }
@@ -525,30 +585,46 @@ export default {
   font-weight: 500;
   color: var(--text-primary);
   margin: 0;
-  line-height: 1.4;
 }
 
 .bmc-toggle-row__desc {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   margin: 2px 0 0;
-  line-height: 1.4;
 }
 
-/* Field indent (for conditional fields) */
-.bmc-field-indent {
+/* ─── Sub-field (conditional indent) ─────── */
+.bmc-sub-field {
   padding: 12px 0 4px 0;
   border-bottom: 1px solid var(--border-primary);
 }
 
-.bmc-field-hint {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin: 4px 0 0;
-  line-height: 1.5;
+/* ─── Generic field row ──────────────────── */
+.bmc-field-row {
+  margin-bottom: 18px;
 }
 
-.bmc-field-hint code {
+.bmc-field-row:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Label ──────────────────────────────── */
+.bmc-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* ─── Hint ───────────────────────────────── */
+.bmc-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 5px 0 0;
+}
+
+.bmc-hint code {
   font-family: var(--font-mono);
   font-size: 11px;
   background: var(--bg-tertiary);
@@ -556,57 +632,32 @@ export default {
   border-radius: 4px;
 }
 
-/* Form grid (two columns) */
-.bmc-form-grid {
+/* ─── Two-col grid ───────────────────────── */
+.bmc-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 20px;
+  gap: 16px;
   margin-top: 16px;
 }
 
 @media (max-width: 640px) {
-  .bmc-form-grid {
-    grid-template-columns: 1fr;
-  }
+  .bmc-two-col { grid-template-columns: 1fr; }
 }
 
-/* Appearance two-column layout */
-.bmc-appearance-grid {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 24px;
-  align-items: start;
-}
-
-@media (max-width: 860px) {
-  .bmc-appearance-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.bmc-appearance-grid__settings {
-  min-width: 0;
-}
-
-.bmc-appearance-grid__preview {
-  position: sticky;
-  top: 40px;
-}
-
-/* Color field with swatch + value */
-.bmc-color-field {
+/* ─── Color row ──────────────────────────── */
+.bmc-color-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.bmc-color-field__value {
-  font-size: 13px;
+.bmc-color-row__value {
+  font-size: 12.5px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
 }
 
-/* Image upload */
+/* ─── Image upload ───────────────────────── */
 .bmc-image-upload {
   display: flex;
   align-items: center;
@@ -614,8 +665,8 @@ export default {
 }
 
 .bmc-image-upload__preview {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--border-primary);
@@ -634,159 +685,390 @@ export default {
   font-size: 13px;
   color: var(--text-tertiary);
   cursor: pointer;
-  padding: 2px 0;
+  padding: 0;
   text-align: left;
-  transition: color 0.15s ease;
+  transition: color 0.15s;
 }
 
 .bmc-image-upload__remove:hover {
-  color: var(--color-danger-600, #dc2626);
+  color: #dc2626;
 }
 
-/* Preview panel */
-.bmc-preview-panel {
-  background: var(--bg-tertiary);
+/* ─── Card title ─────────────────────────── */
+.bmc-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 18px;
+}
+
+/* ─── Appearance two-column ──────────────── */
+.bmc-appearance-grid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .bmc-appearance-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Avatar upload ──────────────────────── */
+.bmc-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.bmc-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.bmc-avatar-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-primary);
+  display: block;
+  transition: opacity 0.2s;
+}
+
+.bmc-avatar-wrap:hover .bmc-avatar-img {
+  opacity: 0.6;
+}
+
+.bmc-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.bmc-avatar-wrap:hover .bmc-avatar-overlay {
+  opacity: 1;
+}
+
+.bmc-avatar-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.bmc-avatar-meta__title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.bmc-avatar-meta__hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.bmc-avatar-meta__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Text button ────────────────────────── */
+.bmc-text-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+  color: var(--text-tertiary);
+}
+
+.bmc-text-btn--danger:hover {
+  color: #dc2626;
+}
+
+/* ─── Color stack ────────────────────────── */
+.bmc-color-stack {
   border: 1px solid var(--border-primary);
   border-radius: 10px;
-  padding: 20px;
+  overflow: hidden;
+}
+
+.bmc-color-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  transition: background 0.15s;
+}
+
+.bmc-color-swatch-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.bmc-color-swatch-row:hover {
+  background: var(--bg-hover);
+}
+
+.bmc-color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.bmc-color-swatch-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bmc-color-swatch-info__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.bmc-color-swatch-info__value {
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+}
+
+/* ─── Label with value ───────────────────── */
+.bmc-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.bmc-label-value {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+}
+
+/* ─── Slider row with presets ────────────── */
+.bmc-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.bmc-radius-preset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  cursor: pointer;
+  margin-right: 4px;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.bmc-radius-preset:hover {
+  background: var(--bg-hover);
+}
+
+.bmc-radius-preset--active {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.bmc-radius-preview {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text-secondary);
+  background: transparent;
+}
+
+.bmc-radius-preview--0  { border-radius: 0; }
+.bmc-radius-preview--8  { border-radius: 4px; }
+.bmc-radius-preview--50 { border-radius: 9999px; }
+
+.bmc-radius-preset--active .bmc-radius-preview {
+  border-color: var(--color-primary-600);
+}
+
+/* ─── Live preview panel ─────────────────── */
+.bmc-preview-sticky {
+  position: sticky;
+  top: 24px;
+}
+
+.bmc-preview-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .bmc-preview-panel__label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 5px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
-  margin: 0 0 20px;
+  margin: 0 0 14px;
 }
 
-.bmc-preview-panel__stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
+/* ─── Preview mockup ─────────────────────── */
+.bmc-preview-mockup {
   background: var(--bg-primary);
-  border: 1px dashed var(--border-primary);
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bmc-preview-mockup__avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-primary);
+}
+
+.bmc-preview-mockup__quote {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.bmc-preview-mockup__quote--placeholder {
+  color: var(--text-tertiary);
+  font-style: normal;
+}
+
+.bmc-preview-mockup__amounts {
+  display: flex;
+  gap: 6px;
+}
+
+.bmc-preview-mockup__pill {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+}
+
+.bmc-preview-mockup__pill--active {
+  border-color: var(--color-primary-400);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
 }
 
 .bmc-preview-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 24px;
+  gap: 7px;
+  padding: 9px 20px;
   border: none;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s;
   white-space: nowrap;
+  width: 100%;
+  justify-content: center;
 }
 
-.bmc-preview-btn:hover {
-  opacity: 0.9;
-}
+.bmc-preview-btn:hover { opacity: 0.9; }
 
 .bmc-preview-panel__link {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--color-primary-600);
   text-decoration: none;
-  cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color 0.15s;
 }
 
 .bmc-preview-panel__link:hover {
   color: var(--color-primary-700, var(--color-primary-600));
-  text-decoration: none;
 }
 
-/* Shortcodes grid */
+/* ─── Shortcodes ─────────────────────────── */
 .bmc-shortcodes-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
 }
 
-@media (max-width: 768px) {
-  .bmc-shortcodes-grid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 640px) {
+  .bmc-shortcodes-grid { grid-template-columns: 1fr; }
 }
 
-.bmc-shortcode-tip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-}
-
-.bmc-shortcode-tip__text {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.bmc-shortcode-tip__text code {
+.bmc-inline-code {
   font-family: var(--font-mono);
   font-size: 12px;
-  background: var(--bg-primary);
-  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
   border-radius: 4px;
   border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
 }
 
-.bmc-shortcode-tip__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-primary-600);
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.15s ease;
-}
-
-.bmc-shortcode-tip__link:hover {
-  color: var(--color-primary-700, var(--color-primary-600));
-}
-
-/* Action bar */
+/* ─── Sticky action bar ──────────────────── */
 .bmc-action-bar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 16px 20px;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   position: sticky;
   bottom: 16px;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
-}
-
-/* Utility */
-.w-full {
-  width: 100%;
-}
-
-.w-24 {
-  width: 96px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
 }
 </style>

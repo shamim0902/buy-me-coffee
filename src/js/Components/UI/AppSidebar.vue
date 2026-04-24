@@ -27,12 +27,39 @@
             <div class="bmc-sidebar__section">
                 <span v-show="!isCollapsed" class="bmc-sidebar__section-label">Configuration</span>
                 <ul class="bmc-sidebar__list" role="list">
-                    <li v-for="item in configItems" :key="item.route">
-                        <router-link :to="item.route" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive(item) }">
-                            <component :is="item.icon" :size="20" class="bmc-sidebar__icon" />
-                            <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
-                        </router-link>
-                    </li>
+                    <template v-for="item in configItems" :key="item.route">
+                        <!-- Parent item -->
+                        <li>
+                            <router-link
+                                :to="item.route"
+                                class="bmc-sidebar__item"
+                                :class="{ 'bmc-sidebar__item--active': isActive(item) && !item.children }"
+                            >
+                                <component :is="item.icon" :size="20" class="bmc-sidebar__icon" />
+                                <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
+                                <component
+                                    v-if="item.children && !isCollapsed"
+                                    :is="isActive(item) ? ChevronDown : ChevronRight"
+                                    :size="14"
+                                    class="bmc-sidebar__chevron"
+                                />
+                            </router-link>
+                        </li>
+
+                        <!-- Sub-items (only when parent is active and not collapsed) -->
+                        <template v-if="item.children && isActive(item) && !isCollapsed">
+                            <li v-for="child in item.children" :key="child.label">
+                                <router-link
+                                    :to="{ path: item.route, query: child.query }"
+                                    class="bmc-sidebar__subitem"
+                                    :class="{ 'bmc-sidebar__subitem--active': isSubActive(child) }"
+                                >
+                                    <component :is="child.icon" :size="15" class="bmc-sidebar__subicon" />
+                                    {{ child.label }}
+                                </router-link>
+                            </li>
+                        </template>
+                    </template>
                 </ul>
             </div>
 
@@ -72,8 +99,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-    LayoutDashboard, Heart, Settings, CreditCard, Bell,
-    ExternalLink, Sparkles, ArrowLeft, ChevronsLeft, ChevronsRight,
+    LayoutDashboard, Heart, Settings, Palette, Code2,
+    CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
+    ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
 } from 'lucide-vue-next';
 
 const COLLAPSE_KEY = '__buymecoffee_sidebar_collapsed';
@@ -96,13 +124,28 @@ const mainItems = [
 ];
 
 const configItems = [
-    { label: 'Settings', route: '/settings', icon: Settings, activeNames: ['Settings'] },
-    { label: 'Gateways', route: '/gateway', icon: CreditCard, activeNames: ['Gateway', 'stripe', 'paypal'] },
-    { label: 'Notifications', route: '/notifications', icon: Bell, activeNames: ['Notifications', 'Emails', 'Webhook'] },
+    {
+        label: 'Settings',
+        route: '/settings',
+        icon: Settings,
+        activeNames: ['Settings'],
+        children: [
+            { label: 'General',    icon: Settings, query: { tab: 'general' } },
+            { label: 'Appearance', icon: Palette,  query: { tab: 'appearance' } },
+            { label: 'Shortcodes', icon: Code2,    query: { tab: 'shortcodes' } },
+        ],
+    },
+    { label: 'Gateways',      route: '/gateway',       icon: CreditCard, activeNames: ['Gateway', 'stripe', 'paypal'] },
+    { label: 'Notifications', route: '/notifications', icon: Bell,       activeNames: ['Notifications', 'Emails', 'Webhook'] },
 ];
 
 function isActive(item) {
     return item.activeNames?.includes(route.name) || false;
+}
+
+function isSubActive(child) {
+    const currentTab = route.query.tab || 'general';
+    return currentTab === child.query.tab;
 }
 
 function toggleCollapse() {
@@ -118,8 +161,8 @@ onMounted(() => {
 
 <style scoped>
 .bmc-sidebar {
-    width: 240px;
-    min-width: 240px;
+    width: 220px;
+    min-width: 220px;
     height: 100vh;
     background: var(--bg-primary);
     border-right: 1px solid var(--border-primary);
@@ -146,7 +189,7 @@ onMounted(() => {
 }
 .bmc-sidebar__brand-text {
     font-family: var(--font-sans);
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--text-primary);
     white-space: nowrap;
@@ -186,15 +229,16 @@ onMounted(() => {
     gap: 2px;
 }
 
+/* ── Parent items ── */
 .bmc-sidebar__item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: 8px;
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
     font-family: var(--font-sans);
     transition: background 0.15s ease, color 0.15s ease;
@@ -226,10 +270,68 @@ onMounted(() => {
     color: var(--text-secondary);
 }
 .bmc-sidebar__label {
+    flex: 1;
     white-space: nowrap;
     overflow: hidden;
 }
+.bmc-sidebar__chevron {
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+    margin-left: auto;
+}
 
+/* ── Sub-items ── */
+.bmc-sidebar__subitem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 38px;
+    border-radius: 7px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 400;
+    font-family: var(--font-sans);
+    transition: background 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+}
+
+/* vertical guide line */
+.bmc-sidebar__subitem::before {
+    content: '';
+    position: absolute;
+    left: 21px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5px;
+    height: 1px;
+    background: var(--border-primary);
+}
+
+.bmc-sidebar__subitem:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.bmc-sidebar__subitem--active {
+    color: var(--color-primary-700);
+    font-weight: 500;
+}
+.bmc-sidebar__subitem--active::before {
+    background: var(--color-primary-500);
+}
+
+.bmc-sidebar__subicon {
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+}
+.bmc-sidebar__subitem--active .bmc-sidebar__subicon,
+.bmc-sidebar__subitem:hover .bmc-sidebar__subicon {
+    color: var(--color-primary-500);
+}
+
+/* ── Collapse toggle ── */
 .bmc-sidebar__toggle {
     display: flex;
     align-items: center;
@@ -250,6 +352,9 @@ onMounted(() => {
 
 :global(html.dark) .bmc-sidebar__item--active {
     background: rgba(13, 148, 136, 0.15);
+    color: var(--color-primary-400);
+}
+:global(html.dark) .bmc-sidebar__subitem--active {
     color: var(--color-primary-400);
 }
 
