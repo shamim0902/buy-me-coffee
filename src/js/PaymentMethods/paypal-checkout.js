@@ -57,7 +57,7 @@ class PaypalCheckout {
             })
             .render(paypalButtonContainer[0])
 
-        this.form.find('.buymecoffee_form_submit_wrapper, .buymecoffee_no_signup, .buymecoffee_input_content, .buymecoffee_payment_input_content').hide();
+        this.form.find('.buymecoffee_form_submit_wrapper, .buymecoffee_no_signup, .buymecoffee_input_content, .buymecoffee_payment_input_content, .buymecoffee_payment_item').hide();
         this.form.find('.buymecoffee_pay_methods')?.parent().append(paypalButtonContainer);
         this.form.prepend("<p class='complete_payment_instruction'>Please complete your donation with PayPal 👇</p>");
     }

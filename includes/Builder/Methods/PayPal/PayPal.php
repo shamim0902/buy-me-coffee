@@ -499,6 +499,7 @@ class PayPal extends BaseMethods
         if ($orderStatus !== 'COMPLETED') {
             $statusMessage = $orderStatus ? $orderStatus : __('UNKNOWN', 'buy-me-coffee');
             wp_send_json_error(array(
+                /* translators: %s: PayPal order status (e.g. PENDING, VOIDED) */
                 'message' => sprintf(__('PayPal order is not completed yet. Current status: %s', 'buy-me-coffee'), $statusMessage),
             ), 400);
         }

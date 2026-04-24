@@ -176,18 +176,22 @@ form.wpm_submitting_form {
 button#buymecoffee_pay_now {
   color: #fff !important;
   font-size: 15px !important;
-  font-weight: 600;
+  font-weight: 700;
   padding: 12px !important;
-  border-radius: 12px;
+  border-radius: 14px;
   border: none;
   background: $bmc-accent;
-  height: 48px;
+  height: 50px;
   width: 100%;
+  margin-top: 16px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(13, 148, 136, 0.2);
+  font-family: $bmc-font;
 
   &:hover {
-    opacity: 0.9;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+    transform: translateY(-1px);
   }
 }
 
@@ -195,7 +199,9 @@ button#buymecoffee_pay_now {
 .complete_payment_instruction {
   color: $bmc-accent;
   font-size: 14px;
+  font-weight: 500;
   font-family: $bmc-font;
-  border-bottom: 1px solid #f3f4f6;
-  padding-bottom: 8px;
+  border-bottom: 1px solid #f4f4f5;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
 }

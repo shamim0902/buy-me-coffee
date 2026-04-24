@@ -19,6 +19,7 @@ use BuyMeCoffee\Helpers\ArrayHelper as Arr;
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $template['custom_coffee'] = esc_html(sanitize_text_field(wp_unslash($_GET['custom_coffee'])));
         }
+        /* translators: %s: creator name */
         printf(esc_html__('Support %s', 'buy-me-coffee'), esc_html($template['yourName']));
         ?>
     </h3>

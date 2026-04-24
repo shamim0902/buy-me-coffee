@@ -1,21 +1,23 @@
 // ============================================================
-// Buy Me Coffee — Public Donation Page (BuyMeCoffee SaaS style)
+// Buy Me Coffee — Public Donation Page
 // ============================================================
 
 $bmc-max-width: 960px;
-$bmc-banner-height: 260px;
+$bmc-banner-height: 280px;
 $bmc-accent: #0d9488;
-$bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$bmc-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$bmc-radius: 16px;
 
 // ── Page ───────────────────────────────────────
 .bmc-page {
   margin: 0;
   padding: 0;
-  background: #f5f5f4;
+  background: #fafaf9;
   font-family: $bmc-font;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #1a1a1a;
+  line-height: 1.5;
 }
 
 .bmc-page-wrapper {
@@ -29,52 +31,58 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
+  padding: 0 32px;
+  height: 60px;
   background: #fff;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.92);
 
   &__left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   &__avatar {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     object-fit: cover;
+    border: 2px solid rgba(0, 0, 0, 0.06);
   }
 
   &__name {
     font-size: 15px;
     font-weight: 700;
-    color: #111;
+    color: #18181b;
+    letter-spacing: -0.01em;
   }
 
   &__center {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 28px;
   }
 
   &__link {
     font-size: 14px;
     font-weight: 500;
-    color: #666;
+    color: #71717a;
     text-decoration: none;
     padding: 4px 0;
+    transition: color 0.15s;
 
     &:hover {
-      color: #111;
+      color: #18181b;
     }
 
     &--active {
       color: $bmc-accent;
+      font-weight: 600;
     }
   }
 
@@ -84,20 +92,32 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
     gap: 10px;
   }
 
-  &__edit-btn {
-    font-size: 13px;
-    font-weight: 500;
-    color: #666;
-    text-decoration: none;
-    padding: 6px 14px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+  &__icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    color: #71717a;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
     transition: all 0.15s;
+    text-decoration: none;
+
+    svg {
+      flex-shrink: 0;
+    }
 
     &:hover {
-      background: #f5f5f5;
-      color: #111;
-      border-color: #ccc;
+      background: #f4f4f5;
+      color: #18181b;
+    }
+
+    &--active {
+      color: $bmc-accent;
     }
   }
 }
@@ -106,7 +126,7 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 .bmc-banner {
   width: 100%;
   height: $bmc-banner-height;
-  background-color: #222;
+  background-color: #18181b;
   background-size: cover;
   background-position: center;
   position: relative;
@@ -116,26 +136,27 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
   &__gradient {
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%);
   }
 }
 
 // ── Main Layout ────────────────────────────────
 .bmc-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: 5fr 6fr;
+  gap: 28px;
   max-width: $bmc-max-width;
   width: 100%;
-  margin: -40px auto 0;
-  padding: 0 24px 40px;
+  margin: -48px auto 0;
+  padding: 0 28px 48px;
   position: relative;
   z-index: 2;
 }
 
 .bmc-content--single {
   grid-column: 1 / -1;
-  max-width: 480px;
+  max-width: 460px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -146,76 +167,68 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 
 .bmc-about-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1px solid #eee;
+  border-radius: $bmc-radius;
+  padding: 28px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
 
   &__title {
     font-size: 15px;
     font-weight: 700;
-    color: #111;
+    color: #18181b;
     margin: 0;
-  }
-
-  &__edit {
-    font-size: 13px;
-    font-weight: 500;
-    color: #888;
-    text-decoration: none;
-    cursor: pointer;
-
-    &:hover {
-      color: $bmc-accent;
-    }
+    letter-spacing: -0.01em;
   }
 
   &__bio {
     font-size: 14px;
-    color: #444;
-    line-height: 1.6;
-    margin: 0 0 16px;
+    color: #52525b;
+    line-height: 1.7;
+    margin: 0 0 20px;
     word-wrap: break-word;
 
     &--empty {
-      color: #aaa;
+      color: #a1a1aa;
       font-style: italic;
     }
   }
 
   &__divider {
     height: 1px;
-    background: #f0f0f0;
-    margin: 16px 0;
+    background: #f4f4f5;
+    margin: 20px 0;
   }
 
   &__section-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    color: #111;
-    margin: 0 0 14px;
+    color: #18181b;
+    margin: 0 0 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   &__empty {
     text-align: center;
-    padding: 20px 0;
-    color: #aaa;
+    padding: 28px 0;
+    color: #a1a1aa;
     font-size: 13px;
 
     p {
-      margin: 8px 0 0;
+      margin: 10px 0 0;
     }
   }
 
   &__empty-icon {
-    font-size: 24px;
+    font-size: 28px;
+    display: block;
   }
 }
 
@@ -226,38 +239,41 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 
   &__item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    padding: 6px 0;
   }
 
   &__avatar {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: #f0f0f0;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
     font-weight: 700;
-    color: #666;
+    color: #059669;
     flex-shrink: 0;
+    border: 1px solid rgba(5, 150, 105, 0.1);
   }
 
   &__info {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    gap: 1px;
   }
 
   &__name {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
-    color: #222;
+    color: #18181b;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -265,7 +281,7 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 
   &__meta {
     font-size: 12px;
-    color: #999;
+    color: #a1a1aa;
   }
 }
 
@@ -277,23 +293,24 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 // ── Form Card ──────────────────────────────────
 .bmc-form-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 28px 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1px solid #eee;
+  border-radius: $bmc-radius;
+  padding: 32px 28px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 12px 32px rgba(0, 0, 0, 0.07);
+  border: none;
 
   &--shadow {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03), 0 16px 40px rgba(0, 0, 0, 0.08);
   }
 
   &__title {
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 700;
-    color: #111;
-    margin: 0 0 20px;
+    color: #18181b;
+    margin: 0 0 24px;
+    letter-spacing: -0.01em;
 
     span {
-      color: #111;
+      color: #18181b;
     }
   }
 }
@@ -301,37 +318,38 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 // ── Form Elements (class names from Render.php) ──
 .buymecoffee_form {
   .buymecoffee_payment_item {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
 
   .buymecoffee_payment_input_content {
-    border-radius: 10px;
+    border-radius: 14px;
     display: flex;
     justify-content: center;
     align-items: center;
     height: auto;
-    padding: 14px;
+    padding: 16px 18px;
     margin-bottom: 0;
     box-sizing: border-box;
-    background: #fafafa;
-    border: 1px solid #eee;
+    background: #fafaf9;
+    border: 1px solid #f4f4f5;
   }
 
   .buymecoffee_coffee_selector {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 
     img {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       object-fit: contain;
       flex-shrink: 0;
       image-rendering: -webkit-optimize-contrast;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.06));
     }
 
     > span {
-      color: #999;
+      color: #a1a1aa;
       font-size: 15px;
       font-weight: 500;
     }
@@ -339,7 +357,7 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 
   .bmc_coffee {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 
     input {
       max-width: 0;
@@ -349,25 +367,26 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 
     label {
       cursor: pointer;
-      border: 1.5px solid #e0e0e0;
-      border-radius: 8px;
-      width: 40px;
-      height: 40px;
+      border: 1.5px solid #e4e4e7;
+      border-radius: 12px;
+      width: 44px;
+      height: 44px;
       display: flex !important;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
-      color: #333;
+      color: #3f3f46;
       padding: 0 !important;
       margin: 0 !important;
-      transition: all 0.15s;
+      transition: all 0.2s ease;
       background: #fff;
     }
 
     label:hover {
       border-color: $bmc-accent;
       color: $bmc-accent;
+      background: rgba($bmc-accent, 0.04);
     }
 
     input:checked + label {
@@ -375,26 +394,28 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
       border-color: $bmc-accent;
       color: #fff !important;
       font-weight: 700;
+      box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
     }
   }
 
   input.buymecoffee_custom_quantity {
-    width: 50px !important;
-    height: 40px !important;
-    border: 1.5px solid #e0e0e0 !important;
-    border-radius: 8px !important;
+    width: 54px !important;
+    height: 44px !important;
+    border: 1.5px solid #e4e4e7 !important;
+    border-radius: 12px !important;
     text-align: center;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
     background: #fff;
     box-shadow: none !important;
     padding: 0 !important;
-    color: #333;
-    transition: border-color 0.15s;
+    color: #3f3f46;
+    transition: all 0.2s;
 
     &:focus {
       border-color: $bmc-accent !important;
       outline: none;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
     }
   }
 
@@ -402,22 +423,29 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
     background: $bmc-accent !important;
     border-color: $bmc-accent !important;
     color: #fff !important;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25) !important;
   }
 
   // Custom amount
   .buymecoffee_input_content_custom_pay {
     display: flex;
-    border-radius: 10px;
+    border-radius: 14px;
     overflow: hidden;
-    border: 1.5px solid #e0e0e0;
+    border: 1.5px solid #e4e4e7;
+    transition: border-color 0.15s;
+
+    &:focus-within {
+      border-color: $bmc-accent;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    }
   }
 
   .buymecoffee_currency_prefix {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     background: $bmc-accent;
     color: #fff;
-    width: 50px;
+    width: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -429,14 +457,14 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
   .buymecoffee_payment {
     border: none !important;
     border-radius: 0 !important;
-    height: 52px !important;
-    font-size: 24px;
+    height: 56px !important;
+    font-size: 22px;
     font-weight: 600;
-    padding: 0 14px;
+    padding: 0 16px;
     margin: 0 !important;
     flex: 1;
     background: #fff !important;
-    color: #111;
+    color: #18181b;
 
     &:focus {
       outline: none !important;
@@ -450,50 +478,52 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
 
   // Text inputs
   .buymecoffee_form_item {
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
 
   .buymecoffee_input_content {
     input,
     textarea {
       width: 100% !important;
-      padding: 10px 14px;
-      border: 1.5px solid #e0e0e0 !important;
-      border-radius: 10px;
+      padding: 12px 16px;
+      border: 1.5px solid #e4e4e7 !important;
+      border-radius: 12px;
       font-size: 14px;
       font-family: $bmc-font;
       background: #fff !important;
-      color: #111;
+      color: #18181b;
       box-shadow: none !important;
       box-sizing: border-box;
-      min-height: 42px;
-      transition: border-color 0.15s;
+      min-height: 46px;
+      transition: all 0.2s;
       resize: vertical;
 
       &:focus {
         outline: none;
         border-color: $bmc-accent !important;
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
       }
 
       &::placeholder {
-        color: #aaa;
-        font-size: 13px;
+        color: #a1a1aa;
+        font-size: 13.5px;
       }
     }
 
     textarea {
-      min-height: 56px;
+      min-height: 60px;
     }
   }
 
   // Submit
   .buymecoffee_form_submit_wrapper {
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    margin-top: 4px;
   }
 
   .wpm_submit_button {
     width: 100%;
-    height: 48px;
+    height: 50px;
     font-family: $bmc-font;
     font-size: 15px;
     font-weight: 700;
@@ -501,23 +531,30 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
     color: #fff !important;
     background: $bmc-accent;
     border: none;
-    border-radius: 10px;
+    border-radius: 14px;
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 6px;
-    transition: all 0.15s;
-    box-shadow: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(13, 148, 136, 0.2);
     text-transform: none;
 
     &:hover {
-      opacity: 0.9;
+      box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
     }
 
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
 
     .wpm_payment_total_amount_prefix,
@@ -527,26 +564,26 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
   }
 
   .buymecoffee_no_signup {
-    color: #bbb;
+    color: #a1a1aa;
     font-size: 12px;
     text-align: center;
-    margin: 6px 0 0;
+    margin: 8px 0 0;
   }
 }
 
 // ── Payment Methods ────────────────────────────
 .buymecoffee_pay_methods {
-  margin-bottom: 14px !important;
+  margin-bottom: 16px !important;
 }
 
 .buymecoffee_pay_method {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 
   .payment_method_name {
     font-size: 11px;
     font-weight: 500;
-    color: #888;
+    color: #71717a;
   }
 
   input[type='radio'] {
@@ -558,28 +595,29 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
     height: 22px;
     max-width: 100%;
     filter: grayscale(1);
-    opacity: 0.5;
+    opacity: 0.45;
     transition: all 0.2s;
   }
 
   label {
-    border-radius: 8px;
-    border: 1.5px solid #e0e0e0;
-    min-width: 44px;
-    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1.5px solid #e4e4e7;
+    min-width: 48px;
+    padding: 10px 16px;
     margin: 0;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     height: auto;
-    transition: all 0.15s;
+    transition: all 0.2s;
     background: #fff;
 
     &:hover {
       border-color: $bmc-accent;
+      background: rgba($bmc-accent, 0.02);
       img {
         filter: grayscale(0);
         opacity: 1;
@@ -591,6 +629,7 @@ $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neu
     border-color: $bmc-accent;
     background: rgba($bmc-accent, 0.04);
     width: auto;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.08);
 
     img {
       filter: grayscale(0);
@@ -617,20 +656,21 @@ form.wpm_submitting_form {
 
 // ── Footer ─────────────────────────────────────
 .bmc-footer {
-  padding: 32px 24px;
+  padding: 40px 24px;
   text-align: center;
   margin-top: auto;
 
   p {
     font-size: 13px;
-    color: #aaa;
+    color: #a1a1aa;
     margin: 0;
   }
 
   a {
-    color: #888;
+    color: #71717a;
     text-decoration: none;
     font-weight: 500;
+    transition: color 0.15s;
 
     &:hover {
       color: $bmc-accent;
@@ -641,120 +681,176 @@ form.wpm_submitting_form {
 // ── Receipt / Confirmation ─────────────────────
 .bmc-receipt {
   background: #fff;
-  border-radius: 12px;
-  padding: 32px 24px;
-  border: 1px solid #eee;
-  text-align: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: $bmc-radius;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 12px 32px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
 
-  &__header {
-    margin-bottom: 20px;
+  // ── Success header ──
+  &__success {
+    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+    padding: 24px 24px 20px;
+    text-align: center;
+    border-bottom: 1px solid #dcfce7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
   }
 
-  &__icon {
-    display: block;
-    margin: 0 auto 12px;
+  &__check {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: $bmc-accent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.25);
+
+    svg { width: 22px; height: 22px; }
   }
 
   &__title {
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
-    color: #111;
-    margin: 0 0 8px;
+    color: #18181b;
+    margin: 0;
+    letter-spacing: -0.01em;
   }
 
-  &__hash {
+  &__subtitle {
     font-size: 13px;
-    font-weight: 600;
-    color: #888;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    margin: 0 0 4px;
-  }
-
-  &__date {
-    font-size: 13px;
-    color: #aaa;
+    color: #52525b;
     margin: 0;
   }
 
-  &__divider {
-    border: none;
-    border-top: 1px solid #f0f0f0;
-    margin: 20px 0;
+  // ── Amount box ──
+  &__amount-box {
+    padding: 18px 24px;
+    text-align: center;
+    border-bottom: 1px solid #f4f4f5;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  &__body {
-    text-align: left;
+  &__amount-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #a1a1aa;
+  }
+
+  &__amount-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #18181b;
+    letter-spacing: -0.02em;
+  }
+
+  &__amount-coffees {
+    font-size: 12px;
+    color: #a1a1aa;
+    width: 100%;
+  }
+
+  // ── Details ──
+  &__details {
+    padding: 16px 24px;
+  }
+
+  &__details-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #a1a1aa;
+    margin: 0 0 8px;
   }
 
   &__row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #fafafa;
+    padding: 8px 0;
+    border-bottom: 1px solid #f9fafb;
 
-    &:last-child {
-      border-bottom: none;
-    }
+    &:last-child { border-bottom: none; }
   }
 
   &__label {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
-    color: #888;
+    color: #71717a;
   }
 
   &__value {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #111;
+    color: #18181b;
   }
 
-  &__coffee-count {
-    background: #fef3c7;
-    color: #92400e;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 13px;
+  &__mono {
+    font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 12px;
+    color: #52525b;
   }
 
   &__status {
     padding: 2px 10px;
     border-radius: 9999px;
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: capitalize;
 
-    &--paid {
-      background: #ecfdf5;
-      color: #065f46;
-    }
-    &--pending {
-      background: #fffbeb;
-      color: #92400e;
-    }
-    &--failed {
-      background: #fef2f2;
-      color: #991b1b;
-    }
+    &--paid { background: #ecfdf5; color: #065f46; }
+    &--pending { background: #fffbeb; color: #92400e; }
+    &--failed { background: #fef2f2; color: #991b1b; }
   }
 
-  &__amount {
-    font-size: 16px;
-    font-weight: 700;
-    color: $bmc-accent;
+  // ── Message ──
+  &__message {
+    padding: 10px 0 0;
+    border-top: 1px solid #f4f4f5;
+  }
+
+  &__message-text {
+    font-size: 13px;
+    color: #3f3f46;
+    line-height: 1.5;
+    margin: 6px 0 0;
+    padding: 10px 14px;
+    background: #fafaf9;
+    border-radius: 8px;
+    border: 1px solid #f4f4f5;
+  }
+
+  // ── Footer ──
+  &__footer {
+    padding: 16px 24px;
+    text-align: center;
+    background: #fafaf9;
+    border-top: 1px solid #f4f4f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  &__gif {
+    width: 36px;
+    height: 36px;
   }
 
   &__thanks {
-    font-size: 15px;
-    color: #888;
-    margin: 24px 0 0;
-    text-align: center;
+    font-size: 13px;
+    color: #71717a;
+    margin: 0;
   }
 }
 
@@ -765,7 +861,8 @@ form.wpm_submitting_form {
   z-index: 9999;
   inset: 0;
   overflow: auto;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
 
   .bmc-form-card {
     margin: 0 auto;
@@ -779,24 +876,25 @@ form.wpm_submitting_form {
   margin: 8vh auto;
   padding: 0;
   border: none;
-  border-radius: 12px;
+  border-radius: $bmc-radius;
   max-width: 520px;
   width: 90%;
   max-height: 84vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
 }
 
 .close {
-  color: #aaa;
+  color: #a1a1aa;
   float: right;
   font-size: 24px;
-  padding: 8px 16px;
+  padding: 10px 16px;
   cursor: pointer;
   line-height: 1;
+  transition: color 0.15s;
 
   &:hover {
-    color: #333;
+    color: #18181b;
   }
 }
 
@@ -804,16 +902,18 @@ form.wpm_submitting_form {
 @media (max-width: 768px) {
   .bmc-main {
     grid-template-columns: 1fr;
-    margin-top: -24px;
-    padding: 0 16px 32px;
+    margin-top: -28px;
+    padding: 0 16px 36px;
+    gap: 20px;
   }
 
   .bmc-banner {
-    height: 180px;
+    height: 200px;
   }
 
   .bmc-nav {
     padding: 0 16px;
+    height: 54px;
 
     &__center {
       display: none;
@@ -821,10 +921,35 @@ form.wpm_submitting_form {
   }
 
   .bmc-form-card {
-    padding: 24px 18px;
+    padding: 24px 20px;
   }
 
   .bmc-about-card {
-    padding: 20px;
+    padding: 22px;
+  }
+
+  .bmc-footer {
+    padding: 32px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bmc-banner {
+    height: 160px;
+  }
+
+  .bmc-form-card__title {
+    font-size: 17px;
+  }
+
+  .buymecoffee_form .bmc_coffee label {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .buymecoffee_form input.buymecoffee_custom_quantity {
+    width: 48px !important;
+    height: 40px !important;
   }
 }

@@ -3,7 +3,7 @@ class StripeCheckout {
         this.form = $form;
         this.data = $response.data;
         this.intent = $response.data?.intent;
-        this.parentWrapper = this.form.parents('.buymecoffee_form_preview_wrapper');
+        this.parentWrapper = this.form.parents('.bmc-form-card, .buymecoffee_form_preview_wrapper').first();
     }
 
     init () {
@@ -53,18 +53,18 @@ class StripeCheckout {
     generatePayButton() {
         let amounPrefix = this.form.find('.wpm_payment_total_amount_prefix').text();
         let buttonText = "Pay " + amounPrefix + (parseInt(this.intent.amount) / 100) + " Now"
-        return "<button id='buymecoffee_pay_now' style='margin-top: 20px;width: 100%;' type='submit'>" + buttonText + "</button>";
+        return "<button id='buymecoffee_pay_now' type='submit'>" + buttonText + "</button>";
     }
     startPaymentProcessing() {
         this.form.find('.buymecoffee_payment_processor').parent().prepend("<p class='buymecoffee_loading_processor'>Payment processor loading...<p/>");
-        this.parentWrapper.find('.buymecoffee_input_content, .buymecoffee_pay_methods, .buymecoffee_payment_item', '.wpm_submit_button').hide();
+        this.form.find('.buymecoffee_input_content, .buymecoffee_pay_methods, .buymecoffee_payment_item, .buymecoffee_form_submit_wrapper, .buymecoffee_no_signup').hide();
     }
 
     afterPaymentSuccess() {
         const receipt = "<a href='" + this.data?.order_items?.payment_args?.success_url + "'>View Receipt</a>";
         this.parentWrapper.append("<div class='buymecoffee_form_receipt'>Thanks for your contribution 🖤<br/>" + receipt + "</div>");
         this.parentWrapper.find('.buymecoffee_form').hide();
-        this.parentWrapper.find('.buymecoffee_form_to').hide();
+        this.parentWrapper.find('.buymecoffee_form_to, .bmc-form-card__title').hide();
     }
 
     afterPaymentProcessorReady(payButton) {

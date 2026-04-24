@@ -3,8 +3,7 @@
     <CoffeeLoader :loading="loading" />
     <!-- Back Button -->
     <button
-      class="inline-flex items-center gap-1.5 text-sm font-medium mb-5 px-0 bg-transparent border-none cursor-pointer"
-      style="color: var(--text-secondary)"
+      class="bmc-back-btn"
       @click="$router.push({ name: 'Supporters' })"
     >
       <ArrowLeft :size="16" />
@@ -378,3 +377,24 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.bmc-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.bmc-back-btn:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+</style>
