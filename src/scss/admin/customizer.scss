@@ -1,120 +1,257 @@
-.buymecoffee {
-  &_customizer {
-    &_wrapper {
-      position: sticky;
-      top: 0;
-      background-color: #f1f1f1;
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      border-top: 1px solid #f9f9f9;
-      align-items: center;
-      height: 60px;
-      z-index: 9999;
-    }
-    &_menu {
-      width: 22px;
-      height: 142px;
-      padding: 4px;
-      background: #ffffff;
-      border: 1px solid #b1b1b1;
-      z-index: 999;
-      box-shadow: 4px 4px 6px 0px #ccc;
-      position: fixed;
-      top: 150px;
-      left: 0;
-      border-top-right-radius: 8px;
-      border-bottom-right-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 22px;
-      font-size: 16px;
-      p {
-        transform: rotate(-90deg);
-        margin-bottom: 14px;
-        color: #848484;
-      }
-      &:hover {
-        transform: scale(1.1);
-        transition: transform 0.3s ease;
-      }
-    }
-  }
-  &_edit_action {
-    background: #6a6a6a;
-    width: 100px;
-    text-align: center;
-    color: #ffffff;
-    cursor: pointer;
-    box-shadow: 4px 4px 5px 0px #ccc;
-    font-size: 12px;
-    &_wrapper blockquote {
-      width: 450px;
-      padding: 0px;
-      margin: 0px -10px;
-      input{
-        width: 100%;
-        height: 100px;
-        border-radius: 7px;
-        border: 1px solid #ccc;
-      }
-    }
-    &:hover {
-      transition-duration: 0.4s;
-      transform: scale(1.02);
-    }
-  }
-  &_colors {
-    text-align: center;
-    padding-top: 20px;
-    display: flex;
-    margin: 0;
-    flex-direction: row;
-    > li {
-      list-style: none;
-      width: 20px;
-      height: 16px;
-      border-radius: 50%;
-      border-bottom: 4px solid rgba(0, 0, 0, 0.1);
-      margin: 0 10px;
-      cursor: pointer;
-      transition-duration: 0.2s;
-      box-shadow: 0 2px 1px rgba(0, 0, 0, 0.2);
+// ============================================================
+// Buy Me Coffee — Inline Page Editor (admin only)
+// ============================================================
 
-      &:hover {
-        -webkit-transform: scale(1.2);
-        transform: scale(1.2);
-        border-bottom: 5px solid rgba(0, 0, 0, 0.15);
-        box-shadow: 0 10px 10px rgba(0, 0, 0, 0.2);
-      }
-      &.active-color {
-        -webkit-transform: scale(1.2) translateY(-7px);
-        transform: scale(1.2) translateY(-7px);
-        box-shadow: 0 10px 10px rgba(0, 0, 0, 0.2);
-        border-bottom: 5px solid rgba(0, 0, 0, 0.15);
-      }
+$bmc-accent: #0d9488;
+
+// ── Edit mode FAB ──────────────────────────────
+.bmc-edit-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  &:hover {
+    background: #1f2937;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  &--active {
+    background: $bmc-accent;
+
+    &:hover {
+      background: darken($bmc-accent, 5%);
+    }
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+
+// ── Edit panel (color picker + save) ───────────
+.bmc-edit-panel {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  z-index: 9998;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  width: 260px;
+  display: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  &--visible {
+    display: block;
+  }
+
+  &__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin: 0 0 10px;
+  }
+
+  &__colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    list-style: none;
+    padding: 0;
+  }
+
+  &__color {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &--active {
+      border-color: #111827;
+      transform: scale(1.15);
+    }
+  }
+
+  &__save {
+    width: 100%;
+    padding: 10px;
+    background: $bmc-accent;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover {
+      opacity: 0.9;
+    }
+
+    &--saved {
+      background: #059669;
     }
   }
 }
-button#buymecoffee_save_changes {
-  height: 37px;
-  min-width: 120px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  margin-right: 25px;
-  background: white;
-  border: 1px solid #ccc;
-  color: #5684ff;
-  justify-content: center;
-  border-radius: 20px;
-  cursor: pointer;
-  &:hover, &:active, &:focus{
-    background: #0287d9;
-    color: white;
-    border: none;
+
+// ── Edit mode overlays ─────────────────────────
+.bmc-page-wrapper.bmc-editing {
+  // Banner editable
+  .bmc-banner {
+    cursor: pointer;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  .bmc-banner__edit-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .bmc-banner:hover .bmc-banner__edit-hint {
+    display: flex;
+  }
+
+  // Avatar editable
+  .bmc-profile__avatar-wrap {
+    cursor: pointer;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  .bmc-profile__avatar-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    color: #fff;
+    pointer-events: none;
+    display: none;
+
+    svg {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  .bmc-profile__avatar-wrap:hover .bmc-profile__avatar-hint {
+    display: block;
+  }
+
+  // Contenteditable fields
+  [contenteditable="true"] {
+    outline: 2px dashed rgba(13, 148, 136, 0.3);
+    outline-offset: 4px;
+    border-radius: 4px;
+    cursor: text;
+    min-width: 100px;
+    transition: outline-color 0.15s;
+
+    &:focus {
+      outline-color: $bmc-accent;
+    }
+
+    &:empty::before {
+      content: attr(data-placeholder);
+      color: #9ca3af;
+    }
+  }
+}
+
+// ── Toast notification ─────────────────────────
+.bmc-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  z-index: 10000;
+  padding: 10px 20px;
+  background: #111827;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+
+  &--visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }

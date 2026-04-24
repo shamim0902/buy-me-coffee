@@ -23,6 +23,7 @@ class Buttons
             "currency" => 'USD',
             "advanced" => array(
                 "image" => '',
+                "banner_image" => '',
                 "enable" => 'yes',
                 "bgColor" => 'rgba(250, 212, 0, 1)',
                 "color" => 'rgba(0, 0, 0, 1)',

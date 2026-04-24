@@ -72,6 +72,8 @@ class DemoPage
                 $profileImage = Vite::staticPath() . 'images/profile.png';
             }
 
+            $bannerImage = ArrayHelper::get($template, 'advanced.banner_image', '');
+
             //escaped in template, ignoring phpcs here now
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo View::make('templates.BasicTemplate', [
@@ -80,6 +82,7 @@ class DemoPage
                 'quote' => esc_html($quote),
                 'show_title' => esc_html(ArrayHelper::get($template, 'formTitle') == 'yes'),
                 'profile_image' => esc_url($profileImage),
+                'banner_image' => esc_url($bannerImage),
                 'name' => esc_html(ArrayHelper::get($template, 'yourName')),
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 'args' => static::getSanitizedArguments($args),
@@ -91,8 +94,14 @@ class DemoPage
     public function loadCustomizer()
     {
         if (!current_user_can('manage_options')) return;
-        vite::enqueueScript('buymecoffee_customizer',  'js/customizer.js', array('jquery'), BUYMECOFFEE_VERSION, false);
+        wp_enqueue_media();
+        Vite::enqueueScript('buymecoffee_customizer', 'js/customizer.js', array('jquery'), BUYMECOFFEE_VERSION, true);
         Vite::enqueueStyle('buymecoffee_customizer_style', 'scss/admin/customizer.scss', array(), BUYMECOFFEE_VERSION);
+        wp_localize_script('buymecoffee_customizer', 'buymecoffee_customizer_data', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'is_admin' => true,
+        ));
     }
 
     public function loadDefaultPageTemplate()
@@ -125,6 +134,7 @@ class DemoPage
         // Define sanitization rules for advanced fields
         $advancedFields = [
             'image' => ['type' => 'url', 'default' => ''],
+            'banner_image' => ['type' => 'url', 'default' => ''],
             'enable' => ['type' => 'text', 'default' => 'yes'],
             'bgColor' => ['type' => 'text', 'default' => ''],
             'color' => ['type' => 'text', 'default' => ''],

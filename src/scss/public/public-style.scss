@@ -1,95 +1,112 @@
-form.wpm_submitting_form {
-    span.wpm_txt_normal {
-      display: none !important;
-    }
+// ============================================================
+// Buy Me Coffee — Public Form Styles
+// ============================================================
 
-    span.wpm_txt_loading {
-      display: block !important;
-    }
+$bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$bmc-accent: #0d9488;
+
+// ── Form submission states ─────────────────────
+form.wpm_submitting_form {
+  span.wpm_txt_normal {
+    display: none !important;
+  }
+
+  span.wpm_txt_loading {
+    display: block !important;
+  }
 }
+
 .wpm_loading_svg {
   display: none;
 }
 
 form.wpm_submitting_form {
-  //background: #fff;
   .wpm_loading_svg {
-    position: absolute;
-    margin-left: 19px;
-    display: inline-block;
-  }
-}
-.wpm_submit_button {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    &:disabled {
-      background: #f1cd16;
-      opacity: 1!important;
+    display: inline-flex;
+    margin-left: 8px;
+
+    svg path[fill="#000"] {
+      fill: #fff;
     }
+  }
 }
 
+// ── Submit button base ─────────────────────────
+.wpm_submit_button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &:disabled {
+    opacity: 0.7 !important;
+    cursor: not-allowed;
+  }
+}
+
+// ── Payment method selector ────────────────────
 .buymecoffee_pay_method {
   .payment_method_name {
-    font-size:12px;
-    font-weight: lighter;
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
   }
+
   input[type='radio'] {
-    z-index:999;
-    position: relative;
-    margin: -53px 0px 0px -35px;
+    z-index: 999;
+    position: absolute;
     visibility: hidden;
   }
+
   img {
-    height: 28px;
+    height: 24px;
     filter: grayscale(1);
     opacity: 0.5;
     max-width: 100%;
+    transition: all 0.2s;
   }
+
   img:hover {
     opacity: 1;
     filter: grayscale(0);
   }
+
   display: flex;
+  gap: 8px;
+
   label {
-    border-radius: 18px;
-    border: 1px solid #efeeee;
-    width: 30px;
-    margin-right: 10px;
+    border-radius: 10px;
+    border: 1.5px solid #e5e7eb;
+    min-width: 48px;
+    margin-right: 0;
     cursor: pointer;
-    display: grid;
+    display: flex;
+    flex-direction: column;
     justify-items: center;
     align-items: center;
-    padding: 0px;
-    height: 30px;
-    transition-duration: 0.7s;
-     &:hover {
-      background: #e1fffa;
+    padding: 8px 12px;
+    height: auto;
+    gap: 4px;
+    transition: all 0.15s;
+    background: #fff;
+
+    &:hover {
+      border-color: $bmc-accent;
+      background: rgba($bmc-accent, 0.02);
     }
   }
+
   .wpm_payment_active {
-    background: #8aeee814;
-    width: 120px;
+    border-color: $bmc-accent;
+    background: rgba($bmc-accent, 0.04);
+
     img {
-      opacity: 0.8;
+      opacity: 1;
       filter: grayscale(0);
     }
   }
 }
 
-button#buymecoffee_pay_now {
-  color: #cdcdcd !important;
-  font-size: 16px !important;
-  padding: 8px !important;
-  border-radius: 31px;
-  border: none;
-  background: #1d52ffc9;
-  height: 45px;
-  &:hover {
-    background: #0e886b;
-  }
-}
-
+// ── Form receipt ───────────────────────────────
 .buymecoffee_form_preview_wrapper {
   .buymecoffee_form_receipt {
     display: flex;
@@ -97,60 +114,88 @@ button#buymecoffee_pay_now {
     flex-wrap: wrap;
     min-height: 200px;
     align-content: center;
+
     a {
-      color: #0e886b;
+      color: $bmc-accent;
     }
   }
-  .buymecoffee_loading_processor{
-    color: #48a891;font-size: 14px;
+
+  .buymecoffee_loading_processor {
+    color: $bmc-accent;
+    font-size: 14px;
   }
 }
 
-
-//public button modal css here
-
+// ── Modal styles ───────────────────────────────
 .modal {
   display: none;
   position: fixed;
-  z-index: 1;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
+  z-index: 9999;
+  inset: 0;
   overflow: auto;
-  background-color: rgba(0, 0, 0, 0.4);
-  .buymecoffee_form_preview_wrapper {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+
+  .buymecoffee_form_preview_wrapper,
+  .bmc-form-card {
     margin: 0 auto;
     box-shadow: none !important;
     border: none !important;
-    padding-top: 32px;
+    padding-top: 24px;
   }
 }
 
 .bmc_modal_content {
-  background-color: #fefefe;
-  margin: 10vh auto;
-  padding: 0px;
-  border: 4px solid #e4e3e1;
-  max-width: 700px;
-  width: 60%;
-  height: 80vh;
+  background: #fff;
+  margin: 8vh auto;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 84vh;
   overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
 }
 
 .close {
-  color: #aaa;
+  color: #9ca3af;
   float: right;
-  font-size: 28px;
-  font-weight: bold;
-  padding: 2px 12px;
-}
-
-.close:hover,
-.close:focus {
-  color: black;
-  text-decoration: none;
+  font-size: 24px;
+  font-weight: 400;
+  padding: 8px 16px;
   cursor: pointer;
+  line-height: 1;
+
+  &:hover {
+    color: #374151;
+  }
 }
 
+// ── Payment button (Stripe/PayPal) ─────────────
+button#buymecoffee_pay_now {
+  color: #fff !important;
+  font-size: 15px !important;
+  font-weight: 600;
+  padding: 12px !important;
+  border-radius: 12px;
+  border: none;
+  background: $bmc-accent;
+  height: 48px;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.15s;
 
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+// ── Loading instruction text ───────────────────
+.complete_payment_instruction {
+  color: $bmc-accent;
+  font-size: 14px;
+  font-family: $bmc-font;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 8px;
+}

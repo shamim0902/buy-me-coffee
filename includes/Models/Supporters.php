@@ -232,4 +232,12 @@ class Supporters extends Model
         return $this->getQuery()->where('id', $id)->delete();
     }
 
+    public function getLatest($limit = 5)
+    {
+        return $this->getQuery()
+            ->where('payment_status', 'paid')
+            ->orderBy('id', 'DESC')
+            ->limit($limit)
+            ->get();
+    }
 }

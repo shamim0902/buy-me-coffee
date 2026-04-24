@@ -192,12 +192,23 @@ class AdminAjaxHandler
             $settings['advanced']['border_style'] = $data['border_style'];
         }
 
-        if (!empty($data['quote'])) {
-            $settings['advanced']['quote'] = $data['quote'];
+        if (isset($data['quote'])) {
+            $settings['advanced']['quote'] = sanitize_text_field($data['quote']);
+        }
+
+        if (isset($data['banner_image'])) {
+            $settings['advanced']['banner_image'] = esc_url_raw($data['banner_image']);
+        }
+
+        if (isset($data['image'])) {
+            $settings['advanced']['image'] = esc_url_raw($data['image']);
+        }
+
+        if (isset($data['yourName'])) {
+            $settings['yourName'] = sanitize_text_field($data['yourName']);
         }
 
         $this->saveSettings($settings);
-
     }
 
     public function sanitizeTextArray($data)

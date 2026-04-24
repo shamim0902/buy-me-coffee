@@ -148,15 +148,32 @@
                   </div>
 
                   <!-- Quote -->
-                  <div class="bmc-field-row" style="margin-top: 20px; margin-bottom: 0">
-                    <label class="bmc-label">Quote / tagline</label>
+                  <div class="bmc-field-row" style="margin-top: 20px">
+                    <label class="bmc-label">Bio / tagline</label>
                     <el-input
                       v-model="template.advanced.quote"
                       type="textarea"
                       :rows="2"
                       placeholder="e.g. Support my open-source work ☕"
                     />
-                    <p class="bmc-hint">Displayed beneath your profile photo on the donation page.</p>
+                    <p class="bmc-hint">Displayed beneath your profile on the donation page.</p>
+                  </div>
+
+                  <!-- Banner image -->
+                  <div class="bmc-field-row" style="margin-bottom: 0">
+                    <label class="bmc-label">Cover / Banner Image</label>
+                    <div v-if="template.advanced.banner_image" class="bmc-banner-preview">
+                      <img :src="template.advanced.banner_image" alt="Banner preview" />
+                      <button
+                        type="button"
+                        class="bmc-text-btn bmc-text-btn--danger"
+                        @click="template.advanced.banner_image = ''"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <MediaButton ref="bannerMediaBtn" @onMediaSelected="onBannerSelected" />
+                    <p class="bmc-hint">Full-width cover at the top of your donation page. Recommended 1200×400 px.</p>
                   </div>
                 </div>
 
@@ -447,6 +464,9 @@ export default {
   methods: {
     onMediaSelected(selected) {
       if (selected.length) this.template.advanced.image = selected[0].url;
+    },
+    onBannerSelected(selected) {
+      if (selected.length) this.template.advanced.banner_image = selected[0].url;
     },
     fullPath(path) {
       return window.BuyMeCoffeeAdmin.assets_url + 'images/' + path;
@@ -804,6 +824,38 @@ export default {
 
 .bmc-text-btn--danger:hover {
   color: #dc2626;
+}
+
+/* ─── Banner preview ────────────────────── */
+.bmc-banner-preview {
+  margin-bottom: 8px;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+}
+
+.bmc-banner-preview img {
+  display: block;
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+}
+
+.bmc-banner-preview .bmc-text-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.bmc-banner-preview .bmc-text-btn:hover {
+  background: rgba(220, 38, 38, 0.8);
+  color: #fff;
 }
 
 /* ─── Color stack ────────────────────────── */
