@@ -61,6 +61,7 @@ class BmcFormHandler {
 
         jQuery.post(window.buymecoffee_general.ajax_url, {
             action: 'buymecoffee_submit',
+            buymecoffee_nonce: window.buymecoffee_general?.buymecoffee_nonce || '',
             payment_total: form.data('wpm_payment_total'),
             coffee_count: form.data('coffee_count'),
             payment_method: form.data('wpm_selected_payment_method'),

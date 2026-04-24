@@ -60,7 +60,16 @@
                         <el-input
                             v-model="activeSecretKey"
                             type="password"
-                            :placeholder="settings.payment_mode === 'live' ? 'sk_live_...' : 'sk_test_...'"
+                            :placeholder="secretKeyPlaceholder"
+                            show-password
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">Webhook Signing Secret</label>
+                        <el-input
+                            v-model="activeWebhookSecret"
+                            type="password"
+                            :placeholder="webhookSecretPlaceholder"
                             show-password
                         />
                     </div>
@@ -114,7 +123,13 @@ export default {
                 test_pub_key: '',
                 test_secret_key: '',
                 live_pub_key: '',
-                live_secret_key: ''
+                live_secret_key: '',
+                test_webhook_secret: '',
+                live_webhook_secret: '',
+                has_live_secret_key: false,
+                has_test_secret_key: false,
+                has_live_webhook_secret: false,
+                has_test_webhook_secret: false
             },
             saving: false,
             fetching: false,
@@ -151,6 +166,38 @@ export default {
                     this.settings.test_secret_key = val;
                 }
             }
+        },
+        activeWebhookSecret: {
+            get() {
+                return this.settings.payment_mode === 'live'
+                    ? this.settings.live_webhook_secret
+                    : this.settings.test_webhook_secret;
+            },
+            set(val) {
+                if (this.settings.payment_mode === 'live') {
+                    this.settings.live_webhook_secret = val;
+                } else {
+                    this.settings.test_webhook_secret = val;
+                }
+            }
+        },
+        secretKeyPlaceholder() {
+            const hasExisting = this.settings.payment_mode === 'live'
+                ? this.settings.has_live_secret_key
+                : this.settings.has_test_secret_key;
+            if (hasExisting) {
+                return 'Saved secret key (leave blank to keep)';
+            }
+            return this.settings.payment_mode === 'live' ? 'sk_live_...' : 'sk_test_...';
+        },
+        webhookSecretPlaceholder() {
+            const hasExisting = this.settings.payment_mode === 'live'
+                ? this.settings.has_live_webhook_secret
+                : this.settings.has_test_webhook_secret;
+            if (hasExisting) {
+                return 'Saved webhook secret (leave blank to keep)';
+            }
+            return this.settings.payment_mode === 'live' ? 'whsec_live_...' : 'whsec_test_...';
         }
     },
     methods: {

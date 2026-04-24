@@ -1,25 +1,7 @@
 <template>
   <div class="bmc-dashboard relative min-h-[200px]">
     <CoffeeLoader :loading="fetching" />
-    <PageTitle title="Dashboard" subtitle="Overview of your donations">
-      <template #actions>
-        <a
-          class="bmc-dash-action"
-          @click="$router.push('quick-setup')"
-        >
-          <Settings :size="16" />
-          <span>Setup</span>
-        </a>
-        <a
-          class="bmc-dash-action"
-          :href="previewUrl"
-          target="_blank"
-        >
-          <Eye :size="16" />
-          <span>Preview</span>
-        </a>
-      </template>
-    </PageTitle>
+    <PageTitle title="Dashboard" subtitle="Overview of your donations" />
 
     <!-- Quick Setup Banner -->
     <div
@@ -187,7 +169,7 @@
 </template>
 
 <script>
-import { Eye, Settings, Rocket, X, ChevronRight } from 'lucide-vue-next';
+import { Rocket, X, ChevronRight } from 'lucide-vue-next';
 import PageTitle from './UI/PageTitle.vue';
 import MetricCard from './UI/MetricCard.vue';
 import StatusBadge from './UI/StatusBadge.vue';
@@ -198,8 +180,6 @@ import ChartRenderer from './Parts/ChartRenderer.vue';
 export default {
   name: 'Dashboard',
   components: {
-    Eye,
-    Settings,
     Rocket,
     X,
     ChevronRight,
@@ -226,7 +206,6 @@ export default {
       selectedCurrency: '',
       currencyOptions: [],
       chartDataMap: {},
-      previewUrl: window.BuyMeCoffeeAdmin.preview_url,
       reportData: {
         total_supporters: 0,
         total_coffee: 0,
@@ -561,30 +540,6 @@ export default {
 
 .bmc-setup-banner__close:hover {
   background: var(--color-primary-100, rgba(0,0,0,0.05));
-}
-
-/* Header action buttons */
-.bmc-dash-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.bmc-dash-action:hover {
-  color: var(--color-primary-600);
-  border-color: var(--color-primary-300, var(--border-primary));
-  background: var(--color-primary-50);
-  text-decoration: none;
 }
 
 /* View all link */

@@ -74,6 +74,63 @@ abstract class BaseMethods
     {
         //return if no module extend
     }
+
+    protected function verifyPublicRequestNonce()
+    {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce validated manually
+        if (!isset($_REQUEST['buymecoffee_nonce'])) {
+            if ($this->canAllowLegacyPublicRequest('payment_confirmation')) {
+                return;
+            }
+
+            wp_send_json_error(array(
+                'message' => __('Invalid request nonce', 'buy-me-coffee')
+            ), 403);
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce validated manually
+        $nonce = sanitize_text_field(wp_unslash($_REQUEST['buymecoffee_nonce']));
+        if (!wp_verify_nonce($nonce, 'buymecoffee_nonce')) {
+            wp_send_json_error(array(
+                'message' => __('Invalid request nonce', 'buy-me-coffee')
+            ), 403);
+        }
+    }
+
+    protected function canAllowLegacyPublicRequest($context = 'general')
+    {
+        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', true, $context, $this->method);
+        if (!$allowLegacy) {
+            return false;
+        }
+
+        $siteHost = wp_parse_url(home_url(), PHP_URL_HOST);
+        if (!$siteHost) {
+            return false;
+        }
+
+        $hostsToCheck = [];
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+        if (!empty($_SERVER['HTTP_ORIGIN'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+            $hostsToCheck[] = wp_parse_url(esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])), PHP_URL_HOST);
+        }
+
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+        if (!empty($_SERVER['HTTP_REFERER'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+            $hostsToCheck[] = wp_parse_url(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])), PHP_URL_HOST);
+        }
+
+        foreach ($hostsToCheck as $host) {
+            if (!empty($host) && strtolower($host) === strtolower($siteHost)) {
+                return true;
+            }
+        }
+
+        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', true, $context, $this->method);
+    }
+
     abstract public function render($template);
 
     abstract public function getPaymentSettings();

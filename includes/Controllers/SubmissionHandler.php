@@ -12,7 +12,25 @@ class SubmissionHandler
 {
     public function handleSubmission()
     {
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission, no nonce required
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce checked manually below
+        if (!isset($_REQUEST['buymecoffee_nonce'])) {
+            if (!$this->canAllowLegacyPublicRequest('submission')) {
+                wp_send_json_error(array(
+                    'message' => __("Invalid request nonce", 'buy-me-coffee')
+                ), 403);
+            }
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce checked manually
+        if (isset($_REQUEST['buymecoffee_nonce'])) {
+            if (!wp_verify_nonce(sanitize_text_field(wp_unslash($_REQUEST['buymecoffee_nonce'])), 'buymecoffee_nonce')) {
+                wp_send_json_error(array(
+                    'message' => __("Invalid request nonce", 'buy-me-coffee')
+                ), 403);
+            }
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form payload check
         if (!isset($_REQUEST['form_data'])) {
             wp_send_json_error(array(
                 'message' => __("Invalid form data", 'buy-me-coffee')
@@ -26,11 +44,11 @@ class SubmissionHandler
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
         $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : 'paypal';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
-        $paymentTotal = isset($_REQUEST['payment_total']) ? intval($_REQUEST['payment_total']) : 0;
+        $paymentTotal = isset($_REQUEST['payment_total']) ? max(0, intval($_REQUEST['payment_total'])) : 0;
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
-        $quantity = isset($_REQUEST['coffee_count']) ? intval($_REQUEST['coffee_count']) : 1;
+        $quantity = isset($_REQUEST['coffee_count']) ? max(1, intval($_REQUEST['coffee_count'])) : 1;
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
-        $currency = isset($_REQUEST['currency']) ? sanitize_text_field(wp_unslash($_REQUEST['currency'])) : false;
+        $currency = isset($_REQUEST['currency']) ? strtoupper(sanitize_text_field(wp_unslash($_REQUEST['currency']))) : false;
 
         if (!$currency) {
             $currency = PaymentHelper::getCurrency();
@@ -78,7 +96,7 @@ class SubmissionHandler
             'charge_id' => '',
             'payment_method' => sanitize_text_field($paymentMethod),
             'payment_total' => $paymentTotal,
-            'currency' => 'USD',
+            'currency' => $currency,
             'status' => 'pending',
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql'),
@@ -106,12 +124,23 @@ class SubmissionHandler
 
     private function sanitizeFormData($formDataArray)
     {
+        if (!is_array($formDataArray)) {
+            return [];
+        }
+
         $sanitizedData = [];
         foreach ($formDataArray as $value) {
-            if ($value['name'] === 'wpm-supporter-email') {
-                $sanitizedData[$value['name']] = sanitize_email($value['value']);
+            if (!is_array($value) || !isset($value['name'])) {
+                continue;
+            }
+
+            $name = sanitize_text_field($value['name']);
+            $rawValue = isset($value['value']) ? $value['value'] : '';
+
+            if ($name === 'wpm-supporter-email') {
+                $sanitizedData[$name] = sanitize_email($rawValue);
             } else {
-                $sanitizedData[$value['name']] = sanitize_text_field($value['value']);
+                $sanitizedData[$name] = sanitize_text_field($rawValue);
             }
         }
         return $sanitizedData;
@@ -125,6 +154,40 @@ class SubmissionHandler
         $uid .= wp_rand(1, 999);
         $uid = str_replace(array("'", '/', '?', '#', "\\"), '', $uid);
         return $uid;
+    }
+
+    private function canAllowLegacyPublicRequest($context = 'submission')
+    {
+        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', true, $context, 'submit');
+        if (!$allowLegacy) {
+            return false;
+        }
+
+        $siteHost = wp_parse_url(home_url(), PHP_URL_HOST);
+        if (!$siteHost) {
+            return false;
+        }
+
+        $hostsToCheck = [];
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+        if (!empty($_SERVER['HTTP_ORIGIN'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+            $hostsToCheck[] = wp_parse_url(esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])), PHP_URL_HOST);
+        }
+
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+        if (!empty($_SERVER['HTTP_REFERER'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Header values are sanitized below
+            $hostsToCheck[] = wp_parse_url(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])), PHP_URL_HOST);
+        }
+
+        foreach ($hostsToCheck as $host) {
+            if (!empty($host) && strtolower($host) === strtolower($siteHost)) {
+                return true;
+            }
+        }
+
+        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', true, $context, 'submit');
     }
 
 }

@@ -38,6 +38,12 @@ class AdminAjaxHandler
             ), 403);
         }
 
+        if (!AccessControl::hasTopLevelMenuPermission()) {
+            wp_send_json_error(array(
+                'message' => __("Sorry, you are not allowed to perform this action.", 'buy-me-coffee')
+            ), 403);
+        }
+
         $route = isset($_REQUEST['route']) ? sanitize_text_field(wp_unslash($_REQUEST['route'])) : '';
 
         $validRoutes = array(
@@ -72,6 +78,9 @@ class AdminAjaxHandler
             return $this->{$validRoutes[$route]}($data);
         }
         do_action('buymecoffee_admin_ajax_handler_catch', $route);
+        wp_send_json_error(array(
+            'message' => __("Invalid route requested.", 'buy-me-coffee')
+        ), 400);
     }
 
     public function getAllMethods()

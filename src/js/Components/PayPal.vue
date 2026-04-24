@@ -73,7 +73,7 @@
                         <el-input
                             v-model="activeSecretKey"
                             type="password"
-                            placeholder="Secret key from PayPal dashboard"
+                            :placeholder="secretKeyPlaceholder"
                             show-password
                         />
                     </div>
@@ -154,7 +154,9 @@ export default {
                 live_public_key: '',
                 live_secret_key: '',
                 paypal_email: '',
-                disable_ipn_verification: 'no'
+                disable_ipn_verification: 'no',
+                has_test_secret_key: false,
+                has_live_secret_key: false
             },
             saving: false,
             fetching: false,
@@ -189,6 +191,15 @@ export default {
                     this.settings.test_secret_key = val;
                 }
             }
+        },
+        secretKeyPlaceholder() {
+            const hasExisting = this.settings.payment_mode === 'live'
+                ? this.settings.has_live_secret_key
+                : this.settings.has_test_secret_key;
+            if (hasExisting) {
+                return 'Saved secret key (leave blank to keep)';
+            }
+            return 'Secret key from PayPal dashboard';
         }
     },
     methods: {

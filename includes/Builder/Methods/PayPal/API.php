@@ -28,6 +28,23 @@ class API
 
     }
 
+    public function captureTransaction($orderId)
+    {
+        try {
+            $capturedOrder = $this->makeRequest('checkout/orders/' . $orderId . '/capture', 'v2', 'POST', new \stdClass());
+
+            if (is_wp_error($capturedOrder)) {
+                throw new \Exception($capturedOrder->get_error_message(), $capturedOrder->get_error_code());
+            }
+
+            return $capturedOrder;
+        } catch (\Exception $e) {
+            $message = $e->getMessage() ?: 'Unable to capture PayPal order';
+            $code = $e->getCode() ?: 500;
+            throw new \Exception(esc_html($message), intval($code));
+        }
+    }
+
     public static function makeRequest($path, $version = 'v1', $method = 'POST', $args = [])
     {
         if (empty($path)) {
@@ -60,10 +77,15 @@ class API
         if ('POST' === $method) {
             $headers["Prefer"] = "return=representation";
         }
+
+        $body = is_array($args) && empty($args)
+            ? wp_json_encode(new \stdClass())
+            : wp_json_encode($args);
+
         $response = wp_safe_remote_request($paypal_api_url, [
             'headers' => $headers,
             'method'  => $method,
-            'body'    => json_encode($args)
+            'body'    => $body
         ]);
         if (is_wp_error($response)) {
             return new \WP_Error('general_error', 'Paypal General Error', $response);

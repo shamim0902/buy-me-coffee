@@ -24,6 +24,7 @@ class StripeCheckout {
             this.afterPaymentProcessorReady(payButton);
             this.form.find('#buymecoffee_pay_now').on('click', function(e) {
                 e.preventDefault()
+                const originalLabel = jQuery(this).text();
                 jQuery(this).text('Processing...');
                 elements.submit().then(result=> {
                     stripe.confirmPayment({
@@ -37,13 +38,14 @@ class StripeCheckout {
                         if (result?.paymentIntent?.id) {
                             jQuery.post(window.buymecoffee_general.ajax_url, {
                                 action: 'buymecoffee_payment_confirmation_stripe',
+                                buymecoffee_nonce: window.buymecoffee_general?.buymecoffee_nonce || '',
                                 intentId: result?.paymentIntent?.id,
                             })
                         }
                     })
                 }).catch(error => {
                     console.log(error, 'kk')
-                    jQuery(this).text(buttonText);
+                    jQuery(this).text(originalLabel);
                 })
             })
         });

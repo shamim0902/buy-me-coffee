@@ -42,6 +42,10 @@ class PaymentHelper
         //verify order
         $paymentHelper = new PaymentHelper();
         $order =  $paymentHelper->getByHash($orderHash);
+        if (!$order || empty($order->transaction)) {
+            return;
+        }
+
         if (intval($order->payment_total) !== $amount) {
             return;
         }
@@ -59,8 +63,12 @@ class PaymentHelper
             'card_brand' => sanitize_text_field($cardBand)
         ];
 
-        (new Supporters())->updateData($order->id, ['payment_status' => $status]);
+        (new Supporters())->updateData($order->id, [
+            'payment_status' => $status,
+            'updated_at' => current_time('mysql')
+        ]);
         (new Transactions())->updateData($order->transaction->id, $updateData);
+        do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);
     }
 
     public static function getFormattedAmount($amount, $currency)

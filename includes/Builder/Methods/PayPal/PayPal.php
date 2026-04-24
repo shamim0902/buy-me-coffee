@@ -119,22 +119,48 @@ class PayPal extends BaseMethods
 
     public function sanitize($settings)
     {
+        $currentSettings = $this->getSettings();
+        $secretFields = ['test_secret_key', 'live_secret_key'];
+
         foreach ($settings as $key => $value) {
+            if (strpos($key, 'has_') === 0) {
+                unset($settings[$key]);
+                continue;
+            }
+
             if ($key === 'paypal_email') {
                 $settings[$key] = sanitize_email($value);
             } else {
                 $settings[$key] = sanitize_text_field($value);
             }
+
+            if (in_array($key, $secretFields, true) && $settings[$key] === '' && !empty($currentSettings[$key])) {
+                // Keep existing secrets when masked/empty values are submitted from UI.
+                $settings[$key] = $currentSettings[$key];
+            }
         }
+
+        $settings['enable'] = ($settings['enable'] ?? 'no') === 'yes' ? 'yes' : 'no';
+        $settings['payment_mode'] = ($settings['payment_mode'] ?? 'test') === 'live' ? 'live' : 'test';
+        $settings['payment_type'] = ($settings['payment_type'] ?? 'standard') === 'pro' ? 'pro' : 'standard';
+        $settings['disable_ipn_verification'] = ($settings['disable_ipn_verification'] ?? 'no') === 'yes' ? 'yes' : 'no';
         return $settings;
     }
 
     public function paymentConfirmation()
     {
+        $this->verifyPublicRequestNonce();
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $chargeId = isset($_REQUEST['charge_id']) ? sanitize_text_field(wp_unslash($_REQUEST['charge_id'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $hash = isset($_REQUEST['hash']) ?  sanitize_text_field(wp_unslash($_REQUEST['hash'])) : '';
+
+        if (!$chargeId || !$hash) {
+            wp_send_json_error(array(
+                'message' => __('Invalid request', 'buy-me-coffee'),
+            ), 400);
+        }
 
         $this->updatePayment($chargeId, $hash);
     }
@@ -145,8 +171,15 @@ class PayPal extends BaseMethods
 
     public function getPaymentSettings()
     {
+        $currentSettings = $this->getSettings();
+        $settings = $currentSettings;
+        $settings['test_secret_key'] = '';
+        $settings['live_secret_key'] = '';
+        $settings['has_test_secret_key'] = !empty($currentSettings['test_secret_key']);
+        $settings['has_live_secret_key'] = !empty($currentSettings['live_secret_key']);
+
         wp_send_json_success(array(
-            'settings' => $this->getSettings(),
+            'settings' => $settings,
             'webhook_url' => site_url() . '?buymecoffee_ipn_listener=1&method=paypal'
         ), 200);
     }
@@ -312,7 +345,9 @@ class PayPal extends BaseMethods
 
     public function updateStatus($data, $payment_id)
     {
-        if ($data['txn_type'] != 'web_accept' && $data['txn_type'] != 'cart' && $data['payment_status'] != 'Refunded') {
+        $txnType = sanitize_text_field($data['txn_type'] ?? '');
+        $paymentStatusRaw = sanitize_text_field($data['payment_status'] ?? '');
+        if ($txnType != 'web_accept' && $txnType != 'cart' && $paymentStatusRaw != 'Refunded') {
             return;
         }
 
@@ -335,20 +370,26 @@ class PayPal extends BaseMethods
             return;
         }
 
-        $currency_code = strtolower($data['mc_currency']);
+        $configuredPayee = strtolower(trim($this->getSettings('paypal_email')));
+        $receiverEmail = strtolower(trim($data['receiver_email'] ?? ($data['business'] ?? '')));
+        if ($configuredPayee && $receiverEmail && $receiverEmail !== $configuredPayee) {
+            $this->changeStatus('failed', $transaction);
+            return;
+        }
+
+        $currency_code = strtolower(sanitize_text_field($data['mc_currency'] ?? ''));
 
         if ($currency_code != strtolower($transaction->currency)) {
             $this->changeStatus('failed', $transaction);
             return;
         }
 
-        $payment_status = strtolower($data['payment_status']);
+        $payment_status = strtolower($paymentStatusRaw);
 
-        $paypal_amount = $data['mc_gross'];
-        $isMismatchAmount = false;
-        if (number_format((float)($transaction->payment_total / 100), 2) - number_format((float)$paypal_amount, 2) > 1) {
-            $isMismatchAmount = true;
-        }
+        $paypal_amount = isset($data['mc_gross']) ? (float)$data['mc_gross'] : 0;
+        $expectedAmount = (float)number_format((float)($transaction->payment_total / 100), 2, '.', '');
+        $receivedAmount = (float)number_format((float)$paypal_amount, 2, '.', '');
+        $isMismatchAmount = abs($expectedAmount - $receivedAmount) > 0.01;
 
         if ($isMismatchAmount) {
             $this->changeStatus('failed', $transaction);
@@ -426,22 +467,69 @@ class PayPal extends BaseMethods
 
     public function updatePayment($chargeId, $hash)
     {
-        if ($chargeId == '' || $hash == '') {
+        $transaction = (new Transactions())->find($hash, 'entry_hash');
+        if (!$transaction || $transaction->payment_method !== 'paypal') {
             wp_send_json_error(array(
-                'message' => __('Invalid request', 'buy-me-coffee'),
+                'message' => __('Transaction not found', 'buy-me-coffee'),
+            ), 404);
+        }
+
+        $api = new API();
+        try {
+            $payment_intent = $api->verifyTransaction($chargeId);
+        } catch (\Exception $e) {
+            wp_send_json_error(array(
+                'message' => esc_html($e->getMessage()),
             ), 400);
         }
 
-        $payment_intent = (new API())->verifyTransaction($chargeId);
+        $orderStatus = strtoupper(sanitize_text_field(ArrayHelper::get($payment_intent, 'status', '')));
+        if ($orderStatus === 'APPROVED') {
+            try {
+                // Capture server-side to avoid browser token/runtime issues after buyer approval.
+                $payment_intent = $api->captureTransaction($chargeId);
+            } catch (\Exception $e) {
+                wp_send_json_error(array(
+                    'message' => esc_html($e->getMessage()),
+                ), 400);
+            }
+            $orderStatus = strtoupper(sanitize_text_field(ArrayHelper::get($payment_intent, 'status', '')));
+        }
 
-        if (!isset($payment_intent['status']) || $payment_intent['status'] != 'COMPLETED') {
-            return;
+        if ($orderStatus !== 'COMPLETED') {
+            $statusMessage = $orderStatus ? $orderStatus : __('UNKNOWN', 'buy-me-coffee');
+            wp_send_json_error(array(
+                'message' => sprintf(__('PayPal order is not completed yet. Current status: %s', 'buy-me-coffee'), $statusMessage),
+            ), 400);
         }
 
         $purchaseUnit = ArrayHelper::get($payment_intent, 'purchase_units.0');
+        $referenceId = sanitize_text_field(ArrayHelper::get($purchaseUnit, 'reference_id', ''));
+        if ($referenceId !== $hash) {
+            wp_send_json_error(array(
+                'message' => __('Payment confirmation reference mismatch', 'buy-me-coffee'),
+            ), 400);
+        }
+
         $vendorChargeId = ArrayHelper::get($purchaseUnit, 'payments.captures.0.id', '');
-        $amount = 100 * floatval(ArrayHelper::get($purchaseUnit, 'amount.value', 0));
+        if (!$vendorChargeId) {
+            $vendorChargeId = sanitize_text_field($chargeId);
+        }
+        $amount = (int) round(100 * floatval(ArrayHelper::get($purchaseUnit, 'amount.value', 0)), 0);
+        $currencyCode = strtoupper(sanitize_text_field(ArrayHelper::get($purchaseUnit, 'amount.currency_code', '')));
         $mode = $this->getSettings('payment_mode');
+
+        if (!empty($currencyCode) && strtoupper($transaction->currency) !== $currencyCode) {
+            wp_send_json_error(array(
+                'message' => __('Payment currency mismatch', 'buy-me-coffee'),
+            ), 400);
+        }
+
+        if (!empty($transaction->payment_total) && abs((int)$transaction->payment_total - $amount) > 1) {
+            wp_send_json_error(array(
+                'message' => __('Payment amount mismatch', 'buy-me-coffee'),
+            ), 400);
+        }
 
         $updateData = array(
             'charge_id' => sanitize_text_field($vendorChargeId),
@@ -452,21 +540,20 @@ class PayPal extends BaseMethods
             'updated_at' => current_time('mysql'),
         );
 
-        $transactionId = buyMeCoffeeQuery()->table('buymecoffee_transactions')
-            ->where('entry_hash', $hash)->update($updateData);
+        (new Transactions())->updateData($transaction->id, $updateData);
 
-        buyMeCoffeeQuery()->table('buymecoffee_supporters')
-            ->where('entry_hash', $hash)
-            ->update([
-                    'payment_total' => $amount,
-                    'payment_status' => 'paid',
-                    'payment_mode' => sanitize_text_field($mode),
-                    'updated_at' => current_time('mysql')
-            ]);
+        (new Supporters())->updateData($transaction->entry_id, [
+            'payment_total' => $amount,
+            'payment_status' => 'paid',
+            'payment_mode' => sanitize_text_field($mode),
+            'updated_at' => current_time('mysql')
+        ]);
+
+        do_action('buymecoffee_payment_status_updated', $transaction->id, 'paid');
 
         wp_send_json_success(array(
             'message' => __('Payment updated successfully', 'buy-me-coffee'),
-            'data' => $transactionId
+            'data' => $transaction->id
         ), 200);
     }
 

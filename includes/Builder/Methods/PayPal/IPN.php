@@ -16,8 +16,6 @@ class IPN
             return;
         }
 
-        header("HTTP/1.1 200 OK");
-
         $post_data = '';
         if (ini_get('allow_url_fopen')) {
             $post_data = file_get_contents('php://input');
@@ -41,6 +39,14 @@ class IPN
             // phpcs:enable WordPress.Security.NonceVerification.Missing
         }
 
+        if (!$this->isVerificationDisabled()) {
+            $verified = $this->verifyWithPayPal($encoded_data);
+            if (is_wp_error($verified) || $verified !== true) {
+                status_header(400);
+                exit;
+            }
+        }
+
         parse_str($encoded_data, $encoded_data_array);
 
         foreach ($encoded_data_array as $key => $value) {
@@ -59,8 +65,7 @@ class IPN
 
         $encoded_data_array = wp_parse_args($encoded_data_array, $defaults);
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- PayPal IPN callback, verified by PayPal
-        if (!is_array($encoded_data_array) && !empty($encoded_data_array)) {
+        if (!is_array($encoded_data_array) || empty($encoded_data_array)) {
             return;
         }
         
@@ -78,7 +83,40 @@ class IPN
         }
 
         do_action('buymecoffee_paypal_action_web_accept', $encoded_data_array, $payment_id);
+        status_header(200);
         exit;
+    }
+
+    private function verifyWithPayPal($encodedData)
+    {
+        $verificationUrl = $this->getPaypalRedirect(true, true);
+
+        $response = wp_safe_remote_post($verificationUrl, [
+            'headers' => [
+                'Connection' => 'Close',
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'body' => $encodedData,
+            'timeout' => 45,
+            'httpversion' => '1.1',
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        if (trim($body) !== 'VERIFIED') {
+            return new \WP_Error('paypal_ipn_invalid', __('PayPal IPN verification failed', 'buy-me-coffee'));
+        }
+
+        return true;
+    }
+
+    private function isVerificationDisabled()
+    {
+        $settings = $this->getSettings();
+        return isset($settings['disable_ipn_verification']) && $settings['disable_ipn_verification'] === 'yes';
     }
 
     private function getSettings()

@@ -63,13 +63,20 @@ class Stripe extends BaseMethods
 
     public function paymentConfirmation()
     {
+        $this->verifyPublicRequestNonce();
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         if (!isset($_REQUEST['intentId'])) {
-            return;
+            wp_send_json_error([
+                'message' => __('Payment intent is missing', 'buy-me-coffee')
+            ], 400);
         }
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         $intentId = sanitize_text_field(wp_unslash($_REQUEST['intentId']));
         (new PaymentHelper())->updatePaymentData($intentId);
+        wp_send_json_success([
+            'message' => __('Payment confirmation received', 'buy-me-coffee')
+        ], 200);
     }
 
     public function handleInlinePayment($transaction, $paymentArgs, $apiKey)
@@ -150,47 +157,62 @@ class Stripe extends BaseMethods
     public function verifyIpn()
     {
         $data = (new IPN())->IPNData();
-
-        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r -- Debug logging for Stripe webhook
-        error_log(print_r($data));
-        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
-        error_log("data event");
-
-        if (!$data) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
-            error_log('invalid data');
-            return;
+        if (!$data || is_wp_error($data)) {
+            status_header(400);
+            exit;
         }
 
-        $eventId = $data->id;
+        $eventId = isset($data->id) ? sanitize_text_field($data->id) : '';
+        if (!$eventId) {
+            status_header(400);
+            exit;
+        }
+
         $invoice = (new API())->getInvoice($eventId);
+        if (!$invoice || is_wp_error($invoice)) {
+            status_header(400);
+            exit;
+        }
 
         $orderHash = $this->getOrderHash($invoice);
-
-        if (!$invoice || is_wp_error($invoice)) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging for Stripe webhook
-            error_log('invoice not found');
-            return;
+        if (!$orderHash) {
+            status_header(200);
+            exit;
         }
 
-        $status = $invoice->data->object->status;
+        $status = isset($invoice->data->object->status) ? sanitize_text_field($invoice->data->object->status) : '';
+        if (!$status) {
+            status_header(400);
+            exit;
+        }
 
         if ($status === 'succeeded') {
             $status = 'paid';
         }
 
         $this->updateStatus($orderHash, $status);
+        status_header(200);
+        exit;
     }
 
     public function updateStatus($orderHash, $status)
     {
         $transactions = new Transactions();
         $transaction = $transactions->find($orderHash, 'entry_hash');
+        if (!$transaction) {
+            return;
+        }
 
         $supportersModel = new Supporters();
-        $supportersModel->updateData($transaction->entry_id, ['payment_status' => $status]);
+        $supportersModel->updateData($transaction->entry_id, [
+            'payment_status' => sanitize_text_field($status),
+            'updated_at' => current_time('mysql')
+        ]);
 
-        $transactions->updateData($transaction->id, ['payment_status' => $status]);
+        $transactions->updateData($transaction->id, [
+            'status' => sanitize_text_field($status),
+            'updated_at' => current_time('mysql')
+        ]);
 
         do_action('buymecoffee_payment_status_updated', $transaction->id, $status);
     }
@@ -217,16 +239,44 @@ class Stripe extends BaseMethods
 
     public function sanitize($settings)
     {
+        $currentSettings = $this->getSettings();
+        $secretFields = ['live_secret_key', 'test_secret_key', 'live_webhook_secret', 'test_webhook_secret'];
+
         foreach ($settings as $key => $value) {
+            if (strpos($key, 'has_') === 0) {
+                unset($settings[$key]);
+                continue;
+            }
+
             $settings[$key] = sanitize_text_field($value);
+
+            if (in_array($key, $secretFields, true) && $settings[$key] === '' && !empty($currentSettings[$key])) {
+                // Preserve already-saved secrets unless user explicitly replaces them.
+                $settings[$key] = $currentSettings[$key];
+            }
         }
+
+        $settings['enable'] = ($settings['enable'] ?? 'no') === 'yes' ? 'yes' : 'no';
+        $settings['payment_mode'] = ($settings['payment_mode'] ?? 'test') === 'live' ? 'live' : 'test';
+
         return $settings;
     }
 
     public function getPaymentSettings()
     {
+        $currentSettings = $this->getSettings();
+        $settings = $currentSettings;
+        $settings['live_secret_key'] = '';
+        $settings['test_secret_key'] = '';
+        $settings['live_webhook_secret'] = '';
+        $settings['test_webhook_secret'] = '';
+        $settings['has_live_secret_key'] = !empty($currentSettings['live_secret_key']);
+        $settings['has_test_secret_key'] = !empty($currentSettings['test_secret_key']);
+        $settings['has_live_webhook_secret'] = !empty($currentSettings['live_webhook_secret']);
+        $settings['has_test_webhook_secret'] = !empty($currentSettings['test_webhook_secret']);
+
         wp_send_json_success(array(
-            'settings' => $this->getSettings(),
+            'settings' => $settings,
             'webhook_url' => site_url() . '?buymecoffee_stripe_listener=1'
         ), 200);
     }
@@ -241,7 +291,9 @@ class Stripe extends BaseMethods
             'live_pub_key' => '',
             'live_secret_key' => '',
             'test_pub_key' => '',
-            'test_secret_key' => ''
+            'test_secret_key' => '',
+            'live_webhook_secret' => '',
+            'test_webhook_secret' => ''
         );
         return wp_parse_args($settings, $defaults);
     }

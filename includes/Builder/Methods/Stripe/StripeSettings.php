@@ -16,7 +16,9 @@ class StripeSettings
             'live_pub_key' => '',
             'live_secret_key' => '',
             'test_pub_key' => '',
-            'test_secret_key' => ''
+            'test_secret_key' => '',
+            'live_webhook_secret' => '',
+            'test_webhook_secret' => ''
         );
 
         $data = wp_parse_args($settings, $defaults);
@@ -41,6 +43,15 @@ class StripeSettings
 
         return $key && isset($data[$key]) ? $data[$key] : $data;
 
+    }
+
+    public static function getWebhookSecret()
+    {
+        $settings = self::getSettings();
+        if (($settings['payment_mode'] ?? 'test') === 'live') {
+            return $settings['live_webhook_secret'] ?? '';
+        }
+        return $settings['test_webhook_secret'] ?? '';
     }
 
 

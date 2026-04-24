@@ -33,23 +33,23 @@ class PaypalCheckout {
                     return actions.order.create({
                         purchase_units: [this.data.purchase_units]
                     })
-                }, onApprove: (data, actions) => {
-                    return actions.order.capture().then((details) => {
-                        var transaction = details?.purchase_units[0].payments.captures[0];
-                        window.myform = this.form;
-                        this.form.find('.buymecoffee_paypal_button_wrap').hide();
-                        this.form.find('.complete_payment_instruction').html('Please wait, payment is being confirmed...');
-                        jQuery.post(window.buymecoffee_general.ajax_url, {
-                            action: 'buymecoffee_payment_confirmation_paypal',
-                            hash: this.data.hash,
-                            charge_id: details.id,
-                            'transaction_id': transaction.id,
-                        })
-                            .then(response => {
-                                window.location = this.data?.confirmation_url;
-                            }).catch(err => {
-                                window.location = this.data?.confirmation_url;
-                            });
+                }, onApprove: (data) => {
+                    this.form.find('.buymecoffee_paypal_button_wrap').hide();
+                    this.form.find('.complete_payment_instruction').html('Please wait, payment is being confirmed...');
+
+                    return jQuery.post(window.buymecoffee_general.ajax_url, {
+                        action: 'buymecoffee_payment_confirmation_paypal',
+                        buymecoffee_nonce: window.buymecoffee_general?.buymecoffee_nonce || '',
+                        hash: this.data.hash,
+                        charge_id: data.orderID,
+                    })
+                        .then(() => {
+                            window.location = this.data?.confirmation_url;
+                        }).catch((err) => {
+                            const message = err?.responseJSON?.data?.message || 'Payment could not be confirmed. Please try again.';
+                            alert(message);
+                            this.form.find('.buymecoffee_paypal_button_wrap').show();
+                            this.form.find('.complete_payment_instruction').html('Please complete your donation with PayPal 👇');
                         });
                 }, onError: function (err) {
                     alert('An error occurred: ' + err)

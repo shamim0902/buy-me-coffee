@@ -27,11 +27,10 @@ class API
 
         $url = $this->apiUrl . $path;
 
-        $sessionResponse = wp_remote_post($url, $requestData);
+        $sessionResponse = wp_remote_request($url, $requestData);
 
         if (is_wp_error($sessionResponse)) {
-            echo "API Error: " . esc_html($sessionResponse->get_error_message());
-            exit;
+            return $sessionResponse;
         }
 
         $sessionResponseData = wp_remote_retrieve_body($sessionResponse);
@@ -72,18 +71,12 @@ class API
 
         $data =  json_decode($post_data);
 
-        if ($data->id) {
+        if (!empty($data->id)) {
             status_header(200);
             return $data;
-        } else {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Required for webhook debugging
-            error_log("specific event");
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r -- Required for webhook debugging
-            error_log(print_r($data));
-            return false;
         }
 
-        exit(200);
+        return new \WP_Error('invalid_payload', __('Invalid Stripe webhook payload', 'buy-me-coffee'));
     }
 
     public function getInvoice($eventId)
