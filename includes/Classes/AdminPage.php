@@ -86,6 +86,7 @@ class AdminPage
             'preview_url'       => site_url('?share_coffee'),
             'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
             'wp_admin_url'      => admin_url(),
+            'admin_email'       => get_option('admin_email'),
         ));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);

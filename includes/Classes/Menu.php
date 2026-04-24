@@ -94,6 +94,7 @@ class Menu
             'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
             'wp_admin_url'      => admin_url(),
             'is_wp_admin'       => true,
+            'admin_email'       => get_option('admin_email'),
         ));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);

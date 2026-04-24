@@ -155,9 +155,10 @@ class Supporters extends Model
             $totalCoffee +=  floatval($value->coffee_count);
         }
 
-        $supporter->all_time_total_paid = PaymentHelper::currencySymbol($supporter->currency) .' '. ($totalAmountPaid / 100);
-        $supporter->all_time_total_pending = PaymentHelper::currencySymbol($supporter->currency) .' '. ($totalAmountPending / 100);
-        $supporter->all_time_total_coffee = $totalCoffee;
+        $currencySymbol = html_entity_decode(PaymentHelper::currencySymbol($supporter->currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $supporter->all_time_total_paid    = $currencySymbol . ' ' . ($totalAmountPaid / 100);
+        $supporter->all_time_total_pending = $currencySymbol . ' ' . ($totalAmountPending / 100);
+        $supporter->all_time_total_coffee  = $totalCoffee;
 
         return $supporter;
     }

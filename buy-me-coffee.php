@@ -125,6 +125,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             $submissionHandler = new \BuyMeCoffee\Controllers\SubmissionHandler();
             add_action('wp_ajax_buymecoffee_submit', array($submissionHandler, 'handleSubmission'));
             add_action('wp_ajax_nopriv_buymecoffee_submit', array($submissionHandler, 'handleSubmission'));
+
+            // Email Notifications
+            require BUYMECOFFEE_DIR . 'includes/Classes/EmailNotifications.php';
+            (new \BuyMeCoffee\Classes\EmailNotifications())->register();
         }
 
         public function registerIpnHooks()

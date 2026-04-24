@@ -66,7 +66,7 @@ class PaymentHelper
     public static function getFormattedAmount($amount, $currency)
     {
         $amount = floatval($amount / 100);
-        $sign = self::currencySymbol($currency);
+        $sign   = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         return $sign . ' ' . $amount;
     }
 

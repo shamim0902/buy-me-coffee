@@ -13,6 +13,7 @@ use BuyMeCoffee\Helpers\Currencies;
 
 use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Classes\EmailNotifications;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -57,6 +58,10 @@ class AdminAjaxHandler
             'delete_supporter' => 'deleteSupporter',
             'update_payment_status' => 'updatePaymentStatus',
             'status_report' => 'statusReport',
+
+            'get_email_notifications'  => 'getEmailNotifications',
+            'save_email_notification'  => 'saveEmailNotification',
+            'send_test_email'          => 'sendTestEmail',
 
         );
 
@@ -188,13 +193,24 @@ class AdminAjaxHandler
 
     public function sanitizeTextArray($data)
     {
+        // Keys that may contain multi-line text
+        $textareaKeys = ['body', 'message', 'content'];
+
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 foreach ($value as $k => $v) {
-                    $data[$key][$k] = sanitize_text_field($v);
+                    if (in_array($k, $textareaKeys, true)) {
+                        $data[$key][$k] = sanitize_textarea_field($v);
+                    } else {
+                        $data[$key][$k] = sanitize_text_field($v);
+                    }
                 }
             } else {
-                $data[$key] = sanitize_text_field($value);
+                if (in_array($key, $textareaKeys, true)) {
+                    $data[$key] = sanitize_textarea_field($value);
+                } else {
+                    $data[$key] = sanitize_text_field($value);
+                }
             }
         }
         return $data;
@@ -224,5 +240,62 @@ class AdminAjaxHandler
         $settings = Arr::get($data, 'settings');
         $method = Arr::get($data, 'method');
         (new PaymentHandler())->saveSettings($method, $settings);
+    }
+
+    public function getEmailNotifications()
+    {
+        $notifications = EmailNotifications::getNotifications();
+        wp_send_json_success(['notifications' => array_values($notifications)], 200);
+    }
+
+    public function saveEmailNotification($data)
+    {
+        $id = sanitize_key(Arr::get($data, 'id', ''));
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid notification ID', 'buy-me-coffee')], 400);
+        }
+
+        $notification = [
+            'enabled' => !empty($data['enabled']),
+            'subject' => Arr::get($data, 'subject', ''),
+            'body'    => Arr::get($data, 'body', ''),
+        ];
+
+        $saved = EmailNotifications::saveNotification($id, $notification);
+
+        if ($saved) {
+            wp_send_json_success(['message' => __('Notification saved', 'buy-me-coffee')], 200);
+        } else {
+            wp_send_json_error(['message' => __('Failed to save notification', 'buy-me-coffee')], 400);
+        }
+    }
+
+    public function sendTestEmail($data)
+    {
+        $id = sanitize_key(Arr::get($data, 'id', ''));
+        $to = sanitize_email(Arr::get($data, 'to', get_option('admin_email')));
+
+        $notifications = EmailNotifications::getNotifications();
+        if (!isset($notifications[$id])) {
+            wp_send_json_error(['message' => __('Notification not found', 'buy-me-coffee')], 404);
+        }
+
+        $n    = $notifications[$id];
+        $vars = [
+            'donor_name'     => 'Jane Doe',
+            'donor_email'    => $to,
+            'amount'         => '5.00 USD',
+            'payment_method' => 'Stripe',
+            'site_name'      => get_bloginfo('name'),
+            'site_url'       => site_url(),
+            'admin_email'    => get_option('admin_email'),
+        ];
+
+        $subject = EmailNotifications::parse($n['subject'], $vars);
+        $body    = EmailNotifications::parse($n['body'], $vars) . "\n\n[This is a test email]";
+
+        EmailNotifications::send($to, $subject, $body);
+
+        wp_send_json_success(['message' => __('Test email sent to ', 'buy-me-coffee') . $to], 200);
     }
 }
