@@ -34,12 +34,12 @@ class Menu
 
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
 
-        // Collapse WP admin sidebar on our page
+        // Collapse WP admin sidebar and tag body on our page
         add_filter('admin_body_class', function ($classes) {
             global $pagenow;
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             if ($pagenow === 'admin.php' && isset($_GET['page']) && $_GET['page'] === 'buy-me-coffee.php') {
-                $classes .= ' folded';
+                $classes .= ' folded bmc-admin-page';
             }
             return $classes;
         });
@@ -52,6 +52,32 @@ class Menu
         }
 
         wp_enqueue_media();
+
+        // Strip WP admin chrome padding so our full-width app has no gaps.
+        // Scoped to body.bmc-admin-page so it never affects other admin pages.
+        // Covers both folded and non-folded states (user may click to expand sidebar).
+        wp_add_inline_style('wp-admin', '
+            body.bmc-admin-page #wpcontent,
+            body.bmc-admin-page.folded #wpcontent,
+            body.bmc-admin-page.auto-fold #wpcontent {
+                padding-left: 0 !important;
+            }
+            body.bmc-admin-page #wpbody-content {
+                padding-bottom: 0 !important;
+            }
+            body.bmc-admin-page #wpbody {
+                padding-top: 0 !important;
+            }
+            body.bmc-admin-page .wrap {
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: none !important;
+            }
+            body.bmc-admin-page #buy-me-coffee_app {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        ');
 
         do_action('buymecoffee_render_admin_app');
 

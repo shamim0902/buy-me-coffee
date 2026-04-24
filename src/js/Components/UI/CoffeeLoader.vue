@@ -1,9 +1,8 @@
 <template>
-  <Transition name="coffee-fade">
-    <div v-if="loading" class="bmc-loader">
+    <div class="bmc-loader" :class="{ 'bmc-loader--visible': loading }">
       <div class="bmc-loader__inner">
         <div class="bmc-loader__cup">
-          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="90" height="90" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
             <!-- Steam wisps -->
             <path class="bmc-steam bmc-steam--1" d="M38 38 C40 30 36 22 38 14" stroke="#C9BFB2" stroke-width="2.5" stroke-linecap="round" />
             <path class="bmc-steam bmc-steam--2" d="M50 36 C52 28 48 20 50 12" stroke="#C9BFB2" stroke-width="2.5" stroke-linecap="round" />
@@ -35,7 +34,6 @@
         <p class="bmc-loader__msg" :key="msgIndex">{{ messages[msgIndex] }}</p>
       </div>
     </div>
-  </Transition>
 </template>
 
 <script>
@@ -86,38 +84,50 @@ export default {
 
 <style scoped>
 .bmc-loader {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
   backdrop-filter: blur(6px);
-  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
+.bmc-loader--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
 .bmc-loader__inner {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .bmc-loader__cup {
   width: 90px;
   height: 90px;
-  margin: 0 auto 14px;
+  flex-shrink: 0;
+  margin-bottom: 14px;
   animation: cup-bob 2.8s ease-in-out infinite;
 }
 
 .bmc-loader__cup svg {
-  width: 100%;
-  height: 100%;
+  display: block;
+  width: 90px;
+  height: 90px;
   overflow: visible;
 }
 
 .bmc-loader__msg {
   font-size: 13px;
   font-weight: 500;
-  color: #78716c;
+  color: var(--text-secondary);
   margin: 0;
   letter-spacing: 0.01em;
   animation: msg-pulse 2.4s ease-in-out infinite;
@@ -146,8 +156,4 @@ export default {
   50% { opacity: 1; }
 }
 
-/* Fade transition */
-.coffee-fade-enter-active { transition: opacity 0.25s ease; }
-.coffee-fade-leave-active { transition: opacity 0.2s ease; }
-.coffee-fade-enter-from, .coffee-fade-leave-to { opacity: 0; }
 </style>
