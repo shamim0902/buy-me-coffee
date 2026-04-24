@@ -159,7 +159,7 @@ class Render
             <div class="buymecoffee_payment_item">
                 <div class="buymecoffee_payment_input_content">
                     <div class="buymecoffee_coffee_selector">
-                        <img width="50" src="<?php echo esc_url(Vite::staticPath() . 'images/coffee.png'); ?>">
+                        <img width="36" src="<?php echo esc_url(Vite::staticPath() . 'images/coffee-cup.png'); ?>">
                         <span>x</span>
 
                         <div class="bmc_coffee">

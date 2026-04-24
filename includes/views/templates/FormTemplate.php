@@ -62,10 +62,6 @@ if (class_exists('\BuyMeCoffee\Models\Supporters')) {
             <div class="bmc-about-card">
                 <div class="bmc-about-card__header">
                     <h3 class="bmc-about-card__title"><?php printf(esc_html__('About %s', 'buy-me-coffee'), esc_html($name)); ?></h3>
-                    <?php if ($isAdmin): ?>
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/settings?tab=appearance')); ?>"
-                       class="bmc-about-card__edit"><?php esc_html_e('Edit', 'buy-me-coffee'); ?></a>
-                    <?php endif; ?>
                 </div>
                 <?php if ($quote): ?>
                 <p class="bmc-about-card__bio" data-field="quote"><?php echo esc_html($quote); ?></p>
