@@ -4,7 +4,7 @@
 Plugin Name: Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal
 Plugin URI: https://wpminers.com/buymecoffee/
 Description: Easy way to collect donations like "buy me a coffee" directly your own Stripe and PayPal for free
-Version: 1.0.6
+Version: 1.0.7
 Author: wpminers
 Author URI: http://www.wpminers.com/
 License: GPLv2 or later

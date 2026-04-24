@@ -7,8 +7,9 @@
     "dev": "node src/env/development_mode.js && vite",
     "watch": "npm run dev",
     "build": "node src/env/production_mode.js && vite build",
+    "build:zip": "npm run package",
     "production": "npm run build",
-    "package": "npm run build && rm -rf ../buy-me-coffee.zip && wp dist-archive ."
+    "package": "npm run build && mkdir -p builds && rm -f builds/buy-me-coffee.zip && zip -r builds/buy-me-coffee.zip assets buy-me-coffee.php includes index.php languages license.txt readme.txt"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.2",
