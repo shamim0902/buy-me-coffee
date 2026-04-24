@@ -51,7 +51,7 @@
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Quick Setup</span>
                         </router-link>
                     </li>
-                    <li>
+                    <li v-if="!isWpAdmin">
                         <a :href="wpAdminUrl" class="bmc-sidebar__item bmc-sidebar__item--muted">
                             <ArrowLeft :size="20" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">WP Admin</span>
@@ -88,6 +88,7 @@ watch(isCollapsed, (val) => emit('update:collapsed', val));
 
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
 const wpAdminUrl = computed(() => (window.BuyMeCoffeeAdmin?.wp_admin_url || '/wp-admin/') + 'admin.php?page=buy-me-coffee.php');
+const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
 
 const mainItems = [
     { label: 'Dashboard', route: '/', icon: LayoutDashboard, activeNames: ['Dashboard'] },

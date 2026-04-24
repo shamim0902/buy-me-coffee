@@ -14,18 +14,26 @@
             <a href="https://wpminers.com/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-header__action" title="Documentation">
                 <HelpCircle :size="18" />
             </a>
+            <a v-if="isWpAdmin" :href="fullPageUrl" class="bmc-header__action" title="Open full-screen dashboard">
+                <Maximize2 :size="18" />
+            </a>
         </div>
     </header>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { Moon, Sun, ExternalLink, HelpCircle } from 'lucide-vue-next';
+import { Moon, Sun, ExternalLink, HelpCircle, Maximize2 } from 'lucide-vue-next';
 import { useTheme } from '../../composables/useTheme';
 import BreadcrumbNav from './BreadcrumbNav.vue';
 
 const { isDark, toggleTheme } = useTheme();
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
+const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
+const fullPageUrl = computed(() => {
+    const base = window.location.origin;
+    return base + '/?buymecoffee_admin';
+});
 </script>
 
 <style scoped>
