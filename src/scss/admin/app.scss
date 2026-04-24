@@ -7,49 +7,50 @@
 @tailwind components;
 @tailwind utilities;
 
-// ── Accessibility ─────────────────────────────────────────
-*:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
-*:focus:not(:focus-visible) {
-  outline: none;
-}
-
-// ── Element Plus Form Refinements ─────────────────────────
-.el-input__wrapper {
-  padding: 0px !important;
-}
-.input_fade_border {
-  .el-input__inner, .el-select__wrapper {
-    border: none !important;
-    box-shadow: none;
-    border-bottom: 1px solid var(--border-primary) !important;
-    &:focus, &:active {
-      border: none !important;
-    }
-  }
-}
-.el-textarea__inner, .input_green_border .el-input__inner {
-  &:focus, &:active {
+// ── Reset WP admin focus/outline bleed inside our app ─────
+// WordPress admin applies its own a:focus box-shadow (#2271b1 blue)
+// and :focus outlines that bleed into our SPA. Kill them all inside
+// our root, then re-apply a clean design-system ring for keyboard nav.
+#buy-me-coffee_app {
+  // Strip every browser + WP default focus style
+  *,
+  *:focus,
+  *:active,
+  a, a:focus, a:active,
+  button, button:focus, button:active,
+  [role="button"], [role="link"], [tabindex] {
     outline: none !important;
     box-shadow: none !important;
   }
-  border: 1px solid var(--color-primary-500) !important;
-}
-.wpm_currency_select {
-  border: none;
-  .el-input__wrapper {
-    border: 1px solid var(--color-primary-500) !important;
-    .el-input__inner {
-      border: none !important;
-    }
-    &:focus {
-      outline: none;
-      box-shadow: none;
-    }
+
+  // Re-add a clean teal ring ONLY for keyboard navigation
+  *:focus-visible,
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-primary-400) !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+  }
+
+  // Router-link active/exact-active — no outline
+  .router-link-active,
+  .router-link-exact-active {
+    outline: none !important;
+    box-shadow: none !important;
   }
 }
+
+// ── Element Plus refinements ───────────────────────────────
+// El Plus inputs manage their own focus ring via box-shadow,
+// not outline — leave them untouched by the rule above.
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--color-primary-400) inset !important;
+  outline: none !important;
+}
+
 .notice.notice-error {
   display: none !important;
 }
