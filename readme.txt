@@ -1,9 +1,9 @@
 === Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
-Tags: buy me a coffee, donation, payments, stripe payments, fundraising
+Tags: donation, monetization, payments, stripe payments, fundraising
 Requires at least: 4.5
 Tested up to: 6.9
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -22,7 +22,7 @@ Stripe onsite and PayPal pro module allow you to get paid right on your site. Bu
 
 You can use it for free without any limitations. You can accept donations from your visitors without any commission.
 Donations are collected directly into your own PayPal or Stripe account merchant. You can accept donations in any currency supported by PayPal or Stripe.
-One-time donations are available now — recurring donations are planned for a future release.
+One-time donations and recurring subscriptions are both supported via Stripe. PayPal covers one-time donations.
 You can accept donations from your visitors using a Stripe and PayPal donation button, Form, or template. Accept donations from your visitors using a shortcode or a widget.
 It will be available using a popup or a page.
 
@@ -40,28 +40,37 @@ Key Features
 
    PayPal Pro: Accept credit and debit card payments directly on your website, without redirecting people to another site, which improves the user experience.
 
-   Stripe: Stripe is always recommended for security and ease of use. It accepts multiple payment methods, making it simple for fans to donate using their favourite method.
+   Stripe: Stripe is always recommended for security and ease of use. It accepts multiple payment methods including recurring subscriptions, making it simple for fans to support you monthly or yearly.
 
-2. Customizable Donation Buttons
+2. Stripe Recurring Subscriptions
+   Let your supporters become long-term backers with monthly or yearly recurring subscriptions powered by Stripe. Full lifecycle management — creation, renewal via webhook, cancellation by admin or Stripe, and status change tracking — is handled automatically. Subscription details are available on a dedicated subscription management page.
+
+3. Refunds
+   Issue full refunds for any completed Stripe or PayPal payment directly from the supporter profile page — no need to log into your payment dashboard. Refund status is reflected immediately on the transaction record.
+
+4. Activity Log
+   Every significant event is recorded in a persistent activity timeline — payment lifecycle events, subscription changes, refunds, IPN webhooks received, and emails sent. Each supporter's profile and subscription detail page shows a focused timeline. A global Activity Log admin page shows all events in a filterable, paginated table.
+
+5. Customizable Donation Buttons
    Personalize your contribution button, form, and pages to match your requirements. You may easily change the colour, size, and create your own button to link to your own donation page.
 
-3. Flexible Donation Options
+6. Flexible Donation Options
    The Buy Me a Coffee plugin provides versatility by allowing you to select specified donation amounts or let users enter their own. This versatility is critical; some supporters may want to contribute more than the normal amount, while others may choose to offer a specified amount.
 
-4. Widget Support
+7. Widget Support
    There are some widgets to show buttons, forms and pages easily on your WordPress site using the Gutenberg editor. Also, you may use shortcodes for older editors.
 
-5. Reporting and Analytics
+8. Reporting and Analytics
    Get a clear report about recent donations and support — no need to calculate manually. It is directly available on the dashboard.
 
-6. Email Notifications
+9. Email Notifications
    Automatically notify donors with a confirmation email after each successful donation. Site admins receive a notification too. Both templates are fully customizable from the admin panel with support for dynamic placeholders.
 
-7. Dark Mode Admin UI
-   The admin panel fully supports dark mode — it automatically follows your system preference and can be toggled manually. All components, tables, inputs, and overlays are dark-mode aware.
+10. Dark Mode Admin UI
+    The admin panel fully supports dark mode — it automatically follows your system preference and can be toggled manually. All components, tables, inputs, and overlays are dark-mode aware.
 
-8. Redesigned Admin Panel
-   A completely rebuilt admin interface built as a full-page Vue SPA with a sidebar navigation, design token system, and a consistent modern look across all pages.
+11. Redesigned Admin Panel
+    A completely rebuilt admin interface built as a full-page Vue SPA with a sidebar navigation, design token system, and a consistent modern look across all pages.
 
 Why Take Donations Like Buy Me a Coffee?
 To establish a stronger bond with the audience by promoting donations, supporters can feel more connected when they can donate financially.
@@ -77,11 +86,15 @@ You can accept donations from your visitors using custom amounts.
 Features:
 Custom number of donations
 Accept donations using Onsite Stripe and PayPal Pro
+Stripe recurring subscriptions (monthly & yearly)
+Admin-initiated refunds for Stripe and PayPal
+Persistent activity log with event timeline
 Customizable templates
 Form shortcode and widget
 Buttons Shortcode and widget
 Donor profiles
 Donation statistics/reports
+Subscription management page
 Quick setup mode
 Buy Me a Coffee counter
 Multiple theme templates
@@ -105,8 +118,8 @@ You can accept coffee donation or custom amount donations by Stripe Pro, also Pa
 #### Do you have a premium version?
 No, we don't have a premium version. You can use the plugin for free without any limitations.
 
-#### Do you have a recurring donation?
-No, we don't have a recurring donation. We will implement recurring donations in the future.
+#### Do you have recurring donations / subscriptions?
+Yes! Stripe recurring subscriptions are available from version 1.2.0. Supporters can choose monthly or yearly billing when donating. You can view and cancel subscriptions from the Subscriptions page in the admin panel.
 
 #### Do I need coding skills to use the plugin?
 No, you don't need coding skills to use the plugin. You can use the plugin without any coding skills.
@@ -129,6 +142,18 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 8. Donor/Supporters Profile page
 
 ## Changelog
+
+= 1.2.0 April 26, 2026 =
+- Adds Stripe recurring subscriptions with monthly or yearly billing
+- Adds Subscription management page with status, billing, renewal date, and cancel option
+- Adds Stripe subscription webhooks for renewals, cancellations, and status updates
+- Adds Refund module for Stripe and PayPal transactions
+- Adds Activity Log for payments, subscriptions, refunds, webhooks, and emails
+- Adds Activity timeline on supporter and subscription pages
+- Adds Global Activity Log page with filters and pagination
+- Adds Gateway logos in payment method selector
+- Fixes Stripe IPN and PayPal API validation issues
+- Fixes Subscription confirmation mismatch on payment return
 
 = 1.1.0 April 25, 2026 =
 - Adds Redesigned public donation page — two-column layout with banner image, about card, recent supporters, and donation form

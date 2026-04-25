@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Buy me coffee widgets - fundraise into own account\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-11 06:50+0000\n"
+"POT-Creation-Date: 2026-04-25 18:07+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: \n"
@@ -16,28 +16,83 @@ msgstr ""
 "X-Loco-Version: 2.6.6; wp-6.5-beta3\n"
 "X-Domain: buy-me-coffee"
 
-#: includes/Builder/Methods/PayPal/API.php:34
+#. %s: creator name
+#: includes/views/templates/FormTemplate.php:68
+#, php-format
+msgid "About %s"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:44
+msgid "Amount Paid"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:44
+msgid "Amount per Cycle"
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:87
+msgid "Anonymous"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/API.php:53
 msgid "API path is required"
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:98
+msgid "Be the first to support!"
+msgstr ""
+
+#. %s: billing interval, e.g. "monthly"
+#: includes/Builder/Render.php:248
+#, php-format
+msgid "billed %s"
 msgstr ""
 
 #. Name of the plugin
 msgid "Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal"
 msgstr ""
 
-#: includes/Classes/Menu.php:21 includes/views/templates/BasicTemplate.php:11
+#: includes/Classes/AdminPage.php:40 includes/Classes/Menu.php:23
+#: includes/views/templates/BasicTemplate.php:8
 msgid "Buy Me Coffee"
 msgstr ""
 
-#: includes/Classes/Menu.php:37
-msgid "Dashboard"
+#: includes/Builder/Methods/Stripe/Stripe.php:433
+msgid "Card"
 msgstr ""
 
-#: buy-me-coffee.php:187
+#: includes/views/templates/Confirmation.php:49
+#: includes/views/templates/FormTemplate.php:89
+msgid "coffee"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:49
+#: includes/views/templates/FormTemplate.php:89
+msgid "coffees"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:39
+msgid "Could not create Stripe customer. Please try again."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:92
+msgid "Could not retrieve payment intent from subscription."
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:64
+msgid "Date"
+msgstr ""
+
+#: buy-me-coffee.php:209
 msgid "Demo"
 msgstr ""
 
-#: buy-me-coffee.php:186
+#: buy-me-coffee.php:208
 msgid "Docs"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:86
+msgid "Donation Type"
 msgstr ""
 
 #. Description of the plugin
@@ -46,8 +101,12 @@ msgid ""
 "Stripe and PayPal for free"
 msgstr ""
 
-#: includes/Classes/Menu.php:54
-msgid "Gateways"
+#: includes/views/templates/Confirmation.php:75
+msgid "Email"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:301
+msgid "Failed to save notification"
 msgstr ""
 
 #. Author URI of the plugin
@@ -58,91 +117,336 @@ msgstr ""
 msgid "https://wpminers.com/buymecoffee/"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:36
+#: includes/Classes/AdminAjaxHandler.php:41
 msgid "Invalid buymecoffee_nonce"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:18
+#: includes/Controllers/SubmissionHandler.php:36
 msgid "Invalid form data"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:30
+#: includes/Classes/AdminAjaxHandler.php:35
 msgid "Invalid nonce"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:431
+#: includes/Classes/AdminAjaxHandler.php:287
+msgid "Invalid notification ID"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:548
+msgid "Invalid object type."
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:162
 msgid "Invalid request"
+msgstr ""
+
+#: includes/Controllers/SubmissionHandler.php:19
+#: includes/Controllers/SubmissionHandler.php:28
+#: includes/Builder/Methods/BaseMethods.php:87
+#: includes/Builder/Methods/BaseMethods.php:95
+msgid "Invalid request nonce"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:94
+msgid "Invalid route requested."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/API.php:79
+#: includes/Builder/Methods/Stripe/IPN.php:26
+msgid "Invalid Stripe webhook payload"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/IPN.php:42
+msgid "Invalid Stripe webhook signature"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:432
+msgid "Invalid transaction ID."
+msgstr ""
+
+#: includes/Builder/Render.php:247
+msgid "Make it recurring"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/IPN.php:38
+msgid "Missing Stripe webhook signature header"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:15
+msgid "Monthly"
+msgstr ""
+
+#: includes/Classes/EmailNotifications.php:114 includes/Builder/Render.php:242
+msgid "monthly"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:69
+msgid "Name"
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:73
+msgid "No bio yet."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:449
+msgid ""
+"No charge ID on record — please process the refund directly from the payment "
+"gateway dashboard."
 msgstr ""
 
 #: includes/Models/Supporters.php:122
 msgid "No supporters found!"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:169
-#: includes/Builder/Methods/Stripe/Stripe.php:106
+#: includes/Classes/AdminAjaxHandler.php:312
+msgid "Notification not found"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:299
+msgid "Notification saved"
+msgstr ""
+
+#: includes/Classes/EmailNotifications.php:102
+#: includes/views/templates/Confirmation.php:93
+msgid "One-time"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:445
+msgid "Only paid transactions can be refunded."
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:532
+msgid "Payment amount mismatch"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:104
+msgid "Payment confirmation received"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:512
+msgid "Payment confirmation reference mismatch"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:526
+msgid "Payment currency mismatch"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:84
+msgid "Payment intent is missing"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:81
+msgid "Payment Method"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:203
+#: includes/Builder/Methods/Stripe/Stripe.php:180
 msgid "Payment Modal is opening, Please complete the payment"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:468
+#: includes/views/templates/Confirmation.php:27
+msgid "Payment Successful!"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:557
 msgid "Payment updated successfully"
 msgstr ""
 
 #. %s: Error message from PayPal API
-#: includes/Builder/Methods/PayPal/PayPal.php:92
+#: includes/Builder/Methods/PayPal/PayPal.php:93
 #, php-format
 msgid "PayPal API connection failed: %s"
 msgstr ""
 
 #. %s: Error message from PayPal API describing why credentials are invalid
-#: includes/Builder/Methods/PayPal/PayPal.php:105
+#: includes/Builder/Methods/PayPal/PayPal.php:106
 #, php-format
 msgid ""
 "PayPal credentials validation failed: %s. Please check your Client ID and "
 "Secret Key."
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:52
+#: includes/Builder/Methods/PayPal/IPN.php:110
+msgid "PayPal IPN verification failed"
+msgstr ""
+
+#. %s: PayPal order status (e.g. PENDING, VOIDED)
+#: includes/Builder/Methods/PayPal/PayPal.php:504
+#, php-format
+msgid "PayPal order is not completed yet. Current status: %s"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:53
 msgid ""
 "PayPal Pro requires both Client ID and Secret Key. Please provide valid "
 "credentials."
 msgstr ""
 
+#: includes/Builder/Methods/PayPal/PayPal.php:580
+msgid ""
+"PayPal Standard refunds must be processed directly from your PayPal "
+"dashboard."
+msgstr ""
+
 #. %s: Exception error message
-#: includes/Builder/Methods/PayPal/PayPal.php:113
+#: includes/Builder/Methods/PayPal/PayPal.php:114
 #, php-format
 msgid "PayPal validation error: %s"
 msgstr ""
 
-#: includes/Builder/Render.php:276
+#: includes/Builder/Render.php:294
 msgid "Please activate at least one payment method!"
 msgstr ""
 
-#: buy-me-coffee.php:185
+#: includes/views/templates/FormTemplate.php:115
+msgid "Powered by"
+msgstr ""
+
+#: buy-me-coffee.php:207
 msgid "Preview"
 msgstr ""
 
-#: includes/Classes/Menu.php:49
+#: includes/views/templates/FormTemplate.php:78
+msgid "Recent supporters"
+msgstr ""
+
+#: includes/Classes/EmailNotifications.php:102
+#: includes/views/templates/Confirmation.php:90
+msgid "Recurring"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:36
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:61
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:183
+msgid "Recurring Donation"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:59
+msgid "Reference"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:453
+msgid "Refund is already in progress or transaction is not refundable."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:471
+msgid "Refunds are not supported for this payment method."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:154
+msgid "Setting up your recurring donation, please complete the payment below."
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:32
 msgid "Settings"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:151
-#: includes/Classes/AdminAjaxHandler.php:164
+#: includes/Classes/AdminAjaxHandler.php:177
+#: includes/Classes/AdminAjaxHandler.php:190
 msgid "Settings successfully updated"
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/Stripe.php:40
+#: includes/views/templates/FormTemplate.php:27
+msgid "Share"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:43
 msgid "Sorry no transaction created!"
 msgstr ""
 
-#: includes/Classes/Menu.php:43
-msgid "Supporters"
+#: includes/Classes/AdminAjaxHandler.php:47
+msgid "Sorry, you are not allowed to perform this action."
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:101
+#: includes/views/templates/Confirmation.php:99
+msgid "Status"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:398
+msgid "Stripe cancellation was not confirmed. Please try again."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/IPN.php:21
+msgid "Stripe payload is empty"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/IPN.php:34
+msgid "Stripe webhook secret is not configured"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:27
+msgid "Subscription Active!"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:419
+msgid "Subscription cancelled successfully"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:95
+msgid "Subscription confirmation mismatch. Please refresh and try again."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:378
+msgid "Subscription is already cancelled"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:345
+#: includes/Classes/AdminAjaxHandler.php:374
+msgid "Subscription not found"
+msgstr ""
+
+#. %s: creator name
+#: includes/views/templates/FormSection.php:23
+#, php-format
+msgid "Support %s"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:331
+msgid "Test email sent to "
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:32
+msgid "Thank you for your generous support"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:31
+msgid "Thank you for your recurring support"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:127
+msgid "Thank You!"
+msgstr ""
+
+#: includes/Controllers/SubmissionHandler.php:141
 msgid "Thanks for your support! <3"
 msgstr ""
 
-#: buy-me-coffee.php:186
+#: includes/Classes/AdminAjaxHandler.php:441
+msgid "This transaction has already been refunded."
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:56
+msgid "Transaction Details"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:474
+msgid "Transaction not found"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:437
+msgid "Transaction not found."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:502
+msgid "Transaction refunded successfully."
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:501
+msgid "UNKNOWN"
+msgstr ""
+
+#: buy-me-coffee.php:208
 msgid "View Documentation"
 msgstr ""
 
@@ -150,10 +454,41 @@ msgstr ""
 msgid "wpminers"
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:266
+#: includes/views/templates/Confirmation.php:14
+msgid "Yearly"
+msgstr ""
+
+#: includes/Classes/EmailNotifications.php:113 includes/Builder/Render.php:242
+msgid "yearly"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:300
 msgid "You are redirected for payment."
 msgstr ""
 
-#: includes/Builder/Methods/PayPal/PayPal.php:269
+#: includes/Classes/AdminPage.php:25
+msgid "You do not have permission to access this page."
+msgstr ""
+
+#. %s: billing interval, e.g. "monthly"
+#: includes/Classes/EmailNotifications.php:117
+#, php-format
+msgid ""
+"You will be billed %s. You can cancel anytime.\n"
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:303
 msgid "Your are redirecting to paypal now"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:128
+msgid "Your contribution has been received"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:107
+msgid "Your Message"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:116
+msgid "Your support means the world!"
 msgstr ""
