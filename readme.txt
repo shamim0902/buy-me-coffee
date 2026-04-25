@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: buy me a coffee, donation, payments, stripe payments, fundraising
 Requires at least: 4.5
 Tested up to: 6.9
-Stable tag: 1.0.7
+Stable tag: 1.1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -121,8 +121,8 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 ## Screenshots
 1. Admin Dashboard
 2. Global Settings
-3. Guided Quick setup
-4. Buy me a coffee Preview
+3. Guided Quick Setup
+4. Buy Me a Coffee Preview
 5. Stripe Payment settings
 6. Customize settings for default template
 7. Filterable Donors/Supporters page
@@ -130,16 +130,24 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 
 ## Changelog
 
-= 1.0.7 April 25, 2026 =
-- Adds Email notifications — donor confirmation and admin alert emails with fully customizable templates and dynamic placeholders
-- Adds Dark mode support across the entire admin panel including all inputs, tables, dialogs, and overlays
+= 1.1.0 April 25, 2026 =
+- Adds Redesigned public donation page — two-column layout with banner image, about card, recent supporters, and donation form
+- Adds Inline page editor for admins — edit cover photo, profile image, name, bio, and accent color directly on the public page
+- Adds Banner image upload with drag-and-drop support and WP media picker
+- Adds Share button on public page with native share sheet and clipboard fallback
+- Adds Recent supporters list on the public donation page
+- Adds Email notifications — donor confirmation and admin alert emails with customizable templates
+- Adds Dark mode support across the entire admin panel
 - Adds Full-page admin SPA with collapsible sidebar navigation and design token system
 - Adds Settings sub-navigation (General, Appearance, Shortcodes) integrated into the sidebar
-- Adds Sticky live preview panel in Appearance settings
 - Adds CoffeeLoader — animated loading overlay with viewport-centered positioning
+- Adds Banner image upload in admin Appearance settings
+- Fixes Stripe checkout hiding form fields when card element appears
 - Fixes Currency symbol rendering (HTML entities now decoded before JSON output)
 - Fixes WordPress admin padding and focus ring bleed into the plugin admin page
-- Fixes Supporter detail page layout and currency display
+- Fixes Payment receipt page layout and design
+- Fixes Supporter detail page back button hover style
+- Fixes PHPCS translation comment and direct access warnings
 
 = 1.0.6 January 11, 2026 =
 - Adds PayPal settings validation
@@ -201,14 +209,14 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 #### NPM Packages used:
 * [element-plus](https://www.npmjs.com/package/element-plus/) — Vue 3 UI component library
 * [@element-plus/icons-vue](https://www.npmjs.com/package/@element-plus/icons-vue) — Element Plus icon set
-* [lucide-vue-next](https://www.npmjs.com/package/lucide-vue-next) — Lucide icon components for Vue 3 (added in 1.0.7)
-* [@fontsource/inter](https://www.npmjs.com/package/@fontsource/inter) — Self-hosted Inter typeface (added in 1.0.7)
+* [lucide-vue-next](https://www.npmjs.com/package/lucide-vue-next) — Lucide icon components for Vue 3 (added in 1.1.0)
+* [@fontsource/inter](https://www.npmjs.com/package/@fontsource/inter) — Self-hosted Inter typeface (added in 1.1.0)
 * [@wordpress/hooks](https://www.npmjs.com/package/@wordpress/hooks) — WordPress hooks system for JS
 * [chart.js](https://www.npmjs.com/package/chart.js) — Chart rendering for the dashboard
 * [clipboard](https://www.npmjs.com/package/clipboard) — Clipboard copy utility
 * [lodash](https://www.npmjs.com/package/lodash) — Utility library
-* [lodash-es](https://www.npmjs.com/package/lodash-es) — ES module build of lodash (added in 1.0.7)
-* [nanoid](https://www.npmjs.com/package/nanoid) — Tiny unique ID generator (added in 1.0.7)
+* [lodash-es](https://www.npmjs.com/package/lodash-es) — ES module build of lodash (added in 1.1.0)
+* [nanoid](https://www.npmjs.com/package/nanoid) — Tiny unique ID generator (added in 1.1.0)
 * [vue](https://www.npmjs.com/package/vue) — Vue 3 framework
 * [vue-router](https://www.npmjs.com/package/vue-router) — Client-side routing for the admin SPA
 
