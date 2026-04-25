@@ -219,7 +219,7 @@ class StripeSubscriptions
             return;
         }
 
-        $periodEnd = isset($object->period_end) ? date('Y-m-d H:i:s', (int) $object->period_end) : null;
+        $periodEnd = isset($object->period_end) ? gmdate('Y-m-d H:i:s', (int) $object->period_end) : null;
 
         if ($billingReason === 'subscription_create') {
             // First payment: activate the local subscription record
@@ -374,7 +374,7 @@ class StripeSubscriptions
         }
 
         $stripeStatus = isset($object->status) ? sanitize_text_field($object->status) : '';
-        $periodEnd    = isset($object->current_period_end) ? date('Y-m-d H:i:s', (int) $object->current_period_end) : null;
+        $periodEnd    = isset($object->current_period_end) ? gmdate('Y-m-d H:i:s', (int) $object->current_period_end) : null;
 
         $update = ['updated_at' => current_time('mysql')];
 

@@ -143,6 +143,7 @@ class Vite
                 );
             }
 
+            // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- script is already enqueued; this filter only adds type="module" to the tag for WP < 5.7 fallback
             return '<script src="' . esc_url($src) . '" type="module" id="' . esc_attr($handle . '-js') . '"></script>';
         }
         return $tag;

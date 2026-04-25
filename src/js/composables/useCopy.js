@@ -3,7 +3,7 @@ import { useToast } from './useToast';
 /**
  * Native clipboard API wrapper replacing ClipboardJS/jQuery.
  */
-export function useClipboard() {
+export function useCopy() {
     const toast = useToast();
 
     async function copy(text, successMessage = 'Copied to clipboard') {

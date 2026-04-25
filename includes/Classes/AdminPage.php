@@ -37,7 +37,7 @@ class AdminPage
 
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Template is a controlled PHP file
         echo View::make('admin.AdminApp', [
-            'title' => __('Buy Me Coffee', 'buy-me-coffee'),
+            'title' => esc_html__('Buy Me Coffee', 'buy-me-coffee'),
         ]);
 
         exit;

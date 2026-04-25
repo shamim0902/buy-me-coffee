@@ -14,14 +14,14 @@
 <script setup>
 import { ref } from 'vue';
 import { Copy, Check } from 'lucide-vue-next';
-import { useClipboard } from '../../composables/useClipboard';
+import { useCopy } from '../../composables/useCopy';
 
 const props = defineProps({
     code: { type: String, required: true },
     label: { type: String, default: '' }
 });
 
-const { copy } = useClipboard();
+const { copy } = useCopy();
 const copied = ref(false);
 
 async function handleCopy() {

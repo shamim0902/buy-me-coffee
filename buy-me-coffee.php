@@ -54,7 +54,6 @@ if (!defined('BUYMECOFFEE_VERSION')) {
                 $this->adminHooks();
             }
             $this->commonActions();
-            $this->textDomain();
             $this->LoadEditorBlocks();
             $this->loadFiles();
             $this->registerShortcode();
@@ -166,11 +165,6 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
                 do_action('buymecoffee_ipn_endpoint_' . $paymentMethod);
             });
-        }
-
-        public function textDomain()
-        {
-            load_plugin_textdomain('buy-me-coffee', false, basename(dirname(__FILE__)) . '/languages');
         }
 
         public function LoadEditorBlocks()
