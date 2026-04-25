@@ -11,7 +11,13 @@
                 @click="$router.push({ name: gateway.route })"
             >
                 <div class="bmc-gateway-card__icon">
-                    <CreditCard :size="22" />
+                    <img
+                        v-if="gateway.image"
+                        :src="gateway.image"
+                        :alt="gateway.title + ' logo'"
+                        class="bmc-gateway-card__logo"
+                    />
+                    <CreditCard v-else :size="22" />
                 </div>
                 <div class="bmc-gateway-card__body">
                     <div class="bmc-gateway-card__header">
@@ -112,6 +118,12 @@ export default {
     justify-content: center;
     color: #475569;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.bmc-gateway-card__logo {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+    display: block;
 }
 .bmc-gateway-card:hover .bmc-gateway-card__icon {
     background: var(--color-primary-50, #eef2ff);

@@ -370,7 +370,7 @@ class Stripe extends BaseMethods
         $id = $this->uniqueId('stripe_card');
         ?>
         <label class="wpm_stripe_card_label" for="<?php echo esc_attr($id); ?>">
-            <img width="50px" src="<?php echo esc_url(Vite::staticPath() . 'images/stripe.svg'); ?>" alt="">
+            <img width="50px" src="<?php echo esc_url(Vite::staticPath() . 'images/card.svg'); ?>" alt="<?php esc_attr_e('Card', 'buy-me-coffee'); ?>">
             <input
                     style="outline: none;"
                     type="radio" class="wpm_stripe_card" name="wpm_payment_method" id="<?php echo esc_attr($id); ?>"
