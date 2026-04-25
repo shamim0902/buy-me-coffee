@@ -40,11 +40,16 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
     define('BUYMECOFFEE_PRODUCTION', 'yes');
+    define('BUYMECOFFEE_DB_VERSION', '1.3');
 
     class BuyMeCoffee
     {
         public function boot()
         {
+            // DB version check — runs on every plugins_loaded to apply schema updates for existing installs
+            require_once BUYMECOFFEE_DIR . 'includes/Classes/Activator.php';
+            (new \BuyMeCoffee\Classes\Activator())->maybeRunMigrations();
+
             if (is_admin()) {
                 $this->adminHooks();
             }
@@ -116,6 +121,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
             //payment methods init
             require BUYMECOFFEE_DIR . 'includes/Builder/Methods/BaseMethods.php';
+            require BUYMECOFFEE_DIR . 'includes/Builder/Methods/Stripe/StripeSubscriptions.php';
             require BUYMECOFFEE_DIR . 'includes/Builder/Methods/Stripe/Stripe.php';
             require BUYMECOFFEE_DIR . 'includes/Builder/Methods/PayPal/PayPal.php';
             new \BuyMeCoffee\Builder\Methods\PayPal\PayPal();
@@ -167,6 +173,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         require_once(BUYMECOFFEE_DIR . 'includes/Classes/Activator.php');
         $activator = new \BuyMeCoffee\Classes\Activator();
         $activator->migrateDatabases($newWorkWide);
+        update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
     });
 
     // disabled admin-notice on dashboard

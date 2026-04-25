@@ -124,6 +124,8 @@ class Render
         $enableName = Arr::get($template, 'enableName') == 'yes';
         $enableEmail = Arr::get($template, 'enableEmail') == 'yes';
         $enableMsg = Arr::get($template, 'enableMessage') == 'yes';
+        $allowRecurring = Arr::get($template, 'allow_recurring', 'no') === 'yes';
+        $recurringInterval = Arr::get($template, 'recurring_interval', 'month');
         $defaultAmount = intval(Arr::get($template, 'defaultAmount', '5'));
         $customCoffeeDefault = intval(Arr::get($template, 'custom_coffee', '5'));
 
@@ -206,8 +208,12 @@ class Render
                 </div>
             <?php endif; ?>
 
-            <?php if ($enableEmail): ?>
-                <div data-element_type="email" class="buymecoffee_form_item">
+            <?php
+            // Show email field normally, or hidden-but-present when recurring is allowed
+            // (recurring requires an email for the Stripe customer)
+            $emailHiddenForRecurring = !$enableEmail && $allowRecurring;
+            if ($enableEmail || $allowRecurring) : ?>
+                <div data-element_type="email" class="buymecoffee_form_item<?php echo $emailHiddenForRecurring ? ' bmc_email_recurring_only' : ''; ?>"<?php echo $emailHiddenForRecurring ? ' style="display:none;"' : ''; ?>>
                     <div class="buymecoffee_input_content">
                         <input <?php
                         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -231,6 +237,18 @@ class Render
                     <?php echo esc_html(static::payMethod($template)); ?>
                 </div>
             </div>
+
+            <?php
+            $intervalLabel = $recurringInterval === 'year' ? __('yearly', 'buy-me-coffee') : __('monthly', 'buy-me-coffee');
+            if ($allowRecurring) : ?>
+            <div class="buymecoffee_recurring_section" style="display:none;" data-interval="<?php echo esc_attr($recurringInterval); ?>">
+                <label class="buymecoffee_recurring_label">
+                    <input type="checkbox" class="buymecoffee_is_recurring" name="buymecoffee_is_recurring" value="yes">
+                    <?php esc_html_e('Make it recurring', 'buy-me-coffee'); ?>
+                    <span class="buymecoffee_recurring_hint">(<?php echo esc_html(sprintf(/* translators: %s: billing interval, e.g. "monthly" */ __('billed %s', 'buy-me-coffee'), $intervalLabel)); ?>)</span>
+                </label>
+            </div>
+            <?php endif; ?>
 
             <div data-element_type="submit" class="buymecoffee_form_item buymecoffee_form_submit_wrapper">
                 <div class="buymecoffee_input_content">

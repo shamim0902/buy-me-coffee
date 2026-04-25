@@ -21,6 +21,8 @@ class Buttons
             "custom_coffee" => 5,
             "openMode" => 'page',
             "currency" => 'USD',
+            "allow_recurring" => 'no',
+            "recurring_interval" => 'month',
             "advanced" => array(
                 "image" => '',
                 "banner_image" => '',

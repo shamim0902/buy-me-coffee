@@ -102,6 +102,7 @@ import {
     LayoutDashboard, Heart, Settings, Palette, Code2,
     CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
     ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
+    RefreshCw,
 } from 'lucide-vue-next';
 
 const COLLAPSE_KEY = '__buymecoffee_sidebar_collapsed';
@@ -119,8 +120,9 @@ const wpAdminUrl = computed(() => (window.BuyMeCoffeeAdmin?.wp_admin_url || '/wp
 const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
 
 const mainItems = [
-    { label: 'Dashboard', route: '/', icon: LayoutDashboard, activeNames: ['Dashboard'] },
-    { label: 'Supporters', route: '/supporters', icon: Heart, activeNames: ['Supporters', 'Supporter'] },
+    { label: 'Dashboard',     route: '/',             icon: LayoutDashboard, activeNames: ['Dashboard'] },
+    { label: 'Supporters',    route: '/supporters',   icon: Heart,           activeNames: ['Supporters', 'Supporter'] },
+    { label: 'Subscriptions', route: '/subscriptions', icon: RefreshCw,      activeNames: ['Subscriptions', 'SubscriptionDetail'] },
 ];
 
 const configItems = [

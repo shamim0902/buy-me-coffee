@@ -7,6 +7,13 @@ use BuyMeCoffee\Helpers\PaymentHelper;
 if ($paymentData):
     $amount = floatval($paymentData->payment_total ? $paymentData->payment_total / 100 : 0);
     $currencySymbol = html_entity_decode(PaymentHelper::currencySymbol($paymentData->currency ?? 'USD'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $isRecurring = isset($paymentData->transaction) && ($paymentData->transaction->transaction_type ?? '') === 'recurring';
+    $recurringInterval = '';
+    if ($isRecurring && isset($paymentData->subscription)) {
+        $recurringInterval = ($paymentData->subscription->interval_type ?? 'month') === 'year'
+            ? __('Yearly', 'buy-me-coffee')
+            : __('Monthly', 'buy-me-coffee');
+    }
 ?>
 <div class="bmc-receipt">
     <!-- Success header -->
@@ -16,13 +23,26 @@ if ($paymentData):
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
         </div>
-        <h2 class="bmc-receipt__title"><?php esc_html_e('Payment Successful!', 'buy-me-coffee'); ?></h2>
-        <p class="bmc-receipt__subtitle"><?php esc_html_e('Thank you for your generous support', 'buy-me-coffee'); ?></p>
+        <h2 class="bmc-receipt__title">
+            <?php echo $isRecurring ? esc_html__('Subscription Active!', 'buy-me-coffee') : esc_html__('Payment Successful!', 'buy-me-coffee'); ?>
+        </h2>
+        <p class="bmc-receipt__subtitle">
+            <?php echo $isRecurring
+                ? esc_html__('Thank you for your recurring support', 'buy-me-coffee')
+                : esc_html__('Thank you for your generous support', 'buy-me-coffee'); ?>
+        </p>
+        <?php if ($isRecurring): ?>
+        <span class="bmc-receipt__recurring-badge">
+            ↻ <?php echo $recurringInterval ? esc_html($recurringInterval . ' ' . __('Recurring Donation', 'buy-me-coffee')) : esc_html__('Recurring Donation', 'buy-me-coffee'); ?>
+        </span>
+        <?php endif; ?>
     </div>
 
     <!-- Amount -->
     <div class="bmc-receipt__amount-box">
-        <span class="bmc-receipt__amount-label"><?php esc_html_e('Amount Paid', 'buy-me-coffee'); ?></span>
+        <span class="bmc-receipt__amount-label">
+            <?php echo $isRecurring ? esc_html__('Amount per Cycle', 'buy-me-coffee') : esc_html__('Amount Paid', 'buy-me-coffee'); ?>
+        </span>
         <span class="bmc-receipt__amount-value"><?php echo esc_html($currencySymbol . number_format($amount, 2)); ?></span>
         <span class="bmc-receipt__amount-coffees">
             <?php echo esc_html($paymentData->coffee_count ?? 1); ?>
@@ -60,6 +80,19 @@ if ($paymentData):
         <div class="bmc-receipt__row">
             <span class="bmc-receipt__label"><?php esc_html_e('Payment Method', 'buy-me-coffee'); ?></span>
             <span class="bmc-receipt__value" style="text-transform: capitalize"><?php echo esc_html($paymentData->payment_method ?? ''); ?></span>
+        </div>
+
+        <div class="bmc-receipt__row">
+            <span class="bmc-receipt__label"><?php esc_html_e('Donation Type', 'buy-me-coffee'); ?></span>
+            <span class="bmc-receipt__value">
+                <?php if ($isRecurring): ?>
+                    <span class="bmc-receipt__type-badge bmc-receipt__type-badge--recurring">
+                        ↻ <?php echo $recurringInterval ? esc_html($recurringInterval) : esc_html__('Recurring', 'buy-me-coffee'); ?>
+                    </span>
+                <?php else: ?>
+                    <?php esc_html_e('One-time', 'buy-me-coffee'); ?>
+                <?php endif; ?>
+            </span>
         </div>
 
         <div class="bmc-receipt__row">

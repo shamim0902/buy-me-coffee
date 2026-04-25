@@ -292,6 +292,7 @@ $bmc-radius: 16px;
 
 // ── Form Card ──────────────────────────────────
 .bmc-form-card {
+  position: relative;
   background: #fff;
   border-radius: $bmc-radius;
   padding: 32px 28px;
@@ -576,6 +577,45 @@ $bmc-radius: 16px;
   margin-bottom: 16px !important;
 }
 
+.bmc_field_error input {
+  border-color: #ef4444 !important;
+  outline-color: #ef4444 !important;
+
+  &::placeholder {
+    color: #ef4444 !important;
+    opacity: 1;
+  }
+}
+
+.buymecoffee_recurring_section {
+  margin-bottom: 12px;
+
+  .buymecoffee_recurring_label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #3f3f46;
+    cursor: pointer;
+    user-select: none;
+
+    input[type='checkbox'] {
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+      flex-shrink: 0;
+      accent-color: currentColor;
+    }
+  }
+
+  .buymecoffee_recurring_hint {
+    font-size: 11px;
+    color: #a1a1aa;
+    font-weight: 400;
+  }
+}
+
 .buymecoffee_pay_method {
   display: flex;
   gap: 10px;
@@ -724,6 +764,35 @@ form.wpm_submitting_form {
     font-size: 13px;
     color: #52525b;
     margin: 0;
+  }
+
+  &__recurring-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    background: #d1fae5;
+    color: #065f46;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  &__type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+
+    &--recurring {
+      background: #d1fae5;
+      color: #065f46;
+    }
   }
 
   // ── Amount box ──
@@ -952,4 +1021,67 @@ form.wpm_submitting_form {
     width: 48px !important;
     height: 40px !important;
   }
+}
+
+// ── Coffee Loader (public) ───────────────────────────────────────────────────
+.bmc-pub-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  border-radius: inherit;
+
+  &__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  &__cup {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    animation: bmc-pub-bob 2.8s ease-in-out infinite;
+
+    svg {
+      display: block;
+      width: 72px;
+      height: 72px;
+      overflow: visible;
+    }
+  }
+
+  &__msg {
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    margin: 0;
+    letter-spacing: 0.01em;
+    animation: bmc-pub-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes bmc-pub-bob {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+@keyframes bmc-pub-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+.bmc-pub-loader .bmc-steam        { animation: bmc-pub-steam 2s ease-out infinite; }
+.bmc-pub-loader .bmc-steam--2     { animation-delay: 0.45s; }
+.bmc-pub-loader .bmc-steam--3     { animation-delay: 0.9s; }
+
+@keyframes bmc-pub-steam {
+  0%   { opacity: 0;    transform: translateY(0) scaleY(0.4); }
+  25%  { opacity: 0.55; }
+  100% { opacity: 0;    transform: translateY(-12px) scaleY(1.15); }
 }

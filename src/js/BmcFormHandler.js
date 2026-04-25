@@ -1,3 +1,5 @@
+import BmcCoffeeLoader from './utils/coffeeLoader.js';
+
 class BmcFormHandler {
     constructor(form, config) {
         this.form = form;
@@ -47,6 +49,12 @@ class BmcFormHandler {
             jQuery(e.target).parent().addClass('wpm_payment_active');
         });
 
+
+        // Show/require email when recurring is checked
+        this.form.find('.buymecoffee_is_recurring').on('change', (e) => {
+            this.toggleRecurringEmail(e.target.checked);
+        });
+
         this.form.on('submit', (e) => {
             e.preventDefault();
             this.handleFormSubmit(this.form);
@@ -54,10 +62,38 @@ class BmcFormHandler {
     }
 
 
+    toggleRecurringEmail(isChecked) {
+        const emailField = this.form.find('.bmc_email_recurring_only');
+        if (!emailField.length) return; // email already visible (enableEmail=yes)
+        if (isChecked) {
+            emailField.slideDown(150);
+        } else {
+            emailField.slideUp(150);
+            emailField.find('input').val('');
+        }
+    }
+
     handleFormSubmit(form) {
+        // Validate email is present when recurring is selected
+        if (form.find('.buymecoffee_is_recurring').is(':checked')) {
+            const emailVal = form.find('input.wpm-supporter-email').val()?.trim();
+            if (!emailVal) {
+                const emailField = form.find('[data-element_type="email"]');
+                emailField.addClass('bmc_field_error');
+                emailField.find('input').attr('placeholder', 'Email is required for recurring donations');
+                form.find('button.wpm_submit_button').removeAttr('disabled');
+                emailField.find('input').one('input', () => emailField.removeClass('bmc_field_error'));
+                return;
+            }
+        }
+
         form.find('button.wpm_submit_button').attr('disabled', true);
         form.addClass('wpm_submitting_form');
         form.parent().find('.wpm_form_notices').hide();
+
+        const card = form.closest('.bmc-form-card, .buymecoffee_form_preview_wrapper')[0] || form.parent()[0];
+        const loader = new BmcCoffeeLoader(card);
+        loader.show();
 
         jQuery.post(window.buymecoffee_general.ajax_url, {
             action: 'buymecoffee_submit',
@@ -66,9 +102,12 @@ class BmcFormHandler {
             coffee_count: form.data('coffee_count'),
             payment_method: form.data('wpm_selected_payment_method'),
             currency: form.data('wpm_currency'),
-            form_data: jQuery(form).serializeArray()
+            form_data: jQuery(form).serializeArray(),
+            is_recurring: form.find('.buymecoffee_is_recurring').is(':checked') ? 'yes' : 'no',
+            recurring_interval: form.find('.buymecoffee_recurring_section').data('interval') || 'month',
         })
             .then(response => {
+                loader.hide();
                 if (response.data?.redirectTo) {
                     window.location.href = response.data.redirectTo;
                 }
@@ -76,7 +115,10 @@ class BmcFormHandler {
                     this.fireCustomEvent(response.data.nextAction, response);
                     return;
                 }
-            }).catch (error => {
+            }).catch(error => {
+                loader.hide();
+                form.find('button.wpm_submit_button').removeAttr('disabled');
+                form.removeClass('wpm_submitting_form');
                 alert(error?.responseJSON?.data?.message);
             });
     }
@@ -105,6 +147,14 @@ class BmcFormHandler {
         let paymentMethod = this.form.find('.buymecoffee_pay_method input:checked');
         this.form.data('wpm_selected_payment_method', paymentMethod.val());
         paymentMethod.parent().addClass('wpm_payment_active');
+
+        // Show recurring option only for Stripe
+        const isStripe = paymentMethod.val() === 'stripe';
+        this.form.find('.buymecoffee_recurring_section').toggle(isStripe);
+        if (!isStripe) {
+            this.form.find('.buymecoffee_is_recurring').prop('checked', false);
+            this.toggleRecurringEmail(false);
+        }
     }
 
     toggleCustomQuantity(val) {

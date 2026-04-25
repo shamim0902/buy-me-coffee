@@ -8,6 +8,7 @@ use BuyMeCoffee\Controllers\SubmissionHandler;
 use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
+use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Transactions;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -46,7 +47,10 @@ class PaymentHelper
             return;
         }
 
-        if (intval($order->payment_total) !== $amount) {
+        // For subscriptions the PI amount may not yet be reflected in amount_received
+        // at the moment the confirmation fires, so allow a zero amount_received to pass
+        // (the status check below still gates on 'succeeded').
+        if ($amount > 0 && intval($order->payment_total) !== $amount) {
             return;
         }
 
@@ -68,6 +72,17 @@ class PaymentHelper
             'updated_at' => current_time('mysql')
         ]);
         (new Transactions())->updateData($order->transaction->id, $updateData);
+
+        // If this transaction belongs to a subscription, activate it now.
+        // Webhooks also do this, but the frontend confirmation fires first and
+        // without this the subscription stays 'incomplete' until the webhook arrives.
+        if ($status === 'paid' && !empty($order->transaction->subscription_id)) {
+            (new Subscriptions())->updateData((int) $order->transaction->subscription_id, [
+                'status'     => 'active',
+                'updated_at' => current_time('mysql'),
+            ]);
+        }
+
         do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);
     }
 

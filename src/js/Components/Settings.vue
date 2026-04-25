@@ -96,6 +96,28 @@
                   </el-select>
                 </div>
               </div>
+
+              <!-- Allow recurring -->
+              <div class="bmc-toggle-row" :class="{ 'bmc-toggle-row--last': template.allow_recurring !== 'yes' }" style="margin-top: 4px">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Allow recurring</p>
+                  <p class="bmc-toggle-row__desc">Show a "Make it recurring" option on the checkout form (Stripe only)</p>
+                </div>
+                <el-switch v-model="template.allow_recurring" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Recurring interval -->
+              <div v-if="template.allow_recurring === 'yes'" class="bmc-toggle-row bmc-toggle-row--last">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Recurring interval</p>
+                  <p class="bmc-toggle-row__desc">How often supporters will be charged</p>
+                </div>
+                <el-select v-model="template.recurring_interval" style="width: 130px">
+                  <el-option label="Monthly" value="month" />
+                  <el-option label="Yearly" value="year" />
+                </el-select>
+              </div>
+
             </div>
           </section>
 
@@ -431,6 +453,8 @@ export default {
         enableEmail: 'no',
         defaultAmount: 5,
         currency: 'USD',
+        allow_recurring: 'no',
+        recurring_interval: 'month',
         advanced: {
           image: '',
           bgColor: '#ff813f',

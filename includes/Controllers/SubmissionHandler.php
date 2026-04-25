@@ -54,8 +54,19 @@ class SubmissionHandler
             $currency = PaymentHelper::getCurrency();
         }
 
-        $form_data['payment_method'] = $paymentMethod;
-        $form_data['payment_total'] = $paymentTotal;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
+        $isRecurring      = isset($_REQUEST['is_recurring']) ? sanitize_text_field(wp_unslash($_REQUEST['is_recurring'])) : 'no';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
+        $recurringInterval = isset($_REQUEST['recurring_interval']) ? sanitize_text_field(wp_unslash($_REQUEST['recurring_interval'])) : 'month';
+        $allowedIntervals  = ['month', 'year'];
+        if (!in_array($recurringInterval, $allowedIntervals, true)) {
+            $recurringInterval = 'month';
+        }
+
+        $form_data['payment_method']      = $paymentMethod;
+        $form_data['payment_total']       = $paymentTotal;
+        $form_data['is_recurring']        = $isRecurring;
+        $form_data['recurring_interval']  = $recurringInterval;
 
         $supporterName = ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous');
         $supporterEmail = ArrayHelper::get($form_data, 'wpm-supporter-email');
@@ -91,15 +102,16 @@ class SubmissionHandler
         do_action('buymecoffee_after_supporters_data_insert', $entries);
 
         $transaction = array(
-            'entry_hash' => $hash,
-            'entry_id' => $entryId,
-            'charge_id' => '',
-            'payment_method' => sanitize_text_field($paymentMethod),
-            'payment_total' => $paymentTotal,
-            'currency' => $currency,
-            'status' => 'pending',
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql'),
+            'entry_hash'       => $hash,
+            'entry_id'         => $entryId,
+            'charge_id'        => '',
+            'payment_method'   => sanitize_text_field($paymentMethod),
+            'payment_total'    => $paymentTotal,
+            'currency'         => $currency,
+            'status'           => 'pending',
+            'transaction_type' => $isRecurring === 'yes' ? 'recurring' : 'one_time',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
         );
 
          $transactionTable = (new Transactions())->getQuery();
