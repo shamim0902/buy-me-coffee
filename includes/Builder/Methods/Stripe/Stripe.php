@@ -3,6 +3,7 @@
 namespace BuyMeCoffee\Builder\Methods\Stripe;
 
 use BuyMeCoffee\Builder\Methods\BaseMethods;
+use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
@@ -86,6 +87,14 @@ class Stripe extends BaseMethods
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         $intentId = sanitize_text_field(wp_unslash($_REQUEST['intentId']));
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
+        $requestedSubscriptionId = isset($_REQUEST['subscriptionId']) ? absint($_REQUEST['subscriptionId']) : 0;
+
+        if ($requestedSubscriptionId && !$this->activateMatchedSubscription($intentId, $requestedSubscriptionId)) {
+            wp_send_json_error([
+                'message' => __('Subscription confirmation mismatch. Please refresh and try again.', 'buy-me-coffee')
+            ], 403);
+        }
 
         // Fallback / full update: re-query Stripe to record charge details, card info, etc.
         // Also activates subscription if subscription_id is on the transaction (covers webhook-less setups).
@@ -94,6 +103,47 @@ class Stripe extends BaseMethods
         wp_send_json_success([
             'message' => __('Payment confirmation received', 'buy-me-coffee')
         ], 200);
+    }
+
+    private function activateMatchedSubscription($intentId, $requestedSubscriptionId)
+    {
+        $intent = (new API())->makeRequest(
+            'payment_intents/' . $intentId,
+            [],
+            StripeSettings::getKeys('secret'),
+            'GET'
+        );
+
+        if (is_wp_error($intent)) {
+            return false;
+        }
+
+        $intentStatus = sanitize_text_field(ArrayHelper::get($intent, 'status', ''));
+        if (!in_array($intentStatus, ['succeeded', 'processing'], true)) {
+            return false;
+        }
+
+        $orderHash = sanitize_text_field(ArrayHelper::get($intent, 'metadata.ref_id', ''));
+        if (!$orderHash) {
+            return false;
+        }
+
+        $supporter = (new Supporters())->getByHash($orderHash);
+        if (!$supporter || empty($supporter->transaction)) {
+            return false;
+        }
+
+        $actualSubscriptionId = (int) ($supporter->transaction->subscription_id ?? 0);
+        if ($actualSubscriptionId <= 0 || $actualSubscriptionId !== (int) $requestedSubscriptionId) {
+            return false;
+        }
+
+        (new Subscriptions())->updateData($actualSubscriptionId, [
+            'status'     => 'active',
+            'updated_at' => current_time('mysql'),
+        ]);
+
+        return true;
     }
 
     public function handleInlinePayment($transaction, $paymentArgs, $apiKey)
@@ -265,6 +315,16 @@ class Stripe extends BaseMethods
         $transactions->updateData($transaction->id, [
             'status' => sanitize_text_field($status),
             'updated_at' => current_time('mysql')
+        ]);
+
+        ActivityLogger::logPayment((int) $transaction->id, 'webhook_received', 'Stripe webhook: payment status ' . $status, [
+            'status'     => 'info',
+            'created_by' => 'webhook:stripe',
+            'context'    => [
+                'transaction_id' => $transaction->id,
+                'stripe_status'  => $status,
+                'entry_hash'     => $orderHash,
+            ],
         ]);
 
         do_action('buymecoffee_payment_status_updated', $transaction->id, $status);

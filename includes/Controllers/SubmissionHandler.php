@@ -124,6 +124,16 @@ class SubmissionHandler
             ->first();
 
          if ($paymentTotal > 0) {
+            \BuyMeCoffee\Classes\ActivityLogger::logPayment((int) $transactionId->id, 'payment_initiated', 'Payment initiated via ' . $paymentMethod, [
+                'status'  => 'info',
+                'context' => [
+                    'transaction_id' => $transactionId->id,
+                    'supporter_id'   => $entryId,
+                    'amount'         => $paymentTotal,
+                    'currency'       => $currency,
+                    'method'         => $paymentMethod,
+                ],
+            ]);
             do_action('buymecoffee_make_payment_' . $paymentMethod, $transactionId->id, $entryId, $form_data);
         }
 

@@ -274,6 +274,14 @@
           </el-table-column>
         </el-table>
       </div>
+
+      <!-- Activity Log -->
+      <div class="mt-6 bg-white rounded-xl border border-neutral-200 shadow-xs overflow-hidden">
+        <ActivityTimeline
+          :supporter-id="Number(supporter.id)"
+          :show-module="true"
+        />
+      </div>
     </template>
 
     <!-- Status Change Dialog -->
@@ -325,6 +333,7 @@ import PageTitle from './UI/PageTitle.vue';
 import StatusBadge from './UI/StatusBadge.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
 import MetricCard from './UI/MetricCard.vue';
+import ActivityTimeline from './ActivityTimeline.vue';
 
 export default {
   name: 'Supporter',
@@ -342,6 +351,7 @@ export default {
     StatusBadge,
     MetricCard,
     CoffeeLoader,
+    ActivityTimeline,
   },
   data() {
     return {

@@ -46,6 +46,7 @@ class Activator
         $this->createSupportersTable();
         $this->createTransactionTable();
         $this->createSubscriptionsTable();
+        $this->createActivitiesTable();
     }
 
     public function createSupportersTable()
@@ -123,6 +124,29 @@ class Activator
                 cancelled_at timestamp NULL,
                 created_at timestamp NULL,
                 updated_at timestamp NULL
+        ) $charset_collate;";
+
+        $this->runSQL($sql, $table_name);
+    }
+
+    public function createActivitiesTable()
+    {
+        global $wpdb;
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_name = $wpdb->prefix . 'buymecoffee_activities';
+        $sql = "CREATE TABLE $table_name (
+                id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                object_type varchar(30) NOT NULL DEFAULT '',
+                object_id int(11) NOT NULL DEFAULT 0,
+                event varchar(80) NOT NULL DEFAULT '',
+                status varchar(20) NOT NULL DEFAULT 'info',
+                title varchar(255) NOT NULL DEFAULT '',
+                description longtext,
+                context longtext,
+                created_by varchar(80) NOT NULL DEFAULT 'system',
+                created_at timestamp NULL,
+                KEY bmc_act_obj (object_type, object_id),
+                KEY bmc_act_time (created_at)
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);

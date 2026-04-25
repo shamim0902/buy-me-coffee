@@ -177,6 +177,14 @@
           icon="CreditCard"
         />
       </div>
+
+      <!-- Activity Log -->
+      <div class="mt-6 bg-white rounded-xl border border-neutral-200 shadow-xs overflow-hidden">
+        <ActivityTimeline
+          object-type="subscription"
+          :object-id="Number(subscription.id)"
+        />
+      </div>
     </template>
   </div>
 </template>
@@ -185,10 +193,11 @@
 import { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical } from 'lucide-vue-next';
 import CoffeeLoader from '../UI/CoffeeLoader.vue';
 import EmptyState from '../UI/EmptyState.vue';
+import ActivityTimeline from '../ActivityTimeline.vue';
 
 export default {
   name: 'SubscriptionDetail',
-  components: { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical, CoffeeLoader, EmptyState },
+  components: { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical, CoffeeLoader, EmptyState, ActivityTimeline },
   data() {
     return {
       loading: true,

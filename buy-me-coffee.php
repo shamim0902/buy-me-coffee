@@ -40,7 +40,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
     define('BUYMECOFFEE_PRODUCTION', 'yes');
-    define('BUYMECOFFEE_DB_VERSION', '1.3');
+    define('BUYMECOFFEE_DB_VERSION', '1.5');
 
     class BuyMeCoffee
     {
@@ -135,6 +135,11 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             // Email Notifications
             require BUYMECOFFEE_DIR . 'includes/Classes/EmailNotifications.php';
             (new \BuyMeCoffee\Classes\EmailNotifications())->register();
+
+            // Activity Log
+            require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogger.php';
+            require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogHooks.php';
+            (new \BuyMeCoffee\Classes\ActivityLogHooks())->register();
         }
 
         public function registerIpnHooks()

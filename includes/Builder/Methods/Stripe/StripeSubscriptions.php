@@ -5,6 +5,7 @@ namespace BuyMeCoffee\Builder\Methods\Stripe;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Classes\ActivityLogger;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -120,6 +121,18 @@ class StripeSubscriptions
                 'updated_at'            => current_time('mysql'),
             ]);
 
+            ActivityLogger::logSubscription((int) $localSubscriptionId, 'subscription_created', 'Subscription created', [
+                'status'     => 'info',
+                'context'    => [
+                    'subscription_id'        => $localSubscriptionId,
+                    'supporter_id'           => $paymentArgs['supporter_id'],
+                    'stripe_subscription_id' => $stripeSubscription['id'],
+                    'interval'               => $interval,
+                    'amount'                 => $paymentArgs['amount'],
+                    'currency'               => $paymentArgs['currency'],
+                ],
+            ]);
+
             // Link transaction to subscription
             (new Transactions())->updateData($transaction->id, [
                 'transaction_type' => 'recurring',
@@ -215,6 +228,16 @@ class StripeSubscriptions
                 'current_period_end' => $periodEnd,
                 'updated_at'         => current_time('mysql'),
             ]);
+
+            ActivityLogger::logSubscription((int) $subscription->id, 'subscription_activated', 'Subscription activated', [
+                'status'     => 'success',
+                'created_by' => 'webhook:stripe',
+                'context'    => [
+                    'subscription_id' => $subscription->id,
+                    'supporter_id'    => $subscription->supporter_id,
+                    'period_end'      => $periodEnd,
+                ],
+            ]);
             return;
         }
 
@@ -275,6 +298,20 @@ class StripeSubscriptions
             'current_period_end' => $periodEnd,
             'updated_at'         => current_time('mysql'),
         ]);
+
+        ActivityLogger::logSubscription((int) $subscription->id, 'subscription_renewed', 'Subscription renewed', [
+            'status'     => 'success',
+            'created_by' => 'webhook:stripe',
+            'context'    => [
+                'subscription_id' => $subscription->id,
+                'supporter_id'    => $subscription->supporter_id,
+                'amount'          => $amountPaid,
+                'currency'        => $currency,
+                'charge_id'       => $chargeId,
+                'invoice_id'      => $invoiceId,
+                'period_end'      => $periodEnd,
+            ],
+        ]);
     }
 
     /**
@@ -302,6 +339,16 @@ class StripeSubscriptions
             'status'       => 'cancelled',
             'cancelled_at' => current_time('mysql'),
             'updated_at'   => current_time('mysql'),
+        ]);
+
+        ActivityLogger::logSubscription((int) $subscription->id, 'subscription_cancelled', 'Subscription cancelled via Stripe', [
+            'status'     => 'info',
+            'created_by' => 'webhook:stripe',
+            'context'    => [
+                'subscription_id'        => $subscription->id,
+                'supporter_id'           => $subscription->supporter_id,
+                'stripe_subscription_id' => $stripeSubId,
+            ],
         ]);
     }
 
@@ -350,5 +397,19 @@ class StripeSubscriptions
         }
 
         $subscriptionModel->updateData($subscription->id, $update);
+
+        if (!empty($update['status'])) {
+            ActivityLogger::logSubscription((int) $subscription->id, 'subscription_status_changed', 'Subscription status changed to ' . $update['status'], [
+                'status'     => 'info',
+                'created_by' => 'webhook:stripe',
+                'context'    => [
+                    'subscription_id' => $subscription->id,
+                    'supporter_id'    => $subscription->supporter_id,
+                    'old_status'      => $subscription->status,
+                    'new_status'      => $update['status'],
+                    'stripe_status'   => $stripeStatus,
+                ],
+            ]);
+        }
     }
 }

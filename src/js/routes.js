@@ -11,6 +11,7 @@ import Emails from "./Components/Email/Emails.vue";
 import Webhook from "./Components/Webhook.vue";
 import Subscriptions from './Components/Subscriptions/Subscriptions.vue';
 import SubscriptionDetail from './Components/Subscriptions/SubscriptionDetail.vue';
+import ActivityLog from './Components/ActivityLog.vue';
 
 export default [
     {
@@ -124,6 +125,15 @@ export default [
         component: SubscriptionDetail,
         meta: {
             breadcrumb: 'Subscription Detail'
+        }
+    },
+    {
+        path: '/activity-log',
+        name: 'ActivityLog',
+        component: ActivityLog,
+        meta: {
+            active: 'activity-log',
+            breadcrumb: 'Activity Log'
         }
     }
 ];

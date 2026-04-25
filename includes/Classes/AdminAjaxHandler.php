@@ -15,6 +15,7 @@ use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Classes\EmailNotifications;
+use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\API as StripeAPI;
 
@@ -78,6 +79,8 @@ class AdminAjaxHandler
             'get_subscription_stats' => 'getSubscriptionStats',
 
             'refund_transaction' => 'refundTransaction',
+
+            'get_activities' => 'getActivities',
         );
 
         if (isset($validRoutes[$route])) {
@@ -403,6 +406,16 @@ class AdminAjaxHandler
             'updated_at'   => current_time('mysql'),
         ]);
 
+        ActivityLogger::logSubscription($id, 'subscription_cancelled', 'Subscription cancelled by admin', [
+            'status'  => 'info',
+            'context' => [
+                'subscription_id'        => $id,
+                'supporter_id'           => $subscription->supporter_id,
+                'stripe_subscription_id' => $subscription->stripe_subscription_id ?? '',
+                'by_admin'               => true,
+            ],
+        ]);
+
         wp_send_json_success(['message' => __('Subscription cancelled successfully', 'buy-me-coffee')], 200);
     }
 
@@ -440,6 +453,17 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => __('Refund is already in progress or transaction is not refundable.', 'buy-me-coffee')], 409);
         }
 
+        ActivityLogger::logPayment((int) $transaction->id, 'refund_initiated', 'Refund initiated', [
+            'status'  => 'info',
+            'context' => [
+                'transaction_id' => $transaction->id,
+                'amount'         => $transaction->payment_total,
+                'currency'       => $transaction->currency,
+                'method'         => $transaction->payment_method,
+                'charge_id'      => $transaction->charge_id,
+            ],
+        ]);
+
         $result = apply_filters('buymecoffee_process_refund_' . $transaction->payment_method, null, $transaction);
 
         if ($result === null) {
@@ -448,6 +472,13 @@ class AdminAjaxHandler
         }
 
         if (is_wp_error($result)) {
+            ActivityLogger::logPayment((int) $transaction->id, 'refund_failed', 'Refund failed', [
+                'status'  => 'failed',
+                'context' => [
+                    'transaction_id' => $transaction->id,
+                    'error'          => $result->get_error_message(),
+                ],
+            ]);
             $this->releaseRefundLock((int) $transaction->id);
             wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
@@ -495,6 +526,30 @@ class AdminAjaxHandler
                 'status' => 'paid',
                 'updated_at' => current_time('mysql'),
             ]);
+    }
+
+    public function getActivities($request)
+    {
+        $perPage     = max(1, min(100, (int) Arr::get($request, 'per_page', 20)));
+        $page        = max(0, (int) Arr::get($request, 'page', 0));
+        $supporterId = max(0, (int) Arr::get($request, 'supporter_id', 0));
+
+        // Supporter-scoped query: spans submission + email + payment types
+        if ($supporterId > 0) {
+            $result = ActivityLogger::getForSupporter($supporterId, $page, $perPage);
+            wp_send_json_success(array_merge($result, ['page' => $page, 'per_page' => $perPage]), 200);
+        }
+
+        $objectType = sanitize_text_field(Arr::get($request, 'object_type', 'all'));
+        $objectId   = max(0, (int) Arr::get($request, 'object_id', 0));
+
+        $allowed = ['all', 'payment', 'subscription', 'submission', 'email'];
+        if (!in_array($objectType, $allowed, true)) {
+            wp_send_json_error(['message' => __('Invalid object type.', 'buy-me-coffee')], 400);
+        }
+
+        $result = ActivityLogger::getForObject($objectType, $objectId, $page, $perPage);
+        wp_send_json_success(array_merge($result, ['page' => $page, 'per_page' => $perPage]), 200);
     }
 
     private function calculateSupporterPaymentStatus($entryId)
