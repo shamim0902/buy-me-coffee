@@ -175,6 +175,13 @@ class Supporters extends Model
                 ->where('entry_hash', $hash)
                 ->first();
             $supporter->transaction = $transaction;
+
+            if ($transaction && ($transaction->transaction_type ?? '') === 'recurring' && !empty($transaction->subscription_id)) {
+                $supporter->subscription = buyMeCoffeeQuery()
+                    ->table('buymecoffee_subscriptions')
+                    ->where('id', (int) $transaction->subscription_id)
+                    ->first();
+            }
         }
         return $supporter;
     }

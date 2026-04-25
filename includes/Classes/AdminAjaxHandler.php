@@ -13,7 +13,10 @@ use BuyMeCoffee\Helpers\Currencies;
 
 use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Classes\EmailNotifications;
+use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
+use BuyMeCoffee\Builder\Methods\Stripe\API as StripeAPI;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -69,6 +72,10 @@ class AdminAjaxHandler
             'save_email_notification'  => 'saveEmailNotification',
             'send_test_email'          => 'sendTestEmail',
 
+            'get_subscriptions'      => 'getSubscriptions',
+            'get_subscription'       => 'getSubscription',
+            'cancel_subscription'    => 'cancelSubscription',
+            'get_subscription_stats' => 'getSubscriptionStats',
         );
 
         if (isset($validRoutes[$route])) {
@@ -317,5 +324,80 @@ class AdminAjaxHandler
         EmailNotifications::send($to, $subject, $body);
 
         wp_send_json_success(['message' => __('Test email sent to ', 'buy-me-coffee') . $to], 200);
+    }
+
+    public function getSubscriptions($request)
+    {
+        (new Subscriptions())->index($request);
+    }
+
+    public function getSubscription($request)
+    {
+        $id           = intval(Arr::get($request, 'id'));
+        $subscription = (new Subscriptions())->find($id);
+
+        if (!$subscription) {
+            wp_send_json_error(['message' => __('Subscription not found', 'buy-me-coffee')], 404);
+        }
+
+        $supporter = (new Supporters())->find((int) $subscription->supporter_id);
+        if ($supporter) {
+            $subscription->supporters_name  = $supporter->supporters_name;
+            $subscription->supporters_email = $supporter->supporters_email;
+            $subscription->supporters_image = get_avatar_url($supporter->supporters_email);
+            $subscription->entry_hash       = $supporter->entry_hash;
+        }
+
+        // Fetch related transactions
+        $transactions = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', $id)
+            ->orderBy('created_at', 'DESC')
+            ->get();
+
+        $subscription->transactions = $transactions;
+
+        wp_send_json_success($subscription, 200);
+    }
+
+    public function cancelSubscription($request)
+    {
+        $id           = intval(Arr::get($request, 'id'));
+        $subscription = (new Subscriptions())->find($id);
+
+        if (!$subscription) {
+            wp_send_json_error(['message' => __('Subscription not found', 'buy-me-coffee')], 404);
+        }
+
+        if ($subscription->status === 'cancelled') {
+            wp_send_json_error(['message' => __('Subscription is already cancelled', 'buy-me-coffee')], 400);
+        }
+
+        // Cancel on Stripe
+        if (!empty($subscription->stripe_subscription_id)) {
+            $keys   = StripeSettings::getKeys();
+            $apiKey = $keys['secret'];
+            (new StripeAPI())->makeRequest(
+                'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
+                [],
+                $apiKey,
+                'DELETE'
+            );
+        }
+
+        // Update local record
+        (new Subscriptions())->updateData($id, [
+            'status'       => 'cancelled',
+            'cancelled_at' => current_time('mysql'),
+            'updated_at'   => current_time('mysql'),
+        ]);
+
+        wp_send_json_success(['message' => __('Subscription cancelled successfully', 'buy-me-coffee')], 200);
+    }
+
+    public function getSubscriptionStats()
+    {
+        $stats = (new Subscriptions())->getStats();
+        wp_send_json_success($stats, 200);
     }
 }

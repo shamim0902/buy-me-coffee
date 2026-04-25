@@ -9,6 +9,8 @@ import Supporters from './Components/Supporters.vue';
 import Notifications from './Components/Notifications.vue'
 import Emails from "./Components/Email/Emails.vue";
 import Webhook from "./Components/Webhook.vue";
+import Subscriptions from './Components/Subscriptions/Subscriptions.vue';
+import SubscriptionDetail from './Components/Subscriptions/SubscriptionDetail.vue';
 
 export default [
     {
@@ -106,5 +108,22 @@ export default [
             breadcrumb: 'Quick Setup'
         },
         exact: true
+    },
+    {
+        path: '/subscriptions',
+        name: 'Subscriptions',
+        component: Subscriptions,
+        meta: {
+            active: 'subscriptions',
+            breadcrumb: 'Subscriptions'
+        }
+    },
+    {
+        path: '/subscriptions/:id',
+        name: 'SubscriptionDetail',
+        component: SubscriptionDetail,
+        meta: {
+            breadcrumb: 'Subscription Detail'
+        }
     }
 ];

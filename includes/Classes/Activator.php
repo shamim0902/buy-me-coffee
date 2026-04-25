@@ -32,16 +32,20 @@ class Activator
         }
     }
 
+    public function maybeRunMigrations()
+    {
+        $installedVersion = get_option('buymecoffee_db_version', '1.0');
+        if (version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<')) {
+            $this->migrate();
+            update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
+        }
+    }
+
     private function migrate()
     {
-        /*
-        * database creation commented out,
-        * If you need any database just active this function bellow
-        * and write your own query at function
-        */
-
         $this->createSupportersTable();
         $this->createTransactionTable();
+        $this->createSubscriptionsTable();
     }
 
     public function createSupportersTable()
@@ -95,6 +99,30 @@ class Activator
 				payment_note longtext,
 				created_at timestamp NULL,
 				updated_at timestamp NULL
+        ) $charset_collate;";
+
+        $this->runSQL($sql, $table_name);
+    }
+
+    public function createSubscriptionsTable()
+    {
+        global $wpdb;
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_name = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $sql = "CREATE TABLE $table_name (
+                id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                supporter_id int(11) NOT NULL,
+                stripe_subscription_id varchar(255),
+                stripe_customer_id varchar(255),
+                interval_type varchar(50) DEFAULT 'month',
+                amount int(11) DEFAULT 0,
+                currency varchar(10),
+                status varchar(50) DEFAULT 'incomplete',
+                payment_mode varchar(20) DEFAULT 'test',
+                current_period_end timestamp NULL,
+                cancelled_at timestamp NULL,
+                created_at timestamp NULL,
+                updated_at timestamp NULL
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);

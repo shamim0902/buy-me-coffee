@@ -94,6 +94,15 @@
                         </a>
                     </div>
                     <CodeBlock :code="webhook_url" />
+                    <div class="mt-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                        <p class="text-xs font-medium text-[var(--text-secondary)] mb-1">Required webhook events:</p>
+                        <ul class="text-xs text-[var(--text-tertiary)] space-y-0.5 list-none m-0 p-0">
+                            <li>• <code class="text-xs">charge.succeeded</code></li>
+                            <li>• <code class="text-xs">invoice.payment_succeeded</code> — recurring renewal payments</li>
+                            <li>• <code class="text-xs">customer.subscription.deleted</code> — subscription cancellations</li>
+                            <li>• <code class="text-xs">customer.subscription.updated</code> — status changes</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>

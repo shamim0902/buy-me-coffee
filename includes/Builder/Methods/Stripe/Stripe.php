@@ -6,6 +6,7 @@ use BuyMeCoffee\Builder\Methods\BaseMethods;
 use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
+use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 
@@ -58,7 +59,17 @@ class Stripe extends BaseMethods
             'public_key' => $keys['public']
         );
 
-        $this->handleInlinePayment($transaction, $paymentArgs, $apiKey);
+        $isRecurring = isset($form_data['is_recurring']) && $form_data['is_recurring'] === 'yes';
+        if ($isRecurring) {
+            $interval        = isset($form_data['recurring_interval']) ? sanitize_text_field($form_data['recurring_interval']) : 'month';
+            $allowedIntervals = ['month', 'year'];
+            if (!in_array($interval, $allowedIntervals, true)) {
+                $interval = 'month';
+            }
+            (new StripeSubscriptions())->createSubscription($transaction, $paymentArgs, $apiKey, $interval);
+        } else {
+            $this->handleInlinePayment($transaction, $paymentArgs, $apiKey);
+        }
     }
 
     public function paymentConfirmation()
@@ -71,9 +82,27 @@ class Stripe extends BaseMethods
                 'message' => __('Payment intent is missing', 'buy-me-coffee')
             ], 400);
         }
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         $intentId = sanitize_text_field(wp_unslash($_REQUEST['intentId']));
+
+        // Primary: if JS passed the local subscription ID, activate it immediately.
+        // This runs before the Stripe re-query so the subscription is active right away.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (!empty($_REQUEST['subscriptionId'])) {
+            $subscriptionId = absint($_REQUEST['subscriptionId']);
+            if ($subscriptionId) {
+                (new Subscriptions())->updateData($subscriptionId, [
+                    'status'     => 'active',
+                    'updated_at' => current_time('mysql'),
+                ]);
+            }
+        }
+
+        // Fallback / full update: re-query Stripe to record charge details, card info, etc.
+        // Also activates subscription if subscription_id is on the transaction (covers webhook-less setups).
         (new PaymentHelper())->updatePaymentData($intentId);
+
         wp_send_json_success([
             'message' => __('Payment confirmation received', 'buy-me-coffee')
         ], 200);
@@ -162,6 +191,36 @@ class Stripe extends BaseMethods
             exit;
         }
 
+        $eventType = isset($data->type) ? sanitize_text_field($data->type) : '';
+        if (!$eventType) {
+            status_header(400);
+            exit;
+        }
+
+        // Handle subscription-specific webhook events
+        $subscriptionEvents = [
+            'invoice.payment_succeeded',
+            'customer.subscription.deleted',
+            'customer.subscription.updated',
+        ];
+
+        if (in_array($eventType, $subscriptionEvents, true)) {
+            $keys    = StripeSettings::getKeys();
+            $handler = new StripeSubscriptions();
+
+            if ($eventType === 'invoice.payment_succeeded') {
+                $handler->handleRenewalWebhook($data, $keys['secret']);
+            } elseif ($eventType === 'customer.subscription.deleted') {
+                $handler->handleSubscriptionCancelled($data);
+            } elseif ($eventType === 'customer.subscription.updated') {
+                $handler->handleSubscriptionUpdated($data);
+            }
+
+            status_header(200);
+            exit;
+        }
+
+        // Existing one-time payment event handling
         $eventId = isset($data->id) ? sanitize_text_field($data->id) : '';
         if (!$eventId) {
             status_header(400);

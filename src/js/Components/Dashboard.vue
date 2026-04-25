@@ -53,6 +53,18 @@
         icon="Clock"
         color="sky"
       />
+      <MetricCard
+        label="Active Subscriptions"
+        :value="String(subscriptionStats.active_count || 0)"
+        icon="RefreshCw"
+        color="green"
+      />
+      <MetricCard
+        label="Monthly Recurring"
+        :value="mrrFormatted"
+        icon="TrendingUp"
+        color="emerald"
+      />
     </div>
 
     <!-- Revenue Chart -->
@@ -206,6 +218,10 @@ export default {
       selectedCurrency: '',
       currencyOptions: [],
       chartDataMap: {},
+      subscriptionStats: {
+        active_count: 0,
+        mrr: 0,
+      },
       reportData: {
         total_supporters: 0,
         total_coffee: 0,
@@ -299,6 +315,10 @@ export default {
       return this.reportData.currency_total_pending
         .map(c => this.stripHtml(c.formatted_total))
         .join(' / ');
+    },
+    mrrFormatted() {
+      const mrr = this.subscriptionStats.mrr || 0;
+      return '$' + (mrr / 100).toFixed(2);
     }
   },
   methods: {
@@ -380,6 +400,17 @@ export default {
           this.$handleError(e);
         });
     },
+    getSubscriptionStats() {
+      this.$get({
+        action: 'buymecoffee_admin_ajax',
+        route: 'get_subscription_stats',
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
+      }).then((response) => {
+        if (response?.data) {
+          this.subscriptionStats = response.data;
+        }
+      });
+    },
     onCurrencyChange(currency) {
       this.renderChart = false;
       this.top_paid_currency = currency;
@@ -401,6 +432,7 @@ export default {
   mounted() {
     this.getSupporters();
     this.getWeeklyRevenue();
+    this.getSubscriptionStats();
     if (window.localStorage) {
       this.guidedTour = !!window.localStorage.getItem('buymecoffee_guided_tour');
     }
@@ -416,9 +448,15 @@ export default {
 /* Metric cards grid */
 .bmc-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 24px;
+}
+
+@media (min-width: 1280px) {
+  .bmc-metrics-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 @media (max-width: 1024px) {

@@ -22,14 +22,14 @@ class EmailNotifications
                 'label'   => 'Donor Confirmation',
                 'enabled' => true,
                 'subject' => 'Thank you for your support, {{donor_name}}!',
-                'body'    => "Hi {{donor_name}},\n\nThank you so much for your generous support of {{amount}}! Your contribution means the world to us.\n\nWe received your donation via {{payment_method}}.\n\nWarm regards,\n{{site_name}}",
+                'body'    => "Hi {{donor_name}},\n\nThank you so much for your generous support of {{amount}}! Your contribution means the world to us.\n\nPayment type: {{payment_type}}\n{{recurring_note}}We received your donation via {{payment_method}}.\n\nWarm regards,\n{{site_name}}",
             ],
             'admin' => [
                 'id'      => 'admin',
                 'label'   => 'Admin Notification',
                 'enabled' => true,
                 'subject' => 'New donation received: {{amount}} from {{donor_name}}',
-                'body'    => "Hello,\n\nA new donation has been received.\n\nDonor: {{donor_name}}\nEmail: {{donor_email}}\nAmount: {{amount}}\nMethod: {{payment_method}}\n\nManage supporters: {{site_url}}\n\n{{site_name}}",
+                'body'    => "Hello,\n\nA new donation has been received.\n\nDonor: {{donor_name}}\nEmail: {{donor_email}}\nAmount: {{amount}}\nType: {{payment_type}}\n{{recurring_note}}Method: {{payment_method}}\n\nManage supporters: {{site_url}}\n\n{{site_name}}",
             ],
         ];
     }
@@ -95,14 +95,38 @@ class EmailNotifications
      */
     public static function buildVars($transaction, $supporter)
     {
-        $currency = strtoupper($transaction->currency ?? 'USD');
-        $amount   = number_format($transaction->payment_total / 100, 2) . ' ' . $currency;
+        $currency    = strtoupper($transaction->currency ?? 'USD');
+        $amount      = number_format($transaction->payment_total / 100, 2) . ' ' . $currency;
+        $isRecurring = ($transaction->transaction_type ?? '') === 'recurring';
+
+        $paymentType    = $isRecurring ? __('Recurring', 'buy-me-coffee') : __('One-time', 'buy-me-coffee');
+        $recurringNote  = '';
+
+        if ($isRecurring && !empty($transaction->subscription_id)) {
+            $subscription = buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('id', (int) $transaction->subscription_id)
+                ->first();
+
+            if ($subscription) {
+                $interval      = ($subscription->interval_type ?? 'month') === 'year'
+                    ? __('yearly', 'buy-me-coffee')
+                    : __('monthly', 'buy-me-coffee');
+                $recurringNote = sprintf(
+                    /* translators: %s: billing interval, e.g. "monthly" */
+                    __("You will be billed %s. You can cancel anytime.\n", 'buy-me-coffee'),
+                    $interval
+                );
+            }
+        }
 
         return [
             'donor_name'     => $supporter->supporters_name ?: 'Anonymous',
             'donor_email'    => $supporter->supporters_email ?: '',
             'amount'         => $amount,
             'payment_method' => ucfirst($transaction->payment_method ?? ''),
+            'payment_type'   => $paymentType,
+            'recurring_note' => $recurringNote,
             'site_name'      => get_bloginfo('name'),
             'site_url'       => site_url(),
             'admin_email'    => get_option('admin_email'),

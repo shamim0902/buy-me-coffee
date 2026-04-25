@@ -61,8 +61,8 @@
               Send Email
             </a>
             <a
-              v-if="supporter.transaction_url"
-              :href="supporter.transaction_url"
+              v-if="supporter.transaction && supporter.transaction.transaction_url"
+              :href="supporter.transaction.transaction_url"
               target="_blank"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 no-underline transition-colors"
               style="color: var(--text-primary); background: var(--bg-primary)"
@@ -141,7 +141,22 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
           <div v-if="supporter.transaction.charge_id">
             <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Transaction ID</p>
-            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">{{ supporter.transaction.charge_id }}</p>
+            <p class="text-sm font-medium m-0">
+              <a
+                v-if="supporter.transaction.transaction_url"
+                :href="supporter.transaction.transaction_url"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1 font-mono no-underline hover:underline"
+                style="color: var(--color-primary-600); font-size: 13px"
+              >
+                {{ supporter.transaction.charge_id }}
+                <ExternalLink :size="11" />
+              </a>
+              <span v-else class="font-mono" style="color: var(--text-primary); font-size: 13px">
+                {{ supporter.transaction.charge_id }}
+              </span>
+            </p>
           </div>
           <div v-if="supporter.transaction.card_brand">
             <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Card</p>
@@ -156,7 +171,7 @@
           </div>
           <div v-if="supporter.transaction.status">
             <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Gateway Status</p>
-            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">{{ supporter.transaction.status }}</p>
+            <StatusBadge :status="supporter.transaction.status" />
           </div>
           <div v-if="supporter.payment_mode">
             <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Mode</p>
