@@ -30,6 +30,7 @@ const inputs = {
     'js/Editor/gutenBlock' : 'src/js/Editor/gutenBlock.jsx'
 }
 export default defineConfig({
+    base: './',
     plugins:
         [
             vue(),
