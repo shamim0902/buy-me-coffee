@@ -72,7 +72,11 @@ class Activator
 				ip_address varchar (45),
 				other_infos longtext,
 				created_at timestamp NULL,
-				updated_at timestamp NULL
+				updated_at timestamp NULL,
+                KEY bmc_sup_email (supporters_email(191)),
+                KEY bmc_sup_status (payment_status),
+                KEY bmc_sup_hash (entry_hash(191)),
+                KEY bmc_sup_created (created_at)
 			) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
@@ -99,7 +103,13 @@ class Activator
 				payment_mode varchar(255),
 				payment_note longtext,
 				created_at timestamp NULL,
-				updated_at timestamp NULL
+				updated_at timestamp NULL,
+                KEY bmc_tx_entry (entry_id),
+                KEY bmc_tx_hash (entry_hash(191)),
+                KEY bmc_tx_charge (charge_id(191)),
+                KEY bmc_tx_status (status),
+                KEY bmc_tx_sub (subscription_id),
+                KEY bmc_tx_created (created_at)
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
@@ -123,7 +133,11 @@ class Activator
                 current_period_end timestamp NULL,
                 cancelled_at timestamp NULL,
                 created_at timestamp NULL,
-                updated_at timestamp NULL
+                updated_at timestamp NULL,
+                UNIQUE KEY bmc_sub_stripe_sub (stripe_subscription_id(191)),
+                KEY bmc_sub_supporter (supporter_id),
+                KEY bmc_sub_status (status),
+                KEY bmc_sub_created (created_at)
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
@@ -154,11 +168,7 @@ class Activator
 
     private function runSQL($sql, $tableName)
     {
-        global $wpdb;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Required to check table existence during plugin activation
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $tableName)) != $tableName) {
-            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-            dbDelta($sql);
-        }
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
     }
 }

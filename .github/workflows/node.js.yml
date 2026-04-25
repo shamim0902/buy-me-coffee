@@ -5,9 +5,11 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ "build" ]
+    branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
-    branches: [ "build" ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,20 +28,29 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    - run: npm ci --force
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+    - run: npm ci
+    - run: npm audit --omit=dev --audit-level=high
+    - name: Lint PHP
+      run: php -r '$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator(getcwd())); $err=0; foreach($it as $f){ if($f->isFile() && strtolower($f->getExtension())==="php"){ $p=$f->getPathname(); $out=[]; $code=0; exec("php -l ".escapeshellarg($p)." 2>&1",$out,$code); if($code!==0){ echo $p."\n".implode("\n",$out)."\n"; $err=1; } } } exit($err);'
     - run: npm run build --if-present
+    - run: npm run package --if-present
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/v')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
         files: |
-          assets/
-        tag_name: 1.0.3
-        release_name: Release 1.0.3
+          builds/buy-me-coffee.zip
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ github.ref_name }}
         body: |
-          Changes in this Release
+          Automated release package generated from CI.
         draft: false
         prerelease: false
 

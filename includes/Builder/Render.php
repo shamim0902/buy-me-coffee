@@ -152,11 +152,12 @@ class Render
         ?>
         <form id="<?php echo esc_attr($formDynamicClass . '_main_wrapper');  ?>" class="buymecoffee_form" data-wpm_currency="<?php echo esc_html($currency); ?>">
             <input type="hidden" name="__buymecoffee_ref" value="<?php echo esc_html($template['yourName']); ?>"/>
+            <input type="hidden" name="buymecoffee_quantity" value="1"/>
             <div class="buymecoffee_payment_processor"></div>
             <?php if (!$isCustomPay): ?>
             <div class="buymecoffee_input_content">
-                <input type="hidden" style="display: none!important;" type="number" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
-                       data-price="<?php echo esc_attr($defaultAmount * 100); ?>" type="text"/>
+                <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
+                       data-price="<?php echo esc_attr($defaultAmount * 100); ?>"/>
             </div>
             <div class="buymecoffee_payment_item">
                 <div class="buymecoffee_payment_input_content">
@@ -177,7 +178,7 @@ class Render
                                    name="radio-group" type="radio">
                             <label for="three_coffee_select_radio_<?php echo esc_attr($formDynamicClass); ?>">3</label>
                         </div>
-                        <input class="buymecoffee_custom_quantity" type="number" value="5" data-quantity="5">
+                        <input class="buymecoffee_custom_quantity" type="number" min="1" name="buymecoffee_quantity" value="5" data-quantity="5">
 
                     </div>
                 </div>
@@ -191,9 +192,9 @@ class Render
                     <div class="buymecoffee_input_content_custom_pay">
                         <span class="buymecoffee_currency_prefix"><?php echo esc_html($symbool); ?></span>
                         <input type="number" class="buymecoffee_payment"
+                               name="buymecoffee_amount"
                                value="<?php echo esc_attr($customAmount); ?>"
-                               data-price="<?php echo esc_attr($customAmount * 100); ?>"
-                               type="text">
+                               data-price="<?php echo esc_attr($customAmount * 100); ?>">
                     </div>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 === Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
 Tags: donation, monetization, payments, stripe payments, fundraising
-Requires at least: 4.5
+Requires at least: 5.7
 Tested up to: 6.9
 Stable tag: 1.2.0
 Requires PHP: 7.4

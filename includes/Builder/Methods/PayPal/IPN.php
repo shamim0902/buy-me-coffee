@@ -116,6 +116,10 @@ class IPN
     private function isVerificationDisabled()
     {
         $settings = $this->getSettings();
+        if (!$this->isTestMode()) {
+            return false;
+        }
+
         return isset($settings['disable_ipn_verification']) && $settings['disable_ipn_verification'] === 'yes';
     }
 

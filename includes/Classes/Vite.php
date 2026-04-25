@@ -133,13 +133,17 @@ class Vite
     private function addModuleToScript($tag, $handle, $src)
     {
         if (in_array($handle, (static::$instance)->moduleScripts)) {
-            return wp_get_script_tag(
-                [
-                    'src'  => esc_url($src),
-                    'type' => 'module',
-                    'id'   => $handle . '-js'
-                ]
-            );
+            if (function_exists('wp_get_script_tag')) {
+                return wp_get_script_tag(
+                    [
+                        'src'  => esc_url($src),
+                        'type' => 'module',
+                        'id'   => $handle . '-js'
+                    ]
+                );
+            }
+
+            return '<script src="' . esc_url($src) . '" type="module" id="' . esc_attr($handle . '-js') . '"></script>';
         }
         return $tag;
     }

@@ -2,6 +2,8 @@ class PaypalCheckout {
     constructor($form, $response) {
         this.form = $form
         this.data = $response.data
+        this.retryCount = 0;
+        this.maxRetries = 8;
     }
 
     init() {
@@ -11,8 +13,14 @@ class PaypalCheckout {
             // Check if SDK script exists in the page
             const sdkScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
             if (sdkScript) {
-                // Wait for the script to load and try again
-                setTimeout(() => this.init(), 200);
+                if (this.retryCount >= this.maxRetries) {
+                    this.form.find('.buymecoffee_pay_methods')?.parent().prepend("<p style='color: red;'>PayPal SDK failed to initialize. Please verify your PayPal Client ID and try again.</p>");
+                    return;
+                }
+
+                this.retryCount++;
+                const delay = Math.min(1500, 200 * this.retryCount);
+                setTimeout(() => this.init(), delay);
             } else {
                 console.error('PayPal SDK script not found in DOM. Please check PayPal configuration.');
                 this.form.find('.buymecoffee_pay_methods')?.parent().prepend("<p style='color: red;'>PayPal SDK failed to load. Please check your PayPal Client ID configuration.</p>");
@@ -44,7 +52,12 @@ class PaypalCheckout {
                         charge_id: data.orderID,
                     })
                         .then(() => {
-                            window.location = this.data?.confirmation_url;
+                            const safeUrl = this.getSafeRedirectUrl(this.data?.confirmation_url);
+                            if (!safeUrl) {
+                                throw new Error('Unsafe confirmation URL blocked.');
+                            }
+
+                            window.location = safeUrl;
                         }).catch((err) => {
                             const message = err?.responseJSON?.data?.message || 'Payment could not be confirmed. Please try again.';
                             alert(message);
@@ -60,6 +73,27 @@ class PaypalCheckout {
         this.form.find('.buymecoffee_form_submit_wrapper, .buymecoffee_no_signup, .buymecoffee_input_content, .buymecoffee_payment_input_content, .buymecoffee_payment_item').hide();
         this.form.find('.buymecoffee_pay_methods')?.parent().append(paypalButtonContainer);
         this.form.prepend("<p class='complete_payment_instruction'>Please complete your donation with PayPal 👇</p>");
+    }
+
+    getSafeRedirectUrl(url) {
+        if (!url) {
+            return null;
+        }
+
+        try {
+            const parsed = new URL(url, window.location.origin);
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
+                return null;
+            }
+
+            if (parsed.origin !== window.location.origin) {
+                return null;
+            }
+
+            return parsed.toString();
+        } catch (e) {
+            return null;
+        }
     }
 }
 

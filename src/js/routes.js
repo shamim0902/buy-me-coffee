@@ -1,17 +1,17 @@
-import Dashboard from './Components/Dashboard.vue';
-import Settings from './Components/Settings.vue';
-import PayPal from './Components/PayPal.vue';
-import Stripe from './Components/Stripe.vue';
-import Gateway from './Components/Gateway.vue';
-import Supporter from "./Components/Supporter.vue";
-import Onboarding from './Components/Onboarding.vue';
-import Supporters from './Components/Supporters.vue';
-import Notifications from './Components/Notifications.vue'
-import Emails from "./Components/Email/Emails.vue";
-import Webhook from "./Components/Webhook.vue";
-import Subscriptions from './Components/Subscriptions/Subscriptions.vue';
-import SubscriptionDetail from './Components/Subscriptions/SubscriptionDetail.vue';
-import ActivityLog from './Components/ActivityLog.vue';
+const Dashboard = () => import('./Components/Dashboard.vue');
+const Settings = () => import('./Components/Settings.vue');
+const PayPal = () => import('./Components/PayPal.vue');
+const Stripe = () => import('./Components/Stripe.vue');
+const Gateway = () => import('./Components/Gateway.vue');
+const Supporter = () => import('./Components/Supporter.vue');
+const Onboarding = () => import('./Components/Onboarding.vue');
+const Supporters = () => import('./Components/Supporters.vue');
+const Notifications = () => import('./Components/Notifications.vue');
+const Emails = () => import('./Components/Email/Emails.vue');
+const Webhook = () => import('./Components/Webhook.vue');
+const Subscriptions = () => import('./Components/Subscriptions/Subscriptions.vue');
+const SubscriptionDetail = () => import('./Components/Subscriptions/SubscriptionDetail.vue');
+const ActivityLog = () => import('./Components/ActivityLog.vue');
 
 export default [
     {

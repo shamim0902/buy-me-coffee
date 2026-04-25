@@ -99,7 +99,7 @@ abstract class BaseMethods
 
     protected function canAllowLegacyPublicRequest($context = 'general')
     {
-        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', true, $context, $this->method);
+        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', false, $context, $this->method);
         if (!$allowLegacy) {
             return false;
         }
@@ -128,7 +128,7 @@ abstract class BaseMethods
             }
         }
 
-        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', true, $context, $this->method);
+        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', false, $context, $this->method);
     }
 
     abstract public function render($template);

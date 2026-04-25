@@ -271,19 +271,13 @@ class Stripe extends BaseMethods
             exit;
         }
 
-        $invoice = (new API())->getInvoice($eventId);
-        if (!$invoice || is_wp_error($invoice)) {
-            status_header(400);
-            exit;
-        }
-
-        $orderHash = $this->getOrderHash($invoice);
+        $orderHash = $this->getOrderHash($data);
         if (!$orderHash) {
             status_header(200);
             exit;
         }
 
-        $status = isset($invoice->data->object->status) ? sanitize_text_field($invoice->data->object->status) : '';
+        $status = isset($data->data->object->status) ? sanitize_text_field($data->data->object->status) : '';
         if (!$status) {
             status_header(400);
             exit;
@@ -352,8 +346,12 @@ class Stripe extends BaseMethods
 
     private function acquireEventLock($eventId)
     {
-        $optionKey = 'buymecoffee_stripe_event_lock_' . md5($eventId);
-        return add_option($optionKey, time(), '', 'no');
+        $lockKey = 'buymecoffee_stripe_event_lock_' . md5($eventId);
+        if (get_transient($lockKey)) {
+            return false;
+        }
+
+        return set_transient($lockKey, 1, DAY_IN_SECONDS * 14);
     }
 
     public function sanitize($settings)
@@ -396,7 +394,10 @@ class Stripe extends BaseMethods
 
         wp_send_json_success(array(
             'settings' => $settings,
-            'webhook_url' => site_url() . '?buymecoffee_stripe_listener=1'
+            'webhook_url' => add_query_arg([
+                'buymecoffee_ipn_listener' => 1,
+                'method' => 'stripe'
+            ], site_url('/'))
         ), 200);
     }
 
@@ -462,7 +463,19 @@ class Stripe extends BaseMethods
             return $response;
         }
 
-        return true;
+        $status = strtolower(sanitize_text_field(ArrayHelper::get($response, 'status', '')));
+        if (!$status) {
+            return new \WP_Error('stripe_refund_invalid', __('Stripe refund response is invalid.', 'buy-me-coffee'));
+        }
+
+        if (in_array($status, ['failed', 'canceled'], true)) {
+            return new \WP_Error('stripe_refund_failed', __('Stripe refund failed. Please check your Stripe dashboard.', 'buy-me-coffee'));
+        }
+
+        return [
+            'status' => $status,
+            'refund_id' => sanitize_text_field(ArrayHelper::get($response, 'id', '')),
+        ];
     }
 
     public function isEnabled()

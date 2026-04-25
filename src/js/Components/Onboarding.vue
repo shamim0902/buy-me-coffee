@@ -52,7 +52,7 @@
                 </div>
 
                 <div class="flex justify-end mt-6">
-                    <button class="bmc-btn bmc-btn--primary" @click="next">
+                    <button class="bmc-btn bmc-btn--primary" :disabled="saving" @click="next">
                         Next <ChevronRight :size="16" />
                     </button>
                 </div>
@@ -108,7 +108,7 @@
                     <button class="bmc-btn bmc-btn--secondary" @click="prev">
                         <ChevronLeft :size="16" /> Back
                     </button>
-                    <button class="bmc-btn bmc-btn--primary" @click="next">
+                    <button class="bmc-btn bmc-btn--primary" :disabled="saving" @click="next">
                         Next <ChevronRight :size="16" />
                     </button>
                 </div>
@@ -265,7 +265,7 @@ export default {
             });
         },
         saveStripeSettings() {
-            this.$post({
+            return this.$post({
                 action: 'buymecoffee_admin_ajax',
                 route: 'save_payment_settings',
                 data: { method: 'stripe', settings: this.stripeSettings },
@@ -288,19 +288,36 @@ export default {
         prev() {
             if (this.active > 0) this.active--;
         },
-        next() {
-            if (this.active === 0) {
-                this.$post({
-                    action: 'buymecoffee_admin_ajax',
-                    route: 'save_settings',
-                    data: this.template,
-                    buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
-                });
+        async next() {
+            if (this.saving) {
+                return;
             }
-            if (this.active === 1) {
-                this.saveStripeSettings();
+
+            this.saving = true;
+
+            try {
+                if (this.active === 0) {
+                    await this.$post({
+                        action: 'buymecoffee_admin_ajax',
+                        route: 'save_settings',
+                        data: this.template,
+                        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+                    });
+                }
+
+                if (this.active === 1) {
+                    await this.saveStripeSettings();
+                }
+
+                if (this.active < 2) {
+                    this.active++;
+                }
+            } catch (error) {
+                const message = error?.responseJSON?.data?.message || 'Could not save setup data. Please try again.';
+                this.$message.error(message);
+            } finally {
+                this.saving = false;
             }
-            if (this.active < 2) this.active++;
         },
         gotoPage() {
             window.open(this.previewUrl, '_blank');

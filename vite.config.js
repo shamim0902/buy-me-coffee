@@ -39,7 +39,7 @@ export default defineConfig({
             // ]),
             viteStaticCopy({
                 targets: [
-                    {src: 'src/images', dest: ''},
+                    {src: 'src/images/*', dest: 'images', rename: { stripBase: 2 }},
                 ]
             }),
             AutoImport({
@@ -52,7 +52,7 @@ export default defineConfig({
         ],
 
     build: {
-        manifest: true,
+        manifest: 'manifest.json',
         outDir: 'assets',
         //assetsDir: '',
         publicDir: 'assets',

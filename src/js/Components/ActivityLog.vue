@@ -40,7 +40,7 @@
           <template #default="{ row }">
             <div class="bmc-act-event">
               <span class="bmc-act-event__title">{{ row.title }}</span>
-              <span v-if="row.description" class="bmc-act-event__desc" v-html="sanitize(row.description)" />
+              <span v-if="row.description" class="bmc-act-event__desc">{{ toPlainText(row.description) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -226,9 +226,11 @@ export default {
       });
     },
 
-    sanitize(html) {
+    toPlainText(html) {
       if (!html) return '';
-      return html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      const container = document.createElement('div');
+      container.innerHTML = html;
+      return container.textContent || container.innerText || '';
     },
   },
 };

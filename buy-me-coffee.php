@@ -40,7 +40,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
     define('BUYMECOFFEE_PRODUCTION', 'yes');
-    define('BUYMECOFFEE_DB_VERSION', '1.5');
+    define('BUYMECOFFEE_DB_VERSION', '1.6');
 
     class BuyMeCoffee
     {
@@ -144,15 +144,28 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
         public function registerIpnHooks()
         {
-            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- IPN webhook listener
-            if (isset($_REQUEST['buymecoffee_ipn_listener']) && isset($_REQUEST['method'])) {
-                add_action('wp', function () {
+            add_action('wp', function () {
+                $paymentMethod = '';
+
+                // Canonical listener format.
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- IPN webhook listener
+                if (isset($_REQUEST['buymecoffee_ipn_listener']) && isset($_REQUEST['method'])) {
                     // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- IPN webhook listener
                     $paymentMethod = sanitize_text_field(wp_unslash($_REQUEST['method']));
-                    do_action('buymecoffee_ipn_endpoint_' . $paymentMethod);
-                });
-            }
-            // phpcs:enable WordPress.Security.NonceVerification.Recommended
+                }
+
+                // Backward compatibility: legacy Stripe webhook URL.
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- IPN webhook listener
+                if (!$paymentMethod && isset($_REQUEST['buymecoffee_stripe_listener'])) {
+                    $paymentMethod = 'stripe';
+                }
+
+                if (!$paymentMethod) {
+                    return;
+                }
+
+                do_action('buymecoffee_ipn_endpoint_' . $paymentMethod);
+            });
         }
 
         public function textDomain()

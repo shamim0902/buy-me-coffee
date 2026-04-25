@@ -4,6 +4,7 @@ namespace BuyMeCoffee\Controllers;
 
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
+use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\Transactions;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -42,17 +43,21 @@ class SubmissionHandler
         $form_data = $this->sanitizeFormData(wp_unslash($_REQUEST['form_data']));
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
-        $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : 'paypal';
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
-        $paymentTotal = isset($_REQUEST['payment_total']) ? max(0, intval($_REQUEST['payment_total'])) : 0;
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form submission
-        $quantity = isset($_REQUEST['coffee_count']) ? max(1, intval($_REQUEST['coffee_count'])) : 1;
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
-        $currency = isset($_REQUEST['currency']) ? strtoupper(sanitize_text_field(wp_unslash($_REQUEST['currency']))) : false;
+        $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : '';
 
-        if (!$currency) {
-            $currency = PaymentHelper::getCurrency();
+        $allMethods = PaymentHandler::getAllMethods();
+        if (!$paymentMethod || !isset($allMethods[$paymentMethod]) || empty($allMethods[$paymentMethod]['status'])) {
+            wp_send_json_error([
+                'message' => __('Invalid or disabled payment method.', 'buy-me-coffee')
+            ], 400);
         }
+
+        $template = (new Buttons())->getButton();
+        $currency = strtoupper(sanitize_text_field(ArrayHelper::get($template, 'currency', PaymentHelper::getCurrency())));
+
+        $paymentData = $this->calculatePaymentData($form_data, $template);
+        $paymentTotal = $paymentData['payment_total'];
+        $quantity = $paymentData['coffee_count'];
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
         $isRecurring      = isset($_REQUEST['is_recurring']) ? sanitize_text_field(wp_unslash($_REQUEST['is_recurring'])) : 'no';
@@ -144,6 +149,37 @@ class SubmissionHandler
 
     }
 
+    private function calculatePaymentData($formData, $template)
+    {
+        $defaultAmount = floatval(ArrayHelper::get($template, 'defaultAmount', 5));
+        if ($defaultAmount <= 0) {
+            $defaultAmount = 5.0;
+        }
+
+        $unitAmount = floatval(ArrayHelper::get($formData, 'buymecoffee_amount', $defaultAmount));
+        if ($unitAmount <= 0) {
+            $unitAmount = $defaultAmount;
+        }
+
+        $quantityRaw = ArrayHelper::get($formData, 'radio-group');
+        if ($quantityRaw === null || $quantityRaw === '') {
+            $quantityRaw = ArrayHelper::get($formData, 'buymecoffee_quantity', 1);
+        }
+
+        $quantity = intval($quantityRaw);
+        if ($quantity < 1) {
+            $quantity = 1;
+        }
+        if ($quantity > 1000) {
+            $quantity = 1000;
+        }
+
+        return [
+            'payment_total' => max(0, (int) round($unitAmount * 100 * $quantity)),
+            'coffee_count'  => $quantity
+        ];
+    }
+
     private function sanitizeFormData($formDataArray)
     {
         if (!is_array($formDataArray)) {
@@ -180,7 +216,7 @@ class SubmissionHandler
 
     private function canAllowLegacyPublicRequest($context = 'submission')
     {
-        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', true, $context, 'submit');
+        $allowLegacy = apply_filters('buymecoffee_allow_legacy_public_requests', false, $context, 'submit');
         if (!$allowLegacy) {
             return false;
         }
@@ -209,7 +245,7 @@ class SubmissionHandler
             }
         }
 
-        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', true, $context, 'submit');
+        return apply_filters('buymecoffee_allow_legacy_public_requests_without_referer', false, $context, 'submit');
     }
 
 }

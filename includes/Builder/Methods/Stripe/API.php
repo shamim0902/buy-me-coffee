@@ -81,8 +81,11 @@ class API
 
     public function getInvoice($eventId)
     {
-        $api = new ApiRequest();
-        $api::set_secret_key((new StripeSettings())->getApiKey());
-        return $api::request([], 'events/' . $eventId, 'GET');
+        return $this->makeRequest(
+            'events/' . sanitize_text_field($eventId),
+            [],
+            StripeSettings::getKeys('secret'),
+            'GET'
+        );
     }
 }

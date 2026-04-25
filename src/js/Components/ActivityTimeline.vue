@@ -66,8 +66,7 @@
             <div
               v-if="log.description"
               class="bmc-activity__event-text"
-              v-html="sanitize(log.description)"
-            />
+            >{{ toPlainText(log.description) }}</div>
           </div>
         </div>
       </div>
@@ -196,9 +195,11 @@ export default {
       });
     },
 
-    sanitize(html) {
+    toPlainText(html) {
       if (!html) return '';
-      return html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      const container = document.createElement('div');
+      container.innerHTML = html;
+      return container.textContent || container.innerText || '';
     },
   },
 };

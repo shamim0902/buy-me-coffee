@@ -95,7 +95,10 @@ class BmcFormHandler {
         const loader = new BmcCoffeeLoader(card);
         loader.show();
 
-        jQuery.post(window.buymecoffee_general.ajax_url, {
+        let isRedirecting = false;
+        let hasCustomAction = false;
+
+        const request = jQuery.post(window.buymecoffee_general.ajax_url, {
             action: 'buymecoffee_submit',
             buymecoffee_nonce: window.buymecoffee_general?.buymecoffee_nonce || '',
             payment_total: form.data('wpm_payment_total'),
@@ -105,22 +108,43 @@ class BmcFormHandler {
             form_data: jQuery(form).serializeArray(),
             is_recurring: form.find('.buymecoffee_is_recurring').is(':checked') ? 'yes' : 'no',
             recurring_interval: form.find('.buymecoffee_recurring_section').data('interval') || 'month',
-        })
-            .then(response => {
+        });
+
+        request.done((response) => {
                 loader.hide();
                 if (response.data?.redirectTo) {
-                    window.location.href = response.data.redirectTo;
+                    const safeUrl = this.getSafeRedirectUrl(response.data.redirectTo);
+                    if (!safeUrl) {
+                        alert('Unsafe redirect blocked. Please contact support.');
+                        return;
+                    }
+
+                    isRedirecting = true;
+                    window.location.href = safeUrl;
+                    return;
                 }
                 if (response.data?.actionName == 'custom') {
+                    hasCustomAction = true;
                     this.fireCustomEvent(response.data.nextAction, response);
                     return;
                 }
-            }).catch(error => {
-                loader.hide();
+
+                const message = response?.data?.message || 'Unexpected response from server.';
+                alert(message);
+            });
+
+        request.fail((error) => {
+            loader.hide();
+            const message = error?.responseJSON?.data?.message || 'Payment request failed. Please try again.';
+            alert(message);
+        });
+
+        request.always(() => {
+            if (!isRedirecting && !hasCustomAction) {
                 form.find('button.wpm_submit_button').removeAttr('disabled');
                 form.removeClass('wpm_submitting_form');
-                alert(error?.responseJSON?.data?.message);
-            });
+            }
+        });
     }
 
     fireCustomEvent(eventName, response) {
@@ -168,18 +192,44 @@ class BmcFormHandler {
             quantity = this.form.find('.bmc_coffee input[type="radio"]:checked')?.val();
             customQuantityInput.removeClass('custom_quantity_active');
         }
-        this.form.data('coffee_count', quantity ? quantity : 1);
+        quantity = quantity ? parseInt(quantity, 10) : 1;
+        this.form.data('coffee_count', quantity);
+        this.form.find('input[name="buymecoffee_quantity"]').val(quantity);
 
         this.calculatePayments();
     }
 
     calculatePayments() {
-        let amount = this.form.find('.buymecoffee_payment').val();
-        let quantity = this.form.data('coffee_count') ? this.form.data('coffee_count') : 1;
-        let amountCents = parseInt(parseFloat(amount) * 100 * quantity);
+        const amount = parseFloat(this.form.find('.buymecoffee_payment').val() || 0);
+        const quantity = parseInt(this.form.data('coffee_count') || 1, 10);
+        const amountCents = Math.max(0, Math.round(amount * 100 * quantity));
         this.form.data('wpm_payment_total', amountCents);
-        //set total
-        this.form.find('.wpm_submit_button .wpm_payment_total_amount').html(parseInt(amount * quantity));
+        this.form.find('input[name="buymecoffee_amount"]').val(amount);
+        this.form.find('input[name="buymecoffee_quantity"]').val(quantity);
+
+        const displayTotal = Number.isFinite(amount) ? (amount * quantity).toFixed(2).replace(/\.00$/, '') : '0';
+        this.form.find('.wpm_submit_button .wpm_payment_total_amount').text(displayTotal);
+    }
+
+    getSafeRedirectUrl(url) {
+        if (!url) {
+            return null;
+        }
+
+        try {
+            const parsed = new URL(url, window.location.origin);
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
+                return null;
+            }
+
+            if (parsed.origin !== window.location.origin) {
+                return null;
+            }
+
+            return parsed.toString();
+        } catch (e) {
+            return null;
+        }
     }
 
 }

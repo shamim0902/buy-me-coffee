@@ -1,6 +1,6 @@
 {
   "name": "plugin_name",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "A WordPress boilerplate plugin using vue.js",
   "main": "index.js",
   "scripts": {
@@ -30,8 +30,8 @@
     "@babel/plugin-syntax-dynamic-import": "^7.8.3",
     "@babel/preset-env": "^7.14.7",
     "@babel/preset-react": "^7.22.5",
-    "@vitejs/plugin-react": "^2.2.0",
-    "@vitejs/plugin-vue": "^3.1.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.6",
     "@vue/compiler-sfc": "^3.2.39",
     "autoprefixer": "^10.4.20",
     "babel-eslint": "^10.1.0",
@@ -47,9 +47,9 @@
     "tailwindcss": "^3.4.14",
     "unplugin-auto-import": "^0.11.5",
     "unplugin-vue-components": "^0.22.12",
-    "vite": "^3.2.7",
+    "vite": "^8.0.10",
     "vite-plugin-live-reload": "^2.1.0",
-    "vite-plugin-static-copy": "^0.16.0",
+    "vite-plugin-static-copy": "^4.1.0",
     "vue-cli-plugin-tailwind": "~3.0.0",
     "vue-loader": "^16.3.0"
   }

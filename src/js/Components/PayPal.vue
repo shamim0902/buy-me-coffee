@@ -92,12 +92,16 @@
                     <div class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 border border-neutral-200">
                         <div>
                             <span class="text-sm font-medium text-[var(--text-primary)]">Disable IPN Verification</span>
-                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">Enable if payments aren't being marked complete (less secure).</p>
+                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">
+                                Available in test mode only.
+                                <span v-if="settings.payment_mode === 'live'">Live mode always enforces verification.</span>
+                            </p>
                         </div>
                         <el-switch
                             v-model="settings.disable_ipn_verification"
                             active-value="yes"
                             inactive-value="no"
+                            :disabled="settings.payment_mode === 'live'"
                             class="ml-4 flex-shrink-0"
                         />
                     </div>
@@ -235,6 +239,13 @@ export default {
                     this.$message.error(message);
                 })
                 .always(() => { this.saving = false; });
+        }
+    },
+    watch: {
+        'settings.payment_mode'(value) {
+            if (value === 'live') {
+                this.settings.disable_ipn_verification = 'no';
+            }
         }
     },
     mounted() { this.getSettings(); }

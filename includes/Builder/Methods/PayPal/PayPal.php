@@ -592,11 +592,27 @@ class PayPal extends BaseMethods
             if (is_wp_error($response)) {
                 return $response;
             }
+
+            $status = strtoupper(sanitize_text_field(ArrayHelper::get($response, 'status', '')));
+            if (!$status && (int) ArrayHelper::get($response, 'code', 0) === 204) {
+                $status = 'COMPLETED';
+            }
+
+            if (!$status) {
+                return new \WP_Error('paypal_refund_invalid', __('PayPal refund response is invalid.', 'buy-me-coffee'));
+            }
+
+            if (in_array($status, ['DECLINED', 'FAILED', 'CANCELLED'], true)) {
+                return new \WP_Error('paypal_refund_failed', __('PayPal refund failed. Please check your PayPal dashboard.', 'buy-me-coffee'));
+            }
+
+            return [
+                'status' => strtolower($status),
+                'refund_id' => sanitize_text_field(ArrayHelper::get($response, 'id', '')),
+            ];
         } catch (\Exception $e) {
             return new \WP_Error('paypal_refund_exception', $e->getMessage());
         }
-
-        return true;
     }
 
     public function isEnabled()

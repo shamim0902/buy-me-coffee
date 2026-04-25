@@ -83,6 +83,12 @@ class AdminAjaxHandler
             'get_activities' => 'getActivities',
         );
 
+        if (!$this->canAccessRoute($route)) {
+            wp_send_json_error(array(
+                'message' => __("Sorry, you do not have permission for this action.", 'buy-me-coffee')
+            ), 403);
+        }
+
         if (isset($validRoutes[$route])) {
             do_action('buymecoffee_doing_ajax_forms_' . $route);
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Data is sanitized in sanitizeTextArray method
@@ -483,21 +489,77 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
 
-        $this->markRefunded($transaction);
+        if (is_array($result)) {
+            $gatewayStatus = strtolower(sanitize_text_field(Arr::get($result, 'status', '')));
+            if (in_array($gatewayStatus, ['succeeded', 'completed'], true)) {
+                $this->markRefunded($transaction, $result);
+            }
+
+            if (in_array($gatewayStatus, ['pending', 'processing'], true)) {
+                ActivityLogger::logPayment((int) $transaction->id, 'refund_pending', 'Refund is pending confirmation', [
+                    'status'  => 'warning',
+                    'context' => [
+                        'transaction_id' => $transaction->id,
+                        'gateway_status' => $gatewayStatus,
+                        'refund_id'      => Arr::get($result, 'refund_id', ''),
+                    ],
+                ]);
+
+                wp_send_json_success([
+                    'message' => __('Refund request submitted and is pending confirmation.', 'buy-me-coffee')
+                ], 202);
+            }
+
+            ActivityLogger::logPayment((int) $transaction->id, 'refund_failed', 'Refund returned non-terminal status', [
+                'status'  => 'failed',
+                'context' => [
+                    'transaction_id' => $transaction->id,
+                    'gateway_status' => $gatewayStatus,
+                ],
+            ]);
+            $this->releaseRefundLock((int) $transaction->id);
+            wp_send_json_error(['message' => __('Refund could not be finalized. Please check your payment gateway dashboard.', 'buy-me-coffee')], 400);
+        }
+
+        if ($result === true) {
+            $this->markRefunded($transaction);
+        }
+
+        $this->releaseRefundLock((int) $transaction->id);
+        wp_send_json_error(['message' => __('Unexpected refund response received.', 'buy-me-coffee')], 400);
     }
 
-    private function markRefunded($transaction)
+    private function markRefunded($transaction, $refundMeta = [])
     {
-        (new Transactions())->updateData($transaction->id, [
+        $updateData = [
             'status'     => 'refunded',
             'updated_at' => current_time('mysql'),
-        ]);
+        ];
+
+        if (!empty($refundMeta)) {
+            $updateData['payment_note'] = wp_json_encode([
+                'refund_id'      => sanitize_text_field(Arr::get($refundMeta, 'refund_id', '')),
+                'refund_status'  => sanitize_text_field(Arr::get($refundMeta, 'status', '')),
+                'refunded_at'    => current_time('mysql'),
+            ]);
+        }
+
+        (new Transactions())->updateData($transaction->id, $updateData);
 
         $supporterStatus = $this->calculateSupporterPaymentStatus((int) $transaction->entry_id);
         (new Supporters())->updateData($transaction->entry_id, [
             'payment_status' => $supporterStatus,
             'updated_at'     => current_time('mysql'),
         ]);
+
+        ActivityLogger::logPayment((int) $transaction->id, 'refund_completed', 'Refund completed successfully', [
+            'status'  => 'success',
+            'context' => [
+                'transaction_id' => $transaction->id,
+                'refund_id'      => Arr::get($refundMeta, 'refund_id', ''),
+            ],
+        ]);
+
         do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
         wp_send_json_success(['message' => __('Transaction refunded successfully.', 'buy-me-coffee')], 200);
     }
@@ -570,7 +632,7 @@ class AdminAjaxHandler
             return 'paid';
         }
 
-        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true)) {
+        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true) || in_array('refunding', $statuses, true)) {
             return 'pending';
         }
 
@@ -579,5 +641,30 @@ class AdminAjaxHandler
         }
 
         return 'refunded';
+    }
+
+    private function canAccessRoute($route)
+    {
+        $readOnlyRoutes = [
+            'get_data',
+            'gateways',
+            'get_settings',
+            'get_weekly_revenue',
+            'get_supporters',
+            'get_top_supporters',
+            'get_supporter',
+            'status_report',
+            'get_email_notifications',
+            'get_subscriptions',
+            'get_subscription',
+            'get_subscription_stats',
+            'get_activities',
+        ];
+
+        if (in_array($route, $readOnlyRoutes, true)) {
+            return AccessControl::hasTopLevelMenuPermission();
+        }
+
+        return AccessControl::hasFinancialPermission();
     }
 }
