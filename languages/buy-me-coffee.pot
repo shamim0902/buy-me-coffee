@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Buy me coffee widgets - fundraise into own account\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-25 18:07+0000\n"
+"POT-Creation-Date: 2026-04-25 18:52+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: \n"
@@ -43,7 +43,7 @@ msgid "Be the first to support!"
 msgstr ""
 
 #. %s: billing interval, e.g. "monthly"
-#: includes/Builder/Render.php:248
+#: includes/Builder/Render.php:249
 #, php-format
 msgid "billed %s"
 msgstr ""
@@ -57,7 +57,7 @@ msgstr ""
 msgid "Buy Me Coffee"
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/Stripe.php:433
+#: includes/Builder/Methods/Stripe/Stripe.php:434
 msgid "Card"
 msgstr ""
 
@@ -83,11 +83,11 @@ msgstr ""
 msgid "Date"
 msgstr ""
 
-#: buy-me-coffee.php:209
+#: buy-me-coffee.php:222
 msgid "Demo"
 msgstr ""
 
-#: buy-me-coffee.php:208
+#: buy-me-coffee.php:221
 msgid "Docs"
 msgstr ""
 
@@ -105,7 +105,7 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:301
+#: includes/Classes/AdminAjaxHandler.php:307
 msgid "Failed to save notification"
 msgstr ""
 
@@ -121,7 +121,7 @@ msgstr ""
 msgid "Invalid buymecoffee_nonce"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:36
+#: includes/Controllers/SubmissionHandler.php:37
 msgid "Invalid form data"
 msgstr ""
 
@@ -129,26 +129,30 @@ msgstr ""
 msgid "Invalid nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:287
+#: includes/Classes/AdminAjaxHandler.php:293
 msgid "Invalid notification ID"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:548
+#: includes/Classes/AdminAjaxHandler.php:610
 msgid "Invalid object type."
+msgstr ""
+
+#: includes/Controllers/SubmissionHandler.php:51
+msgid "Invalid or disabled payment method."
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/PayPal.php:162
 msgid "Invalid request"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:19
-#: includes/Controllers/SubmissionHandler.php:28
+#: includes/Controllers/SubmissionHandler.php:20
+#: includes/Controllers/SubmissionHandler.php:29
 #: includes/Builder/Methods/BaseMethods.php:87
 #: includes/Builder/Methods/BaseMethods.php:95
 msgid "Invalid request nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:94
+#: includes/Classes/AdminAjaxHandler.php:100
 msgid "Invalid route requested."
 msgstr ""
 
@@ -161,11 +165,11 @@ msgstr ""
 msgid "Invalid Stripe webhook signature"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:432
+#: includes/Classes/AdminAjaxHandler.php:438
 msgid "Invalid transaction ID."
 msgstr ""
 
-#: includes/Builder/Render.php:247
+#: includes/Builder/Render.php:248
 msgid "Make it recurring"
 msgstr ""
 
@@ -177,7 +181,7 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
-#: includes/Classes/EmailNotifications.php:114 includes/Builder/Render.php:242
+#: includes/Classes/EmailNotifications.php:114 includes/Builder/Render.php:243
 msgid "monthly"
 msgstr ""
 
@@ -189,7 +193,7 @@ msgstr ""
 msgid "No bio yet."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:449
+#: includes/Classes/AdminAjaxHandler.php:455
 msgid ""
 "No charge ID on record — please process the refund directly from the payment "
 "gateway dashboard."
@@ -199,11 +203,11 @@ msgstr ""
 msgid "No supporters found!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:312
+#: includes/Classes/AdminAjaxHandler.php:318
 msgid "Notification not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:299
+#: includes/Classes/AdminAjaxHandler.php:305
 msgid "Notification saved"
 msgstr ""
 
@@ -212,7 +216,7 @@ msgstr ""
 msgid "One-time"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:445
+#: includes/Classes/AdminAjaxHandler.php:451
 msgid "Only paid transactions can be refunded."
 msgstr ""
 
@@ -283,6 +287,14 @@ msgid ""
 "credentials."
 msgstr ""
 
+#: includes/Builder/Methods/PayPal/PayPal.php:606
+msgid "PayPal refund failed. Please check your PayPal dashboard."
+msgstr ""
+
+#: includes/Builder/Methods/PayPal/PayPal.php:602
+msgid "PayPal refund response is invalid."
+msgstr ""
+
 #: includes/Builder/Methods/PayPal/PayPal.php:580
 msgid ""
 "PayPal Standard refunds must be processed directly from your PayPal "
@@ -295,7 +307,7 @@ msgstr ""
 msgid "PayPal validation error: %s"
 msgstr ""
 
-#: includes/Builder/Render.php:294
+#: includes/Builder/Render.php:295
 msgid "Please activate at least one payment method!"
 msgstr ""
 
@@ -303,7 +315,7 @@ msgstr ""
 msgid "Powered by"
 msgstr ""
 
-#: buy-me-coffee.php:207
+#: buy-me-coffee.php:220
 msgid "Preview"
 msgstr ""
 
@@ -326,11 +338,20 @@ msgstr ""
 msgid "Reference"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:453
+#: includes/Classes/AdminAjaxHandler.php:521
+msgid ""
+"Refund could not be finalized. Please check your payment gateway dashboard."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:459
 msgid "Refund is already in progress or transaction is not refundable."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:471
+#: includes/Classes/AdminAjaxHandler.php:509
+msgid "Refund request submitted and is pending confirmation."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:477
 msgid "Refunds are not supported for this payment method."
 msgstr ""
 
@@ -342,8 +363,8 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:177
-#: includes/Classes/AdminAjaxHandler.php:190
+#: includes/Classes/AdminAjaxHandler.php:183
+#: includes/Classes/AdminAjaxHandler.php:196
 msgid "Settings successfully updated"
 msgstr ""
 
@@ -359,16 +380,28 @@ msgstr ""
 msgid "Sorry, you are not allowed to perform this action."
 msgstr ""
 
+#: includes/Classes/AdminAjaxHandler.php:88
+msgid "Sorry, you do not have permission for this action."
+msgstr ""
+
 #: includes/views/templates/Confirmation.php:99
 msgid "Status"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:398
+#: includes/Classes/AdminAjaxHandler.php:404
 msgid "Stripe cancellation was not confirmed. Please try again."
 msgstr ""
 
 #: includes/Builder/Methods/Stripe/IPN.php:21
 msgid "Stripe payload is empty"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:472
+msgid "Stripe refund failed. Please check your Stripe dashboard."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/Stripe.php:468
+msgid "Stripe refund response is invalid."
 msgstr ""
 
 #: includes/Builder/Methods/Stripe/IPN.php:34
@@ -379,7 +412,7 @@ msgstr ""
 msgid "Subscription Active!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:419
+#: includes/Classes/AdminAjaxHandler.php:425
 msgid "Subscription cancelled successfully"
 msgstr ""
 
@@ -387,12 +420,12 @@ msgstr ""
 msgid "Subscription confirmation mismatch. Please refresh and try again."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:378
+#: includes/Classes/AdminAjaxHandler.php:384
 msgid "Subscription is already cancelled"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:345
-#: includes/Classes/AdminAjaxHandler.php:374
+#: includes/Classes/AdminAjaxHandler.php:351
+#: includes/Classes/AdminAjaxHandler.php:380
 msgid "Subscription not found"
 msgstr ""
 
@@ -402,7 +435,7 @@ msgstr ""
 msgid "Support %s"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:331
+#: includes/Classes/AdminAjaxHandler.php:337
 msgid "Test email sent to "
 msgstr ""
 
@@ -418,11 +451,11 @@ msgstr ""
 msgid "Thank You!"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:141
+#: includes/Controllers/SubmissionHandler.php:146
 msgid "Thanks for your support! <3"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:441
+#: includes/Classes/AdminAjaxHandler.php:447
 msgid "This transaction has already been refunded."
 msgstr ""
 
@@ -434,19 +467,23 @@ msgstr ""
 msgid "Transaction not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:437
+#: includes/Classes/AdminAjaxHandler.php:443
 msgid "Transaction not found."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:502
+#: includes/Classes/AdminAjaxHandler.php:564
 msgid "Transaction refunded successfully."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:529
+msgid "Unexpected refund response received."
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/PayPal.php:501
 msgid "UNKNOWN"
 msgstr ""
 
-#: buy-me-coffee.php:208
+#: buy-me-coffee.php:221
 msgid "View Documentation"
 msgstr ""
 
@@ -458,7 +495,7 @@ msgstr ""
 msgid "Yearly"
 msgstr ""
 
-#: includes/Classes/EmailNotifications.php:113 includes/Builder/Render.php:242
+#: includes/Classes/EmailNotifications.php:113 includes/Builder/Render.php:243
 msgid "yearly"
 msgstr ""
 

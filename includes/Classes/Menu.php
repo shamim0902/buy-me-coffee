@@ -113,6 +113,9 @@ class Menu
             BUYMECOFFEE_VERSION
         );
 
+        $seenVersion  = get_user_meta(get_current_user_id(), 'buymecoffee_whats_new_seen', true);
+        $showWhatsNew = version_compare((string) $seenVersion, BUYMECOFFEE_VERSION, '<');
+
         $adminVars = apply_filters('buymecoffee_admin_app_vars', array(
             'assets_url'        => Vite::staticPath(),
             'ajaxurl'           => admin_url('admin-ajax.php'),
@@ -121,6 +124,8 @@ class Menu
             'wp_admin_url'      => admin_url(),
             'is_wp_admin'       => true,
             'admin_email'       => get_option('admin_email'),
+            'show_whats_new'    => $showWhatsNew,
+            'plugin_version'    => BUYMECOFFEE_VERSION,
         ));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);

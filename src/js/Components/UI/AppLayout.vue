@@ -11,6 +11,7 @@
                 </router-view>
             </main>
         </div>
+        <WhatsNew />
     </div>
 </template>
 
@@ -18,6 +19,7 @@
 import { ref } from 'vue';
 import AppSidebar from './AppSidebar.vue';
 import AppHeader from './AppHeader.vue';
+import WhatsNew from './WhatsNew.vue';
 
 const sidebarCollapsed = ref(false);
 </script>

@@ -80,7 +80,8 @@ class AdminAjaxHandler
 
             'refund_transaction' => 'refundTransaction',
 
-            'get_activities' => 'getActivities',
+            'get_activities'    => 'getActivities',
+            'dismiss_whats_new' => 'dismissWhatsNew',
         );
 
         if (!$this->canAccessRoute($route)) {
@@ -612,6 +613,12 @@ class AdminAjaxHandler
 
         $result = ActivityLogger::getForObject($objectType, $objectId, $page, $perPage);
         wp_send_json_success(array_merge($result, ['page' => $page, 'per_page' => $perPage]), 200);
+    }
+
+    public function dismissWhatsNew()
+    {
+        update_user_meta(get_current_user_id(), 'buymecoffee_whats_new_seen', BUYMECOFFEE_VERSION);
+        wp_send_json_success([], 200);
     }
 
     private function calculateSupporterPaymentStatus($entryId)
