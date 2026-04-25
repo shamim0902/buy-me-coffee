@@ -26,7 +26,7 @@
       <!-- Amount -->
       <el-table-column label="Amount" width="140">
         <template #default="{ row }">
-          <span class="bmc-amount" v-html="row.amount_formatted"></span>
+          <span class="bmc-amount">{{ stripHtml(row.amount_formatted) }}</span>
         </template>
       </el-table-column>
 
@@ -118,6 +118,12 @@ export default {
   },
   emits: ['deleted'],
   methods: {
+    stripHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.innerHTML = str;
+      return div.textContent || div.innerText || '';
+    },
     ucFirst(text) {
       if (!text) return '';
       return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();

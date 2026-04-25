@@ -29,14 +29,17 @@ class IPN
         $signatureHeader = $this->getStripeSignatureHeader();
         $webhookSecret = $this->getWebhookSecret($data);
 
-        if ($webhookSecret) {
-            if (!$signatureHeader) {
-                return new \WP_Error('missing_signature', __('Missing Stripe webhook signature header', 'buy-me-coffee'));
-            }
+        // Fail closed: never process Stripe webhooks without a configured secret.
+        if (!$webhookSecret) {
+            return new \WP_Error('missing_webhook_secret', __('Stripe webhook secret is not configured', 'buy-me-coffee'));
+        }
 
-            if (!$this->isValidSignature($postData, $signatureHeader, $webhookSecret)) {
-                return new \WP_Error('invalid_signature', __('Invalid Stripe webhook signature', 'buy-me-coffee'));
-            }
+        if (!$signatureHeader) {
+            return new \WP_Error('missing_signature', __('Missing Stripe webhook signature header', 'buy-me-coffee'));
+        }
+
+        if (!$this->isValidSignature($postData, $signatureHeader, $webhookSecret)) {
+            return new \WP_Error('invalid_signature', __('Invalid Stripe webhook signature', 'buy-me-coffee'));
         }
 
         return $data;

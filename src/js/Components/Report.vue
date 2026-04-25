@@ -21,6 +21,14 @@ export default {
   methods: {
     getImage(path) {
       return window.BuyMeCoffeeAdmin.assets_url + 'images/' + path;
+    },
+    stripHtml(str) {
+      if (!str) {
+        return '';
+      }
+      const div = document.createElement('div');
+      div.innerHTML = str;
+      return div.textContent || div.innerText || '';
     }
   }
 }
@@ -38,9 +46,9 @@ export default {
           </li>
           <p style="margin: 0;"
              v-if="reportData.currency_total.length === 1"
-             v-html="reportData?.currency_total[0].formatted_total" ></p>
+             >{{ stripHtml(reportData?.currency_total[0].formatted_total) }}</p>
           <li v-else v-for="group in reportData.currency_total">
-            <span style="font-size:20px;" v-html="group.formatted_total"></span>
+            <span style="font-size:20px;">{{ stripHtml(group.formatted_total) }}</span>
           </li>
         </ul>
         <span v-else><br/>No amount received yet!</span>
@@ -58,9 +66,9 @@ export default {
           </li>
           <p style="margin: 0;"
              v-if="reportData.currency_total_pending.length === 1"
-             v-html="reportData?.currency_total_pending[0].formatted_total" ></p>
+             >{{ stripHtml(reportData?.currency_total_pending[0].formatted_total) }}</p>
           <li v-else v-for="group in reportData.currency_total_pending">
-            <span style="font-size:20px;" v-html="group.formatted_total"></span>
+            <span style="font-size:20px;">{{ stripHtml(group.formatted_total) }}</span>
           </li>
         </ul>
         <span v-else><br/>No pending yet!</span>

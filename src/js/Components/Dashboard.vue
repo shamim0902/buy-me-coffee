@@ -150,7 +150,7 @@
         </el-table-column>
         <el-table-column label="Amount" width="160">
           <template #default="{ row }">
-            <span class="bmc-amount" v-html="row.amount_formatted"></span>
+            <span class="bmc-amount">{{ stripHtml(row.amount_formatted) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="Status" width="120">

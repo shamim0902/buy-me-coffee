@@ -379,12 +379,21 @@ class AdminAjaxHandler
         if (!empty($subscription->stripe_subscription_id)) {
             $keys   = StripeSettings::getKeys();
             $apiKey = $keys['secret'];
-            (new StripeAPI())->makeRequest(
+            $response = (new StripeAPI())->makeRequest(
                 'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
                 [],
                 $apiKey,
                 'DELETE'
             );
+
+            if (is_wp_error($response)) {
+                wp_send_json_error(['message' => $response->get_error_message()], 400);
+            }
+
+            $remoteStatus = sanitize_text_field(Arr::get($response, 'status', ''));
+            if ($remoteStatus !== 'canceled') {
+                wp_send_json_error(['message' => __('Stripe cancellation was not confirmed. Please try again.', 'buy-me-coffee')], 400);
+            }
         }
 
         // Update local record
@@ -419,17 +428,27 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => __('This transaction has already been refunded.', 'buy-me-coffee')], 400);
         }
 
+        if ($transaction->status !== 'paid') {
+            wp_send_json_error(['message' => __('Only paid transactions can be refunded.', 'buy-me-coffee')], 400);
+        }
+
         if (empty($transaction->charge_id)) {
             wp_send_json_error(['message' => __('No charge ID on record — please process the refund directly from the payment gateway dashboard.', 'buy-me-coffee')], 400);
+        }
+
+        if (!$this->acquireRefundLock((int) $transaction->id)) {
+            wp_send_json_error(['message' => __('Refund is already in progress or transaction is not refundable.', 'buy-me-coffee')], 409);
         }
 
         $result = apply_filters('buymecoffee_process_refund_' . $transaction->payment_method, null, $transaction);
 
         if ($result === null) {
+            $this->releaseRefundLock((int) $transaction->id);
             wp_send_json_error(['message' => __('Refunds are not supported for this payment method.', 'buy-me-coffee')], 400);
         }
 
         if (is_wp_error($result)) {
+            $this->releaseRefundLock((int) $transaction->id);
             wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
 
@@ -442,11 +461,68 @@ class AdminAjaxHandler
             'status'     => 'refunded',
             'updated_at' => current_time('mysql'),
         ]);
+
+        $supporterStatus = $this->calculateSupporterPaymentStatus((int) $transaction->entry_id);
         (new Supporters())->updateData($transaction->entry_id, [
-            'payment_status' => 'refunded',
+            'payment_status' => $supporterStatus,
             'updated_at'     => current_time('mysql'),
         ]);
         do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
         wp_send_json_success(['message' => __('Transaction refunded successfully.', 'buy-me-coffee')], 200);
+    }
+
+    private function acquireRefundLock($transactionId)
+    {
+        $updated = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->where('status', 'paid')
+            ->update([
+                'status' => 'refunding',
+                'updated_at' => current_time('mysql'),
+            ]);
+
+        return (bool) $updated;
+    }
+
+    private function releaseRefundLock($transactionId)
+    {
+        buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->where('status', 'refunding')
+            ->update([
+                'status' => 'paid',
+                'updated_at' => current_time('mysql'),
+            ]);
+    }
+
+    private function calculateSupporterPaymentStatus($entryId)
+    {
+        $transactions = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('entry_id', $entryId)
+            ->get();
+
+        $statuses = [];
+        foreach ($transactions as $transaction) {
+            if (!empty($transaction->status)) {
+                $statuses[] = sanitize_text_field($transaction->status);
+            }
+        }
+
+        if (in_array('paid', $statuses, true)) {
+            return 'paid';
+        }
+
+        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true)) {
+            return 'pending';
+        }
+
+        if (in_array('failed', $statuses, true)) {
+            return 'failed';
+        }
+
+        return 'refunded';
     }
 }

@@ -193,6 +193,7 @@ class StripeSubscriptions
         $object        = isset($event->data->object) ? $event->data->object : null;
         $stripeSubId   = isset($object->subscription) ? sanitize_text_field($object->subscription) : null;
         $billingReason = isset($object->billing_reason) ? sanitize_text_field($object->billing_reason) : '';
+        $invoiceId     = isset($object->id) ? sanitize_text_field($object->id) : '';
 
         if (!$stripeSubId) {
             return;
@@ -236,6 +237,20 @@ class StripeSubscriptions
             return;
         }
 
+        // Deduplicate webhook retries/replays by invoice id for recurring renewals.
+        if ($invoiceId) {
+            $duplicate = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('subscription_id', (int) $subscription->id)
+                ->where('payment_method', 'stripe')
+                ->where('payment_note', 'like', '%"invoice_id":"' . $invoiceId . '"%')
+                ->first();
+
+            if ($duplicate) {
+                return;
+            }
+        }
+
         buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
             'entry_id'         => (int) $subscription->supporter_id,
             'entry_hash'       => sanitize_text_field($supporter->entry_hash),
@@ -247,6 +262,10 @@ class StripeSubscriptions
             'status'           => 'paid',
             'currency'         => strtoupper($currency),
             'payment_mode'     => sanitize_text_field($subscription->payment_mode),
+            'payment_note'     => wp_json_encode([
+                'invoice_id' => $invoiceId,
+                'event_type' => isset($event->type) ? sanitize_text_field($event->type) : '',
+            ]),
             'created_at'       => current_time('mysql'),
             'updated_at'       => current_time('mysql'),
         ]);

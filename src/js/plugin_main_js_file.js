@@ -165,7 +165,7 @@ export default class BuyMeCoffee {
             title: 'Success',
             message: message,
             offset: 32,
-            dangerouslyUseHTMLString: true
+            dangerouslyUseHTMLString: false
         });
     }
 
@@ -189,7 +189,7 @@ export default class BuyMeCoffee {
             title: 'Error',
             message: errorMessage,
             offset: 32,
-            dangerouslyUseHTMLString: true
+            dangerouslyUseHTMLString: false
         });
     }
 
@@ -209,6 +209,6 @@ export default class BuyMeCoffee {
             string.push(obj)
         }
 
-        return string.join('<br />')
+        return string.join('\n')
     }
 }

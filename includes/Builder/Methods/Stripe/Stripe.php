@@ -87,19 +87,6 @@ class Stripe extends BaseMethods
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         $intentId = sanitize_text_field(wp_unslash($_REQUEST['intentId']));
 
-        // Primary: if JS passed the local subscription ID, activate it immediately.
-        // This runs before the Stripe re-query so the subscription is active right away.
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if (!empty($_REQUEST['subscriptionId'])) {
-            $subscriptionId = absint($_REQUEST['subscriptionId']);
-            if ($subscriptionId) {
-                (new Subscriptions())->updateData($subscriptionId, [
-                    'status'     => 'active',
-                    'updated_at' => current_time('mysql'),
-                ]);
-            }
-        }
-
         // Fallback / full update: re-query Stripe to record charge details, card info, etc.
         // Also activates subscription if subscription_id is on the transaction (covers webhook-less setups).
         (new PaymentHelper())->updatePaymentData($intentId);
@@ -206,6 +193,12 @@ class Stripe extends BaseMethods
         ];
 
         if (in_array($eventType, $subscriptionEvents, true)) {
+            $eventId = isset($data->id) ? sanitize_text_field($data->id) : '';
+            if (!$eventId || !$this->acquireEventLock($eventId)) {
+                status_header(200);
+                exit;
+            }
+
             $keys    = StripeSettings::getKeys();
             $handler = new StripeSubscriptions();
 
@@ -295,6 +288,12 @@ class Stripe extends BaseMethods
         }
 
         return false;
+    }
+
+    private function acquireEventLock($eventId)
+    {
+        $optionKey = 'buymecoffee_stripe_event_lock_' . md5($eventId);
+        return add_option($optionKey, time(), '', 'no');
     }
 
     public function sanitize($settings)

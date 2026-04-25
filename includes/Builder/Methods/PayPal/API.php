@@ -47,6 +47,8 @@ class API
 
     public static function makeRequest($path, $version = 'v1', $method = 'POST', $args = [])
     {
+        static::ensureSettings();
+
         if (empty($path)) {
             throw new \Exception(esc_html__('API path is required', 'buy-me-coffee'));
         }
@@ -116,6 +118,8 @@ class API
 
     public static function getRequest($url)
     {
+        static::ensureSettings();
+
         try {
             $accessToken = static::getAccessToken();
         } catch (\Exception $e) {
@@ -182,6 +186,8 @@ class API
     }
     public static function getAccessToken()
     {
+        static::ensureSettings();
+
         $apiUrl =  static::getAuthAPI(static::$settings->getMode());
         $headers = array(
             "Accept: application/json",
@@ -227,6 +233,13 @@ class API
             $errorMessage = $error['error_description'] ?? $error['error'];
             // Handle authentication error.
             throw new \Exception(esc_html($errorMessage), intval($http_code));
+        }
+    }
+
+    protected static function ensureSettings()
+    {
+        if (!static::$settings) {
+            static::$settings = new PayPalSettings();
         }
     }
 

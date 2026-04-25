@@ -1,3 +1,5 @@
+@use 'sass:color';
+
 // ============================================================
 // Buy Me Coffee — Inline Page Editor (admin only)
 // ============================================================
@@ -39,7 +41,7 @@ $bmc-accent: #0d9488;
     background: $bmc-accent;
 
     &:hover {
-      background: darken($bmc-accent, 5%);
+      background: color.adjust($bmc-accent, $lightness: -5%);
     }
   }
 }
@@ -176,7 +178,7 @@ $bmc-accent: #0d9488;
     border-color: $bmc-accent;
 
     &:hover {
-      background: darken($bmc-accent, 5%);
+      background: color.adjust($bmc-accent, $lightness: -5%);
     }
   }
 

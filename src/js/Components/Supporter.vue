@@ -64,6 +64,7 @@
               v-if="supporter.transaction && supporter.transaction.transaction_url"
               :href="supporter.transaction.transaction_url"
               target="_blank"
+              rel="noopener noreferrer"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 no-underline transition-colors"
               style="color: var(--text-primary); background: var(--bg-primary)"
             >
