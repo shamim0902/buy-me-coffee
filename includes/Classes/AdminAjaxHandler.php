@@ -76,6 +76,8 @@ class AdminAjaxHandler
             'get_subscription'       => 'getSubscription',
             'cancel_subscription'    => 'cancelSubscription',
             'get_subscription_stats' => 'getSubscriptionStats',
+
+            'refund_transaction' => 'refundTransaction',
         );
 
         if (isset($validRoutes[$route])) {
@@ -399,5 +401,52 @@ class AdminAjaxHandler
     {
         $stats = (new Subscriptions())->getStats();
         wp_send_json_success($stats, 200);
+    }
+
+    public function refundTransaction($request)
+    {
+        $id = intval($request['id'] ?? 0);
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid transaction ID.', 'buy-me-coffee')], 400);
+        }
+
+        $transaction = (new Transactions())->find($id);
+        if (!$transaction) {
+            wp_send_json_error(['message' => __('Transaction not found.', 'buy-me-coffee')], 404);
+        }
+
+        if ($transaction->status === 'refunded') {
+            wp_send_json_error(['message' => __('This transaction has already been refunded.', 'buy-me-coffee')], 400);
+        }
+
+        if (empty($transaction->charge_id)) {
+            wp_send_json_error(['message' => __('No charge ID on record — please process the refund directly from the payment gateway dashboard.', 'buy-me-coffee')], 400);
+        }
+
+        $result = apply_filters('buymecoffee_process_refund_' . $transaction->payment_method, null, $transaction);
+
+        if ($result === null) {
+            wp_send_json_error(['message' => __('Refunds are not supported for this payment method.', 'buy-me-coffee')], 400);
+        }
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()], 400);
+        }
+
+        $this->markRefunded($transaction);
+    }
+
+    private function markRefunded($transaction)
+    {
+        (new Transactions())->updateData($transaction->id, [
+            'status'     => 'refunded',
+            'updated_at' => current_time('mysql'),
+        ]);
+        (new Supporters())->updateData($transaction->entry_id, [
+            'payment_status' => 'refunded',
+            'updated_at'     => current_time('mysql'),
+        ]);
+        do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
+        wp_send_json_success(['message' => __('Transaction refunded successfully.', 'buy-me-coffee')], 200);
     }
 }

@@ -26,6 +26,7 @@ class Stripe extends BaseMethods
         add_action('buymecoffee_make_payment_stripe', array($this, 'makePayment'), 10, 3);
         add_action("buymecoffee_ipn_endpoint_stripe", array($this, 'verifyIpn'), 10, 2);
         add_action('buymecoffee_get_payment_settings_stripe', array($this, 'getPaymentSettings'));
+        add_filter('buymecoffee_process_refund_stripe', array($this, 'processRefund'), 10, 2);
     }
 
     public function makePayment($transactionId, $entryId, $form_data)
@@ -377,6 +378,32 @@ class Stripe extends BaseMethods
                     value="stripe"/>
         </label>
         <?php
+    }
+
+    /**
+     * Handle a refund request for a Stripe transaction.
+     * Hooked via filter: buymecoffee_process_refund_stripe
+     *
+     * @param null      $result     Incoming filter value (null = unhandled).
+     * @param object    $transaction Transaction object.
+     * @return true|\WP_Error  true on success, WP_Error on failure.
+     */
+    public function processRefund($result, $transaction)
+    {
+        $keys = StripeSettings::getKeys();
+
+        // charge_id may be a PaymentIntent ID (pi_…) or a Charge ID (ch_…)
+        $refundData = strpos($transaction->charge_id, 'pi_') === 0
+            ? ['payment_intent' => $transaction->charge_id]
+            : ['charge'         => $transaction->charge_id];
+
+        $response = (new API())->makeRequest('refunds', $refundData, $keys['secret'], 'POST');
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        return true;
     }
 
     public function isEnabled()

@@ -78,6 +78,42 @@
               <Edit3 :size="14" />
               Change Status
             </button>
+
+            <!-- Three-dot more menu -->
+            <div class="bmc-more-menu" ref="moreMenu">
+              <button
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-neutral-200 cursor-pointer transition-colors"
+                style="background: var(--bg-primary); color: var(--text-secondary)"
+                @click.stop="moreOpen = !moreOpen"
+              >
+                <MoreVertical :size="15" />
+              </button>
+              <div v-if="moreOpen" class="bmc-more-dropdown">
+                <el-popconfirm
+                  v-if="supporter.transaction && supporter.transaction.status === 'paid' && supporter.transaction.charge_id"
+                  title="Refund this transaction? This cannot be undone."
+                  confirm-button-text="Yes, refund"
+                  cancel-button-text="Cancel"
+                  :width="260"
+                  @confirm="refundTransaction"
+                >
+                  <template #reference>
+                    <button class="bmc-more-item bmc-more-item--danger" :disabled="refunding">
+                      <RotateCcw :size="14" />
+                      {{ refunding ? 'Refunding...' : 'Refund Transaction' }}
+                    </button>
+                  </template>
+                </el-popconfirm>
+                <span
+                  v-else
+                  class="bmc-more-item bmc-more-item--disabled"
+                  :title="supporter.transaction && supporter.transaction.status === 'refunded' ? 'Already refunded' : 'Not refundable'"
+                >
+                  <RotateCcw :size="14" />
+                  Refund Transaction
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -282,7 +318,7 @@
 </template>
 
 <script>
-import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, DollarSign, Clock } from 'lucide-vue-next';
+import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, DollarSign, Clock, MoreVertical, RotateCcw } from 'lucide-vue-next';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import PageTitle from './UI/PageTitle.vue';
 import StatusBadge from './UI/StatusBadge.vue';
@@ -299,6 +335,8 @@ export default {
     Coffee,
     DollarSign,
     Clock,
+    MoreVertical,
+    RotateCcw,
     PageTitle,
     StatusBadge,
     MetricCard,
@@ -310,6 +348,8 @@ export default {
       loading: false,
       paymentStatus: '',
       statusModal: false,
+      moreOpen: false,
+      refunding: false,
       payment_statuses: [
         { label: 'Paid', value: 'paid' },
         { label: 'Pending', value: 'pending' },
@@ -366,6 +406,28 @@ export default {
           });
         });
     },
+    refundTransaction() {
+      this.moreOpen = false;
+      this.refunding = true;
+      this.$post({
+        action: 'buymecoffee_admin_ajax',
+        route: 'refund_transaction',
+        data: { id: this.supporter.transaction.id },
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then(() => {
+        this.$handleSuccess('Transaction refunded successfully');
+        this.getSupporter();
+      }).fail((error) => {
+        this.$handleError(error);
+      }).always(() => {
+        this.refunding = false;
+      });
+    },
+    onClickOutside(e) {
+      if (this.$refs.moreMenu && !this.$refs.moreMenu.contains(e.target)) {
+        this.moreOpen = false;
+      }
+    },
     getSupporter() {
       this.loading = true;
       this.$get({
@@ -389,6 +451,10 @@ export default {
   },
   mounted() {
     this.getSupporter();
+    document.addEventListener('click', this.onClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.onClickOutside);
   },
 };
 </script>
@@ -411,5 +477,62 @@ export default {
 .bmc-back-btn:hover {
   color: var(--text-primary);
   background: transparent;
+}
+
+/* Three-dot dropdown */
+.bmc-more-menu {
+  position: relative;
+  display: inline-flex;
+}
+.bmc-more-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  z-index: 100;
+  padding: 4px;
+}
+.bmc-more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+  color: var(--text-primary);
+}
+.bmc-more-item--danger {
+  color: #dc2626;
+}
+.bmc-more-item--danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+.bmc-more-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bmc-more-item--disabled {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

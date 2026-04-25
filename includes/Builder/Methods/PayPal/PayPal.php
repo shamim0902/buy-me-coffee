@@ -26,6 +26,7 @@ class PayPal extends BaseMethods
         add_action("buymecoffee_ipn_endpoint_paypal", array($this, 'verifyIpn'), 10, 2);
         add_action('buymecoffee_get_payment_settings_paypal', array($this, 'getPaymentSettings'));
         add_filter('buymecoffee_before_save_paypal', array($this, 'validateProSettings'), 10, 1);
+        add_filter('buymecoffee_process_refund_paypal', array($this, 'processRefund'), 10, 2);
     }
 
     public function validateProSettings($settings)
@@ -556,6 +557,46 @@ class PayPal extends BaseMethods
             'message' => __('Payment updated successfully', 'buy-me-coffee'),
             'data' => $transaction->id
         ), 200);
+    }
+
+    /**
+     * Handle a refund request for a PayPal transaction.
+     * Hooked via filter: buymecoffee_process_refund_paypal
+     *
+     * PayPal Standard only records txn_id (not a capture ID), so REST refunds
+     * are only supported for PayPal Pro.
+     *
+     * @param null      $result     Incoming filter value (null = unhandled).
+     * @param object    $transaction Transaction object.
+     * @return true|\WP_Error  true on success, WP_Error on failure.
+     */
+    public function processRefund($result, $transaction)
+    {
+        $settings = $this->getSettings();
+
+        if (($settings['payment_type'] ?? 'standard') !== 'pro') {
+            return new \WP_Error(
+                'paypal_standard_no_api_refund',
+                __('PayPal Standard refunds must be processed directly from your PayPal dashboard.', 'buy-me-coffee')
+            );
+        }
+
+        try {
+            $response = API::makeRequest(
+                'payments/captures/' . $transaction->charge_id . '/refund',
+                'v2',
+                'POST',
+                []
+            );
+
+            if (is_wp_error($response)) {
+                return $response;
+            }
+        } catch (\Exception $e) {
+            return new \WP_Error('paypal_refund_exception', $e->getMessage());
+        }
+
+        return true;
     }
 
     public function isEnabled()
