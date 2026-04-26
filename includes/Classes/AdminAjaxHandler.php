@@ -405,6 +405,34 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => __('Subscription not found', 'buy-me-coffee')], 404);
         }
 
+        // Backfill missing period end for older rows that were activated before
+        // current_period_end was persisted in the confirmation path.
+        $currentPeriodEnd = isset($subscription->current_period_end) ? (string) $subscription->current_period_end : '';
+        if (
+            (empty($currentPeriodEnd) || $currentPeriodEnd === '0000-00-00 00:00:00')
+            && !empty($subscription->stripe_subscription_id)
+        ) {
+            $keys = StripeSettings::getKeys();
+            $remote = (new StripeAPI())->makeRequest(
+                'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
+                [],
+                $keys['secret'],
+                'GET'
+            );
+
+            if (!is_wp_error($remote)) {
+                $periodEndTs = (int) Arr::get($remote, 'current_period_end', 0);
+                if ($periodEndTs > 0) {
+                    $periodEnd = gmdate('Y-m-d H:i:s', $periodEndTs);
+                    (new Subscriptions())->updateData($id, [
+                        'current_period_end' => $periodEnd,
+                        'updated_at'         => current_time('mysql'),
+                    ]);
+                    $subscription->current_period_end = $periodEnd;
+                }
+            }
+        }
+
         $supporter = (new Supporters())->find((int) $subscription->supporter_id);
         if ($supporter) {
             $subscription->supporters_name  = $supporter->supporters_name;

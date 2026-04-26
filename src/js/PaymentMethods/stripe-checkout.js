@@ -89,35 +89,50 @@ class StripeCheckout {
 
     afterPaymentSuccess() {
         const isSubscription = !!this.data?.is_subscription;
-        const message = isSubscription
-            ? "Recurring donation set up successfully 🖤"
-            : "Thanks for your contribution 🖤";
+        const messageTitle = isSubscription
+            ? "Recurring donation set up successfully"
+            : "Thanks for your contribution";
+        const messageSubtitle = isSubscription
+            ? "Your subscription is active. You can manage everything from your account."
+            : "Your payment was successful. You can view your receipt below.";
 
         const receiptContainer = jQuery("<div class='buymecoffee_form_receipt'></div>");
-        receiptContainer.append(document.createTextNode(message));
-        receiptContainer.append('<br/>');
+        const receiptCard = jQuery("<div class='bmc-receipt-success'></div>");
+        const receiptHeader = jQuery("<div class='bmc-receipt-success__header'></div>");
+        const receiptBadge = jQuery("<span class='bmc-receipt-success__badge' aria-hidden='true'>✓</span>");
+        const receiptText = jQuery("<div class='bmc-receipt-success__text'></div>");
+        receiptText.append(jQuery("<p class='bmc-receipt-success__title'></p>").text(messageTitle));
+        receiptText.append(jQuery("<p class='bmc-receipt-success__subtitle'></p>").text(messageSubtitle));
+        receiptHeader.append(receiptBadge, receiptText);
+        receiptCard.append(receiptHeader);
+
+        const actions = jQuery("<div class='bmc-receipt-success__actions'></div>");
 
         const safeReceiptUrl = this.getSafeReceiptUrl(this.data?.order_items?.payment_args?.success_url);
         if (safeReceiptUrl) {
             const receiptLink = jQuery('<a></a>')
+                .addClass('bmc-receipt-success__link')
                 .attr('href', safeReceiptUrl)
                 .text('View Receipt');
-            receiptContainer.append(receiptLink);
+            actions.append(receiptLink);
         }
 
         if (isSubscription) {
             const accountPageUrl = this.getSafeReceiptUrl(window.buymecoffee_general?.account_page_url);
             if (accountPageUrl) {
-                if (safeReceiptUrl) {
-                    receiptContainer.append(document.createTextNode(' · '));
-                }
                 const accountLink = jQuery('<a></a>')
+                    .addClass('bmc-receipt-success__link')
                     .attr('href', accountPageUrl)
                     .text('View subscriptions');
-                receiptContainer.append(accountLink);
+                actions.append(accountLink);
             }
         }
 
+        if (actions.children().length) {
+            receiptCard.append(actions);
+        }
+
+        receiptContainer.append(receiptCard);
         this.parentWrapper.append(receiptContainer);
         this.parentWrapper.find('.buymecoffee_form').hide();
         this.parentWrapper.find('.buymecoffee_form_to, .bmc-form-card__title').hide();

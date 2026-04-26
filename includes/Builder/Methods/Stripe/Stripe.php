@@ -138,10 +138,33 @@ class Stripe extends BaseMethods
             return false;
         }
 
-        (new Subscriptions())->updateData($actualSubscriptionId, [
+        $update = [
             'status'     => 'active',
             'updated_at' => current_time('mysql'),
-        ]);
+        ];
+
+        $localSubscription = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->where('id', $actualSubscriptionId)
+            ->first();
+
+        if ($localSubscription && !empty($localSubscription->stripe_subscription_id)) {
+            $stripeSubscription = (new API())->makeRequest(
+                'subscriptions/' . sanitize_text_field($localSubscription->stripe_subscription_id),
+                [],
+                StripeSettings::getKeys('secret'),
+                'GET'
+            );
+
+            if (!is_wp_error($stripeSubscription)) {
+                $periodEndTs = (int) ArrayHelper::get($stripeSubscription, 'current_period_end', 0);
+                if ($periodEndTs > 0) {
+                    $update['current_period_end'] = gmdate('Y-m-d H:i:s', $periodEndTs);
+                }
+            }
+        }
+
+        (new Subscriptions())->updateData($actualSubscriptionId, $update);
 
         return true;
     }

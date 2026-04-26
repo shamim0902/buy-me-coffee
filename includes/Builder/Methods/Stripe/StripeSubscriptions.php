@@ -105,6 +105,8 @@ class StripeSubscriptions
 
             // Determine payment mode from Stripe object
             $paymentMode = isset($stripeSubscription['livemode']) && $stripeSubscription['livemode'] ? 'live' : 'test';
+            $periodEndTs = isset($stripeSubscription['current_period_end']) ? (int) $stripeSubscription['current_period_end'] : 0;
+            $periodEnd   = $periodEndTs > 0 ? gmdate('Y-m-d H:i:s', $periodEndTs) : null;
 
             // Insert local subscription record
             $subscriptionModel = new Subscriptions();
@@ -117,6 +119,7 @@ class StripeSubscriptions
                 'currency'              => sanitize_text_field(strtolower($paymentArgs['currency'])),
                 'status'                => 'incomplete',
                 'payment_mode'          => $paymentMode,
+                'current_period_end'    => $periodEnd,
                 'created_at'            => current_time('mysql'),
                 'updated_at'            => current_time('mysql'),
             ]);
@@ -130,6 +133,7 @@ class StripeSubscriptions
                     'interval'               => $interval,
                     'amount'                 => $paymentArgs['amount'],
                     'currency'               => $paymentArgs['currency'],
+                    'period_end'             => $periodEnd,
                 ],
             ]);
 

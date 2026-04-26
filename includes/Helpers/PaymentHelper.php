@@ -77,14 +77,52 @@ class PaymentHelper
         // Webhooks also do this, but the frontend confirmation fires first and
         // without this the subscription stays 'incomplete' until the webhook arrives.
         if ($status === 'paid' && !empty($order->transaction->subscription_id)) {
-            (new Subscriptions())->updateData((int) $order->transaction->subscription_id, [
+            $subscriptionUpdate = [
                 'status'     => 'active',
                 'updated_at' => current_time('mysql'),
-            ]);
+            ];
+
+            $periodEnd = $this->resolveStripeSubscriptionPeriodEnd((int) $order->transaction->subscription_id);
+            if ($periodEnd) {
+                $subscriptionUpdate['current_period_end'] = $periodEnd;
+            }
+
+            (new Subscriptions())->updateData((int) $order->transaction->subscription_id, $subscriptionUpdate);
             do_action('buymecoffee_subscription_activated', (int) $order->transaction->subscription_id);
         }
 
         do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);
+    }
+
+    private function resolveStripeSubscriptionPeriodEnd(int $localSubscriptionId): ?string
+    {
+        $subscription = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->where('id', $localSubscriptionId)
+            ->first();
+
+        if (!$subscription || empty($subscription->stripe_subscription_id)) {
+            return null;
+        }
+
+        $api = new API();
+        $response = $api->makeRequest(
+            'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
+            [],
+            (new StripeSettings())->getKeys('secret'),
+            'GET'
+        );
+
+        if (!$response || is_wp_error($response)) {
+            return null;
+        }
+
+        $periodEndTs = (int) Arr::get($response, 'current_period_end', 0);
+        if ($periodEndTs <= 0) {
+            return null;
+        }
+
+        return gmdate('Y-m-d H:i:s', $periodEndTs);
     }
 
     public static function getFormattedAmount($amount, $currency)

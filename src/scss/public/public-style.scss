@@ -107,16 +107,104 @@ form.wpm_submitting_form {
 }
 
 // ── Form receipt ───────────────────────────────
-.buymecoffee_form_preview_wrapper {
+.buymecoffee_form_preview_wrapper,
+.bmc-form-card {
   .buymecoffee_form_receipt {
     display: flex;
+    justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
     min-height: 200px;
-    align-content: center;
+    padding: 8px 0;
+  }
 
-    a {
-      color: $bmc-accent;
+  .bmc-receipt-success {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 22px 24px;
+    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+  }
+
+  .bmc-receipt-success__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .bmc-receipt-success__badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .bmc-receipt-success__title {
+    margin: 0;
+    color: #111827;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+
+  .bmc-receipt-success__subtitle {
+    margin: 7px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .bmc-receipt-success__actions {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .bmc-receipt-success__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #ccfbf1;
+    background: #f0fdfa;
+    color: #0f766e;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .bmc-receipt-success__link:hover {
+    border-color: #99f6e4;
+    background: #ccfbf1;
+    color: #115e59;
+  }
+
+  @media (max-width: 640px) {
+    .bmc-receipt-success {
+      padding: 18px 16px;
+      border-radius: 16px;
+    }
+
+    .bmc-receipt-success__title {
+      font-size: 18px;
+    }
+
+    .bmc-receipt-success__actions {
+      margin-top: 14px;
+      gap: 8px;
     }
   }
 
