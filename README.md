@@ -2,9 +2,34 @@
 
 > Accept one-time donations and recurring subscriptions via Stripe and PayPal — directly into your own account, with zero commission.
 
-**Current version:** 1.2.1 · [Full Changelog →](CHANGELOG.md)
+**Current version:** `1.2.1` · [Full Changelog](CHANGELOG.md)
 
 [Plugin Site](https://wpminers.com/buymecoffee/) · [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.com/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
+
+> [!TIP]
+> **Design System Guide:** See [`dev/blog-post-ui-redesign.md`](dev/blog-post-ui-redesign.md) for the full UI redesign process, token architecture, and implementation approach.
+
+## Quick Navigation
+
+- [Why Buy Me a Coffee](#why-buy-me-a-coffee)
+- [Whats New in 12x](#whats-new-in-12x)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Development](#development)
+- [Third-Party Services](#third-party-services)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Why Buy Me a Coffee
+
+- Accept one-time and recurring donations on your own WordPress site
+- Receive payments directly to your Stripe or PayPal account
+- Manage supporters, subscriptions, and activity from a modern admin dashboard
+- Customize donation forms with shortcodes, block support, and page templates
 
 ---
 
@@ -33,19 +58,29 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete version history.
 
 ## Features
 
-| Feature | Details |
+| Capability | Details |
 |---|---|
-| One-time donations | Stripe (on-site) and PayPal Pro |
-| Recurring subscriptions | Monthly or yearly via Stripe with webhook lifecycle |
-| Refunds | Stripe and PayPal refunds from the admin |
-| Activity Log | Per-supporter, per-subscription timeline + global log page |
-| Donation forms | Customizable buttons, forms, and page templates |
-| Shortcodes & blocks | Gutenberg block + classic shortcodes |
-| Supporter profiles | Full transaction and activity history per donor |
-| Dashboard | Donation statistics and recent activity |
-| Email notifications | Fully customizable donor and admin email templates |
+| Payments | Stripe (on-site) and PayPal Pro |
+| Recurring subscriptions | Monthly or yearly via Stripe with full webhook lifecycle |
+| Refunds | Stripe and PayPal refunds from the admin panel |
+| Activity log | Per-supporter and per-subscription event timeline |
+| Forms and templates | Customizable donation button, form, and page template |
+| Shortcodes and block | Gutenberg block + classic shortcodes |
+| Supporter profiles | Full supporter, transaction, and activity history |
+| Analytics dashboard | Donation stats, recent activity, and summaries |
+| Email notifications | Custom donor and admin email templates |
 | Dark mode | Full admin dark mode with system preference detection |
-| Admin SPA | Full-page Vue 3 admin with sidebar navigation |
+| Admin SPA | Full-page Vue 3 app with sidebar navigation |
+
+---
+
+## Quick Start
+
+1. Install and activate the plugin
+2. Open **Buy Me a Coffee -> Quick Setup**
+3. Connect Stripe and/or PayPal credentials
+4. Add `[buymecoffee_button]` or `[buymecoffee_form]` to any page
+5. Publish and start collecting donations
 
 ---
 
@@ -80,6 +115,21 @@ Built assets output to `assets/` with a `manifest.json` for cache-busted URLs. E
 
 ---
 
+## Common Shortcodes
+
+- `[buymecoffee_button]` - Donation button with popup
+- `[buymecoffee_form]` - Inline donation form
+- `[buymecoffee_basic]` - Basic donation template
+
+<details>
+<summary><strong>Need setup help?</strong></summary>
+
+Use the [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) for a complete walkthrough, including gateway configuration and shortcode placement.
+
+</details>
+
+---
+
 ## Third-Party Services
 
 - **[Stripe](https://stripe.com)** — payment processing. [Privacy Policy](https://stripe.com/privacy) · [JS SDK](https://js.stripe.com/v3/)
@@ -97,6 +147,8 @@ See [CHANGELOG.md](CHANGELOG.md).
 ## Contributing
 
 Go to the [GitHub repository](https://github.com/hasanuzzamanbe/buy-me-coffee) — see `package.json` for the full list of scripts and dependencies.
+
+---
 
 ## License
 
