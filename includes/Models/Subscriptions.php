@@ -31,8 +31,8 @@ class Subscriptions extends Model
         $query = $this->buildIndexQuery($search, $filter_status);
 
         $results = $query
-            ->select('s.*', 'sup.supporters_name', 'sup.supporters_email')
-            ->orderBy('s.created_at', 'DESC')
+            ->select('buymecoffee_subscriptions.*', 'buymecoffee_supporters.supporters_name', 'buymecoffee_supporters.supporters_email')
+            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
             ->limit($posts_per_page)
             ->offset($offset)
             ->get();
@@ -48,17 +48,17 @@ class Subscriptions extends Model
     private function buildIndexQuery($search, $filterStatus)
     {
         $query = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions as s')
-            ->leftJoin('buymecoffee_supporters as sup', 's.supporter_id', '=', 'sup.id');
+            ->table('buymecoffee_subscriptions')
+            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id');
 
         if ($filterStatus && $filterStatus !== 'all') {
-            $query->where('s.status', $filterStatus);
+            $query->where('buymecoffee_subscriptions.status', $filterStatus);
         }
 
         if ($search) {
             $query->where(function ($whereQuery) use ($search) {
-                $whereQuery->where('sup.supporters_name', 'LIKE', '%' . $search . '%')
-                    ->orWhere('sup.supporters_email', 'LIKE', '%' . $search . '%');
+                $whereQuery->where('buymecoffee_supporters.supporters_name', 'LIKE', '%' . $search . '%')
+                    ->orWhere('buymecoffee_supporters.supporters_email', 'LIKE', '%' . $search . '%');
             });
         }
 
