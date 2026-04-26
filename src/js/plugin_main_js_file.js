@@ -15,7 +15,7 @@ export default class BuyMeCoffee {
         this.addAction = addAction;
         this.applyFilters = applyFilters;
         this.removeAllActions = removeAllActions;
-        this.appVars = window.BuyMeCoffeeAdmin;
+        this.appVars = window.BuyMeCoffeeAdmin || {};
         this.app = this.extendVueConstructor();
     }
 
@@ -52,7 +52,8 @@ export default class BuyMeCoffee {
         return app;
     }
     registerBlock(blockLocation, blockName, block) {
-        this.addFilter(blockLocation, this.appVars.slug, function (components) {
+        const slug = this.appVars.slug || 'buy-me-coffee';
+        this.addFilter(blockLocation, slug, function (components) {
             components[blockName] = block;
             return components;
         });
@@ -63,7 +64,9 @@ export default class BuyMeCoffee {
             return;
         }
 
-        this.addFilter('buy_me_coffee_top_menus', this.appVars.slug, function (menus) {
+        const slug = this.appVars.slug || 'buy-me-coffee';
+
+        this.addFilter('buy_me_coffee_top_menus', slug, function (menus) {
             menus = menus.filter(m => m.route !== route.name);
             menus.push({
                 route: route.name,
@@ -72,7 +75,7 @@ export default class BuyMeCoffee {
             return menus;
         });
 
-        this.addFilter('buy_me_coffee_global_routes', this.appVars.slug, function (routes) {
+        this.addFilter('buy_me_coffee_global_routes', slug, function (routes) {
             routes = routes.filter(r => r.name !== route.name);
             routes.push(route);
             return routes;
@@ -80,7 +83,7 @@ export default class BuyMeCoffee {
     }
 
     $publicAssets(path){
-        return (window.BuyMeCoffeeAdmin.assets_url + path);
+        return ((window.BuyMeCoffeeAdmin?.assets_url || '') + path);
     }
 
     $get(options) {

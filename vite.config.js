@@ -64,8 +64,10 @@ export default defineConfig({
         rollupOptions: {
             input: inputs,
             output: {
-                chunkFileNames: '[name].js',
-                entryFileNames: '[name].js',
+                // Use hashed JS filenames to avoid stale module caches across upgrades.
+                // The PHP Vite manifest loader already resolves the actual file names.
+                chunkFileNames: '[name]-[hash].js',
+                entryFileNames: '[name]-[hash].js',
 
 
             },
