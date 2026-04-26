@@ -13,11 +13,20 @@ $statusLabels = [
 
     <!-- Header -->
     <div class="bmc-account-header">
-        <div class="bmc-account-avatar"><?php echo esc_html(mb_strtoupper(mb_substr($user->display_name, 0, 1))); ?></div>
-        <div>
-            <h2 class="bmc-account-name"><?php echo esc_html($user->display_name); ?></h2>
-            <p class="bmc-account-email"><?php echo esc_html($user->user_email); ?></p>
+        <div class="bmc-account-header__left">
+            <div class="bmc-account-avatar"><?php echo esc_html(mb_strtoupper(mb_substr($user->display_name, 0, 1))); ?></div>
+            <div>
+                <h2 class="bmc-account-name"><?php echo esc_html($user->display_name); ?></h2>
+                <p class="bmc-account-email"><?php echo esc_html($user->user_email); ?></p>
+            </div>
         </div>
+        <a href="<?php echo esc_url(site_url('?share_coffee')); ?>" class="bmc-account-back-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span><?php esc_html_e('Contribute', 'buy-me-coffee'); ?></span>
+        </a>
     </div>
 
     <!-- Subscriptions -->
@@ -116,9 +125,12 @@ html { margin-top: 0 !important; }
 body { margin-top: 0 !important; }
 .bmc-account-wrap { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 16px; }
 .bmc-account-header { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+.bmc-account-header__left { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .bmc-account-avatar { width: 56px; height: 56px; border-radius: 9999px; background: #fef3c7; color: #d97706; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bmc-account-name { font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 2px; }
 .bmc-account-email { font-size: 13px; color: #6b7280; margin: 0; }
+.bmc-account-back-link { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: #2563eb; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.bmc-account-back-link:hover { color: #1d4ed8; text-decoration: underline; }
 .bmc-account-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
 .bmc-account-card__title { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 16px; }
 .bmc-account-table-wrap { overflow-x: auto; }

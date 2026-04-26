@@ -90,8 +90,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-  backdrop-filter: blur(6px);
+  background: transparent;
+  backdrop-filter: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -107,6 +107,11 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+  border: 1px solid var(--border-secondary);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
 }
 
 .bmc-loader__cup {
