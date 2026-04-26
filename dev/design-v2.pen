@@ -6839,10 +6839,10 @@
               "width": "fill_container",
               "height": "fill_container",
               "layout": "vertical",
-              "gap": 24,
+              "gap": 20,
               "padding": [
-                28,
-                32
+                24,
+                28
               ],
               "children": [
                 {
@@ -6916,191 +6916,6 @@
                           "fontWeight": "normal"
                         }
                       ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "UlLZ1",
-                      "name": "headerRight",
-                      "gap": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "bv6tH",
-                          "name": "darkBtn",
-                          "width": 32,
-                          "height": 32,
-                          "fill": "$bg-card",
-                          "cornerRadius": 8,
-                          "stroke": {
-                            "thickness": 1,
-                            "fill": "$border-light"
-                          },
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "icon_font",
-                              "id": "9VIV7",
-                              "name": "darkIcon",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "moon",
-                              "iconFontFamily": "lucide",
-                              "fill": "$text-tertiary"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "q8dlL",
-                          "name": "helpBtn",
-                          "width": 32,
-                          "height": 32,
-                          "fill": "$bg-card",
-                          "cornerRadius": 8,
-                          "stroke": {
-                            "thickness": 1,
-                            "fill": "$border-light"
-                          },
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "icon_font",
-                              "id": "tyTu4",
-                              "name": "helpIcon",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "info",
-                              "iconFontFamily": "lucide",
-                              "fill": "$text-tertiary"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "N4o9W",
-                  "name": "SettingsTabs",
-                  "width": "fill_container",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": 1
-                    },
-                    "fill": "$border-light"
-                  },
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "qrovT",
-                      "name": "tab1",
-                      "height": 36,
-                      "stroke": {
-                        "thickness": {
-                          "bottom": 2
-                        },
-                        "fill": "$accent-purple"
-                      },
-                      "gap": 6,
-                      "padding": [
-                        0,
-                        16
-                      ],
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon_font",
-                          "id": "xgxdY",
-                          "name": "tab1Icon",
-                          "width": 14,
-                          "height": 14,
-                          "iconFontName": "settings",
-                          "iconFontFamily": "lucide",
-                          "fill": "$accent-purple"
-                        },
-                        {
-                          "type": "text",
-                          "id": "4d072",
-                          "name": "tab1Text",
-                          "fill": "$accent-purple",
-                          "content": "General",
-                          "fontFamily": "Inter",
-                          "fontSize": 13,
-                          "fontWeight": "600"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "cXL8V",
-                      "name": "tab2",
-                      "height": 36,
-                      "gap": 6,
-                      "padding": [
-                        0,
-                        16
-                      ],
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon_font",
-                          "id": "wHWiQ",
-                          "name": "tab2Icon",
-                          "width": 14,
-                          "height": 14,
-                          "iconFontName": "palette",
-                          "iconFontFamily": "lucide",
-                          "fill": "$text-tertiary"
-                        },
-                        {
-                          "type": "text",
-                          "id": "nplEO",
-                          "name": "tab2Text",
-                          "fill": "$text-tertiary",
-                          "content": "Appearance",
-                          "fontFamily": "Inter",
-                          "fontSize": 13,
-                          "fontWeight": "500"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "F7CU6",
-                      "name": "tab3",
-                      "height": 36,
-                      "gap": 6,
-                      "padding": [
-                        0,
-                        16
-                      ],
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon_font",
-                          "id": "Y5qRX",
-                          "name": "tab3Icon",
-                          "width": 14,
-                          "height": 14,
-                          "iconFontName": "code",
-                          "iconFontFamily": "lucide",
-                          "fill": "$text-tertiary"
-                        },
-                        {
-                          "type": "text",
-                          "id": "lgBJe",
-                          "name": "tab3Text",
-                          "fill": "$text-tertiary",
-                          "content": "Shortcodes",
-                          "fontFamily": "Inter",
-                          "fontSize": 13,
-                          "fontWeight": "500"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -7110,7 +6925,7 @@
                   "name": "FormSettingsCard",
                   "width": "fill_container",
                   "fill": "$bg-card",
-                  "cornerRadius": "$radius-lg",
+                  "cornerRadius": 12,
                   "stroke": {
                     "thickness": 1,
                     "fill": "$border-card"
@@ -7293,10 +7108,10 @@
                         "fill": "$border-card"
                       },
                       "layout": "vertical",
-                      "gap": 10,
+                      "gap": 8,
                       "padding": [
-                        16,
-                        24
+                        14,
+                        20
                       ],
                       "children": [
                         {
@@ -7314,16 +7129,16 @@
                           "id": "AbwAa",
                           "name": "nameInput",
                           "width": "fill_container",
-                          "height": 42,
+                          "height": 38,
                           "fill": "$bg-secondary",
-                          "cornerRadius": "$radius-sm",
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "$border-light"
                           },
                           "padding": [
                             0,
-                            14
+                            12
                           ],
                           "alignItems": "center",
                           "children": [
@@ -7346,7 +7161,7 @@
                           "fill": "$accent-teal",
                           "content": "You can also use URL params, e.g. https://page-link&for=John",
                           "fontFamily": "Inter",
-                          "fontSize": 11,
+                          "fontSize": 10.5,
                           "fontWeight": "normal"
                         }
                       ]
@@ -7356,7 +7171,7 @@
                       "id": "bcnIK",
                       "name": "row-suppname",
                       "width": "fill_container",
-                      "height": 64,
+                      "height": 56,
                       "stroke": {
                         "thickness": {
                           "bottom": 1
@@ -7365,7 +7180,7 @@
                       },
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "justifyContent": "space_between",
                       "alignItems": "center",
@@ -7384,8 +7199,8 @@
                               "fill": "$text-primary",
                               "content": "Collect supporter name",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "fontSize": 13.5,
+                              "fontWeight": "500"
                             },
                             {
                               "type": "text",
@@ -7394,7 +7209,7 @@
                               "fill": "$text-tertiary",
                               "content": "Ask supporters for their name when donating",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7438,7 +7253,7 @@
                       "id": "ZQwts",
                       "name": "row-email",
                       "width": "fill_container",
-                      "height": 64,
+                      "height": 56,
                       "stroke": {
                         "thickness": {
                           "bottom": 1
@@ -7447,7 +7262,7 @@
                       },
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "justifyContent": "space_between",
                       "alignItems": "center",
@@ -7466,8 +7281,8 @@
                               "fill": "$text-primary",
                               "content": "Collect supporter email",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "fontSize": 13.5,
+                              "fontWeight": "500"
                             },
                             {
                               "type": "text",
@@ -7476,7 +7291,7 @@
                               "fill": "$text-tertiary",
                               "content": "Ask supporters for their email address",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7520,10 +7335,10 @@
                       "id": "jPhom",
                       "name": "row-message",
                       "width": "fill_container",
-                      "height": 64,
+                      "height": 56,
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "justifyContent": "space_between",
                       "alignItems": "center",
@@ -7542,8 +7357,8 @@
                               "fill": "$text-primary",
                               "content": "Collect message",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "fontSize": 13.5,
+                              "fontWeight": "500"
                             },
                             {
                               "type": "text",
@@ -7552,7 +7367,7 @@
                               "fill": "$text-tertiary",
                               "content": "Allow supporters to leave a message with their donation",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7599,7 +7414,7 @@
                   "name": "PricingPaymentCard",
                   "width": "fill_container",
                   "fill": "$bg-card",
-                  "cornerRadius": "$radius-lg",
+                  "cornerRadius": 12,
                   "stroke": {
                     "thickness": 1,
                     "fill": "$border-card"

@@ -3,6 +3,8 @@
     <CoffeeLoader :loading="fetching" />
 
     <template v-if="!fetching">
+      <PageTitle title="Settings" subtitle="Manage your donation form preferences and payment configuration" />
+
       <div class="bmc-settings-layout">
 
         <!-- ── Content (full width, section chosen by sidebar sub-nav) ── -->
@@ -10,15 +12,21 @@
 
           <!-- General -->
           <section v-show="active === 'general'">
-            <div class="bmc-section-header">
-              <h2 class="bmc-section-title">General Settings</h2>
-              <p class="bmc-section-sub">Control what information is collected from supporters</p>
-            </div>
 
-            <!-- Form fields rows -->
-            <div class="bmc-card">
+            <!-- Form Configuration Card -->
+            <div class="bmc-sc">
+              <div class="bmc-sc__hd">
+                <div class="bmc-sc__icon bmc-sc__icon--purple">
+                  <FileText :size="16" />
+                </div>
+                <div>
+                  <h3 class="bmc-sc__title">Form Configuration</h3>
+                  <p class="bmc-sc__sub">Control what information is collected from supporters</p>
+                </div>
+              </div>
+
               <!-- Show form title -->
-              <div class="bmc-toggle-row">
+              <div class="bmc-sr">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Show form title</p>
                   <p class="bmc-toggle-row__desc">Display the title section on the donation form</p>
@@ -27,16 +35,16 @@
               </div>
 
               <!-- Your name (conditional) -->
-              <div v-if="template.formTitle === 'yes'" class="bmc-sub-field">
+              <div v-if="template.formTitle === 'yes'" class="bmc-sr bmc-sr--field">
                 <label class="bmc-label">Your name</label>
                 <el-input v-model="template.yourName" placeholder="Enter your name" />
-                <p class="bmc-hint">
+                <p class="bmc-hint bmc-hint--teal">
                   You can also use URL params, e.g. <code>https://page-link&amp;for=John</code>
                 </p>
               </div>
 
               <!-- Collect name -->
-              <div class="bmc-toggle-row">
+              <div class="bmc-sr">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Collect supporter name</p>
                   <p class="bmc-toggle-row__desc">Ask supporters for their name when donating</p>
@@ -45,7 +53,7 @@
               </div>
 
               <!-- Collect email -->
-              <div class="bmc-toggle-row">
+              <div class="bmc-sr">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Collect supporter email</p>
                   <p class="bmc-toggle-row__desc">Ask supporters for their email address</p>
@@ -54,7 +62,7 @@
               </div>
 
               <!-- Collect message -->
-              <div class="bmc-toggle-row bmc-toggle-row--last">
+              <div class="bmc-sr bmc-sr--last">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Collect message</p>
                   <p class="bmc-toggle-row__desc">Allow supporters to leave a message with their donation</p>
@@ -63,12 +71,20 @@
               </div>
             </div>
 
-            <!-- Pricing -->
-            <div class="bmc-card">
-              <div class="bmc-section-header bmc-section-header--sm">
-                <h3 class="bmc-section-title bmc-section-title--sm">Pricing</h3>
+            <!-- Pricing & Payment Card -->
+            <div class="bmc-sc">
+              <div class="bmc-sc__hd">
+                <div class="bmc-sc__icon bmc-sc__icon--teal">
+                  <DollarSign :size="16" />
+                </div>
+                <div>
+                  <h3 class="bmc-sc__title">Pricing &amp; Payment</h3>
+                  <p class="bmc-sc__sub">Configure donation amounts and currency</p>
+                </div>
               </div>
-              <div class="bmc-two-col">
+
+              <!-- Price + Currency -->
+              <div class="bmc-sr bmc-sr--field bmc-sr--2col">
                 <div>
                   <label class="bmc-label">Default coffee price</label>
                   <el-input-number
@@ -98,7 +114,7 @@
               </div>
 
               <!-- Allow recurring -->
-              <div class="bmc-toggle-row" :class="{ 'bmc-toggle-row--last': template.allow_recurring !== 'yes' }" style="margin-top: 4px">
+              <div class="bmc-sr" :class="{ 'bmc-sr--last': template.allow_recurring !== 'yes' }">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Allow recurring</p>
                   <p class="bmc-toggle-row__desc">Show a "Make it recurring" option on the checkout form (Stripe only)</p>
@@ -107,7 +123,7 @@
               </div>
 
               <!-- Recurring interval -->
-              <div v-if="template.allow_recurring === 'yes'" class="bmc-toggle-row bmc-toggle-row--last">
+              <div v-if="template.allow_recurring === 'yes'" class="bmc-sr bmc-sr--last">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Recurring interval</p>
                   <p class="bmc-toggle-row__desc">How often supporters will be charged</p>
@@ -117,7 +133,6 @@
                   <el-option label="Yearly" value="year" />
                 </el-select>
               </div>
-
             </div>
           </section>
 
@@ -406,24 +421,24 @@
           @confirm="resetDefault"
         >
           <template #reference>
-            <el-button :loading="resetting" plain>
-              <RotateCcw :size="14" style="margin-right: 5px" />
-              Reset to Default
-            </el-button>
+            <button class="bmc-action-btn bmc-action-btn--ghost" :disabled="resetting">
+              <RotateCcw :size="14" />
+              {{ resetting ? 'Resetting…' : 'Reset to Default' }}
+            </button>
           </template>
         </el-popconfirm>
 
-        <el-button type="primary" :loading="saving" @click="saveSettings">
-          <Save :size="14" style="margin-right: 5px" />
-          Save Settings
-        </el-button>
+        <button class="bmc-action-btn bmc-action-btn--primary" :disabled="saving" @click="saveSettings">
+          <Save :size="14" />
+          {{ saving ? 'Saving…' : 'Save Settings' }}
+        </button>
       </div>
     </template>
   </div>
 </template>
 
 <script>
-import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick } from 'lucide-vue-next';
+import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign } from 'lucide-vue-next';
 import PageTitle from './UI/PageTitle.vue';
 import CodeBlock from './UI/CodeBlock.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
@@ -431,7 +446,7 @@ import MediaButton from './Parts/MediaButton.vue';
 
 export default {
   name: 'Settings',
-  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
+  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
 
   data() {
     return {
@@ -552,6 +567,143 @@ export default {
 </script>
 
 <style scoped>
+/* ─── Settings cards (General section) ────── */
+.bmc-sc {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.bmc-sc__hd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bmc-sc__icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bmc-sc__icon--purple {
+  background: var(--color-accent-purple-light);
+  color: var(--color-accent-purple);
+}
+
+.bmc-sc__icon--teal {
+  background: #d5fcf0;
+  color: var(--color-accent-teal);
+}
+
+.bmc-sc__title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.bmc-sc__sub {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+/* ─── Settings rows ──────────────────────── */
+.bmc-sr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bmc-sr--last {
+  border-bottom: none;
+}
+
+.bmc-sr--field {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: auto;
+  padding: 14px 20px;
+}
+
+.bmc-sr--2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .bmc-sr--2col { grid-template-columns: 1fr; }
+}
+
+/* ─── Hint teal variant ──────────────────── */
+.bmc-hint--teal {
+  color: var(--color-accent-teal);
+}
+
+/* ─── Action bar buttons ─────────────────── */
+.bmc-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bmc-action-btn--ghost {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.bmc-action-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bmc-action-btn--primary {
+  background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 0 20px;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+}
+
+.bmc-action-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.bmc-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ─── Layout ─────────────────────────────── */
 .bmc-settings-layout {
   margin-bottom: 20px;
@@ -564,26 +716,26 @@ export default {
 
 /* ─── Section header ─────────────────────── */
 .bmc-section-header {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .bmc-section-header--sm {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .bmc-section-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
 
 .bmc-section-title--sm {
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 .bmc-section-sub {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   margin: 3px 0 0;
 }
@@ -592,9 +744,9 @@ export default {
 .bmc-card {
   background: var(--bg-primary);
   border: 1px solid var(--border-secondary);
-  border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -608,7 +760,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 13px 0;
+  padding: 11px 0;
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -626,14 +778,14 @@ export default {
 }
 
 .bmc-toggle-row__label {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text-primary);
   margin: 0;
 }
 
 .bmc-toggle-row__desc {
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: var(--text-secondary);
   margin: 2px 0 0;
 }
@@ -656,10 +808,10 @@ export default {
 /* ─── Label ──────────────────────────────── */
 .bmc-label {
   display: block;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 /* ─── Hint ───────────────────────────────── */
@@ -681,8 +833,8 @@ export default {
 .bmc-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 14px;
+  margin-top: 14px;
 }
 
 @media (max-width: 640px) {
@@ -743,18 +895,18 @@ export default {
 .bmc-card-title {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 18px;
+  margin: 0 0 16px;
 }
 
 /* ─── Appearance two-column ──────────────── */
 .bmc-appearance-grid {
   display: grid;
-  grid-template-columns: 1fr 260px;
-  gap: 16px;
+  grid-template-columns: 1fr 240px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -1139,11 +1291,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 10px;
+  padding: 14px 20px;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
-  border-radius: 12px;
+  border-radius: 10px;
   position: sticky;
   bottom: 16px;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
