@@ -30,27 +30,32 @@ class AccountPage
         // Subscribers can only see their own linked account — never anyone else's.
         $currentUserId = get_current_user_id();
         $supportersModel = new Supporters();
-        $supporter = $supportersModel->findByWpUser($currentUserId);
+        $supporters = $supportersModel->findAllByWpUser($currentUserId);
 
-        if (!$supporter) {
+        if (empty($supporters)) {
             return View::make('templates.AccountNoRecord', []);
+        }
+
+        $supporterIds = [];
+        foreach ($supporters as $supporter) {
+            $supporterIds[] = (int) $supporter->id;
         }
 
         $subscriptions = buyMeCoffeeQuery()
             ->table('buymecoffee_subscriptions')
-            ->where('supporter_id', (int) $supporter->id)
+            ->whereIn('supporter_id', $supporterIds)
             ->orderBy('created_at', 'DESC')
             ->get();
 
         $transactions = buyMeCoffeeQuery()
             ->table('buymecoffee_transactions')
-            ->where('entry_id', (int) $supporter->id)
+            ->whereIn('entry_id', $supporterIds)
             ->orderBy('created_at', 'DESC')
             ->limit(20)
             ->get();
 
         return View::make('templates.SubscriberAccount', [
-            'supporter'     => $supporter,
+            'supporter'     => $supporters[0],
             'subscriptions' => $subscriptions,
             'transactions'  => $transactions,
             'user'          => wp_get_current_user(),

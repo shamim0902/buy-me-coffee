@@ -465,6 +465,7 @@ class AdminAjaxHandler
             'cancelled_at' => current_time('mysql'),
             'updated_at'   => current_time('mysql'),
         ]);
+        do_action('buymecoffee_subscription_cancelled', (int) $id);
 
         ActivityLogger::logSubscription($id, 'subscription_cancelled', 'Subscription cancelled by admin', [
             'status'  => 'info',

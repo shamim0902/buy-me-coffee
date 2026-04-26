@@ -262,6 +262,14 @@ class Supporters extends Model
             ->first();
     }
 
+    public function findAllByWpUser(int $wpUserId)
+    {
+        return $this->getQuery()
+            ->where('wp_user_id', $wpUserId)
+            ->orderBy('created_at', 'DESC')
+            ->get();
+    }
+
     public function delete($id)
     {
         return $this->getQuery()->where('id', $id)->delete();

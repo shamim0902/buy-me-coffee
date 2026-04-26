@@ -341,6 +341,7 @@ class StripeSubscriptions
             'cancelled_at' => current_time('mysql'),
             'updated_at'   => current_time('mysql'),
         ]);
+        do_action('buymecoffee_subscription_cancelled', (int) $subscription->id);
 
         ActivityLogger::logSubscription((int) $subscription->id, 'subscription_cancelled', 'Subscription cancelled via Stripe', [
             'status'     => 'info',
@@ -398,6 +399,9 @@ class StripeSubscriptions
         }
 
         $subscriptionModel->updateData($subscription->id, $update);
+        if (!empty($update['status']) && $update['status'] !== $subscription->status) {
+            do_action('buymecoffee_subscription_status_changed', (int) $subscription->id, (string) $subscription->status, (string) $update['status']);
+        }
 
         if (!empty($update['status'])) {
             ActivityLogger::logSubscription((int) $subscription->id, 'subscription_status_changed', 'Subscription status changed to ' . $update['status'], [
