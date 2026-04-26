@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: donation, monetization, payments, stripe payments, fundraising
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -142,6 +142,18 @@ Yes, it is secure. We don't store any data on our servers. All data is stored on
 8. Donor/Supporters Profile page
 
 ## Changelog
+
+= 1.2.1 April 26, 2026 =
+- Adds Subscription management
+- Adds Design Update v2
+- Adds Coffee theme and UI polish
+- Adds Account creation email details
+- Adds Active subscription helper and synced user meta
+- Fixes Subscription query issue
+- Fixes Payment flow and release pipeline
+- Improves Subscriber account history view
+- Improves Admin loader experience
+- Redesigns All Page styling
 
 = 1.2.0 April 26, 2026 =
 - Adds Stripe recurring subscriptions with monthly or yearly billing

@@ -2,14 +2,27 @@
 
 > Accept one-time donations and recurring subscriptions via Stripe and PayPal — directly into your own account, with zero commission.
 
-**Current version:** 1.2.0 · [Full Changelog →](CHANGELOG.md)
+**Current version:** 1.2.1 · [Full Changelog →](CHANGELOG.md)
 
 [Plugin Site](https://wpminers.com/buymecoffee/) · [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.com/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
 
 ---
 
-## What's New in 1.2.0
+## What's New in 1.2.x
 
+### 1.2.1
+- Adds Subscription management
+- Adds Design Update v2
+- Adds Coffee theme and UI polish
+- Adds Account creation email details
+- Adds Active subscription helper and synced user meta
+- Fixes Subscription query issue
+- Fixes Payment flow and release pipeline
+- Improves Subscriber account history view
+- Improves Admin loader experience
+- Redesigns All Page styling
+
+### 1.2.0
 - **Stripe Recurring Subscriptions** — monthly or yearly billing with full webhook lifecycle management
 - **Refunds** — issue Stripe and PayPal refunds directly from the admin panel
 - **Activity Log** — persistent event timeline for every payment, subscription, email, and webhook event

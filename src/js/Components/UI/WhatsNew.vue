@@ -21,57 +21,31 @@
         <div class="wn-header">
           <div class="wn-version-badge">Version {{ version }}</div>
           <h2 id="wn-title" class="wn-title">What's New</h2>
-          <p class="wn-subtitle">Here's what we shipped in this release of Buy Me a Coffee.</p>
+          <p class="wn-subtitle">Concise release notes for the 1.2.x series.</p>
         </div>
 
-        <!-- Features -->
-        <div class="wn-features">
-
-          <div class="wn-feature">
-            <div class="wn-feature__icon wn-feature__icon--green">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M18 12h4"/><path d="m19.07 4.93-2.83 2.83"/>
-                <circle cx="12" cy="12" r="4"/>
-              </svg>
+        <!-- Changelog -->
+        <div class="wn-changelog">
+          <section class="wn-release">
+            <div class="wn-release__head">
+              <span class="wn-release__version">What's New in 1.2.x</span>
             </div>
-            <div class="wn-feature__body">
-              <h3 class="wn-feature__title">Stripe Recurring Subscriptions</h3>
-              <p class="wn-feature__desc">Supporters can now back you with monthly or yearly subscriptions. Full lifecycle management — creation, renewals, and cancellations — handled automatically via Stripe webhooks.</p>
-            </div>
-          </div>
-
-          <div class="wn-feature">
-            <div class="wn-feature__icon wn-feature__icon--blue">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
-              </svg>
-            </div>
-            <div class="wn-feature__body">
-              <h3 class="wn-feature__title">Instant Refunds</h3>
-              <p class="wn-feature__desc">Issue full refunds for Stripe and PayPal payments directly from the supporter profile — no need to log into your payment dashboard.</p>
-            </div>
-          </div>
-
-          <div class="wn-feature">
-            <div class="wn-feature__icon wn-feature__icon--purple">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-              </svg>
-            </div>
-            <div class="wn-feature__body">
-              <h3 class="wn-feature__title">Activity Log</h3>
-              <p class="wn-feature__desc">Every payment, subscription change, refund, email, and webhook event is now recorded. Browse the full history on each supporter profile or from the new Activity Log page.</p>
-            </div>
-          </div>
-
+            <ul class="wn-release__list">
+              <li>Adds subscription management with recurring billing support.</li>
+              <li>Adds Design Update v2, coffee theme polish, and full page styling refresh.</li>
+              <li>Adds account creation email details for new subscriber accounts.</li>
+              <li>Adds active subscription helper with synced user meta for content gating.</li>
+              <li>Improves subscriber account history view and fixes subscription query issues.</li>
+              <li>Adds refunds, activity logging/timeline, and improves payment flow reliability.</li>
+              <li>Improves admin loader experience and release pipeline stability.</li>
+            </ul>
+          </section>
         </div>
 
         <!-- Footer CTA -->
         <div class="wn-footer">
           <button class="wn-btn-primary" @click="dismiss">Got it — let's go!</button>
-          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">See full release notes →</a>
+          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">See 1.2.0 full release notes →</a>
         </div>
 
       </div>
@@ -86,7 +60,10 @@ const visible = ref(false);
 const version = window.BuyMeCoffeeAdmin?.plugin_version || '';
 
 onMounted(() => {
-  if (!window.BuyMeCoffeeAdmin?.show_whats_new) return;
+  const forceShow = new URLSearchParams(window.location.search).get('bmc_whats_new') === '1';
+  const showFlag = window.BuyMeCoffeeAdmin?.show_whats_new;
+  const shouldShow = forceShow || showFlag === true || showFlag === 1 || showFlag === '1';
+  if (!shouldShow) return;
   // Slight delay so the dashboard finishes rendering first
   setTimeout(() => { visible.value = true; }, 1400);
 });
@@ -196,56 +173,50 @@ function dismiss() {
   line-height: 1.5;
 }
 
-/* ── Feature list ─────────────────────────────────────────── */
-.wn-features {
-  padding: 4px 28px 20px;
+/* ── Changelog list ───────────────────────────────────────── */
+.wn-changelog {
+  padding: 4px 28px 18px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 12px;
 }
 
-.wn-feature {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 16px 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-.wn-feature:last-child {
-  border-bottom: none;
-}
-
-.wn-feature__icon {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+.wn-release {
+  border: 1px solid #eef2f7;
   border-radius: 12px;
+  background: #f9fafb;
+  padding: 12px 14px;
+}
+
+.wn-release__head {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-.wn-feature__icon--green  { background: #f0fdf4; color: #16a34a; }
-.wn-feature__icon--blue   { background: #eff6ff; color: #2563eb; }
-.wn-feature__icon--purple { background: #faf5ff; color: #7c3aed; }
-
-.wn-feature__body {
-  flex: 1;
-  min-width: 0;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.wn-feature__title {
-  font-size: 14.5px;
+.wn-release__version {
+  font-size: 13px;
   font-weight: 700;
   color: #111827;
-  margin: 0 0 4px;
-  line-height: 1.3;
 }
 
-.wn-feature__desc {
+.wn-release__date {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.wn-release__list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.wn-release__list li {
   font-size: 13px;
   color: #6b7280;
-  margin: 0;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 /* ── Footer ───────────────────────────────────────────────── */

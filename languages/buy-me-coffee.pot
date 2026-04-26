@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Buy me coffee widgets - fundraise into own account\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-25 18:52+0000\n"
+"POT-Creation-Date: 2026-04-26 12:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: \n"
@@ -17,9 +17,18 @@ msgstr ""
 "X-Domain: buy-me-coffee"
 
 #. %s: creator name
-#: includes/views/templates/FormTemplate.php:68
+#: includes/views/templates/FormTemplate.php:92
 #, php-format
 msgid "About %s"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:6
+msgid "Active"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:41
+#: includes/views/templates/SubscriberAccount.php:85
+msgid "Amount"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:44
@@ -30,7 +39,11 @@ msgstr ""
 msgid "Amount per Cycle"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:87
+#: includes/Builder/Render.php:277
+msgid "An account will be created to manage your subscription"
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:111
 msgid "Anonymous"
 msgstr ""
 
@@ -38,7 +51,7 @@ msgstr ""
 msgid "API path is required"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:98
+#: includes/views/templates/FormTemplate.php:122
 msgid "Be the first to support!"
 msgstr ""
 
@@ -57,18 +70,26 @@ msgstr ""
 msgid "Buy Me Coffee"
 msgstr ""
 
+#: includes/views/templates/SubscriberAccount.php:7
+msgid "Cancelled"
+msgstr ""
+
 #: includes/Builder/Methods/Stripe/Stripe.php:434
 msgid "Card"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:49
-#: includes/views/templates/FormTemplate.php:89
+#: includes/views/templates/FormTemplate.php:113
 msgid "coffee"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:49
-#: includes/views/templates/FormTemplate.php:89
+#: includes/views/templates/FormTemplate.php:113
 msgid "coffees"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:28
+msgid "Contribute"
 msgstr ""
 
 #: includes/Builder/Methods/Stripe/StripeSubscriptions.php:39
@@ -80,6 +101,7 @@ msgid "Could not retrieve payment intent from subscription."
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:64
+#: includes/views/templates/SubscriberAccount.php:84
 msgid "Date"
 msgstr ""
 
@@ -105,8 +127,26 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:307
+#: includes/views/templates/AccountLogin.php:10
+msgid "Email or Username"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:361
 msgid "Failed to save notification"
+msgstr ""
+
+#. 1: Display name, 2: Account URL, 3: Password reset URL
+#: includes/Classes/UserManager.php:189
+#, php-format
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"Your supporter account has been created successfully.\n"
+"\n"
+"Account page: %2$s\n"
+"Set password: %3$s\n"
+"\n"
+"Thank you for supporting us."
 msgstr ""
 
 #. Author URI of the plugin
@@ -115,6 +155,14 @@ msgstr ""
 
 #. URI of the plugin
 msgid "https://wpminers.com/buymecoffee/"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:9
+msgid "Incomplete"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:42
+msgid "Interval"
 msgstr ""
 
 #: includes/Classes/AdminAjaxHandler.php:41
@@ -129,11 +177,11 @@ msgstr ""
 msgid "Invalid nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:293
+#: includes/Classes/AdminAjaxHandler.php:347
 msgid "Invalid notification ID"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:610
+#: includes/Classes/AdminAjaxHandler.php:665
 msgid "Invalid object type."
 msgstr ""
 
@@ -152,7 +200,7 @@ msgstr ""
 msgid "Invalid request nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:100
+#: includes/Classes/AdminAjaxHandler.php:101
 msgid "Invalid route requested."
 msgstr ""
 
@@ -165,12 +213,24 @@ msgstr ""
 msgid "Invalid Stripe webhook signature"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:438
+#: includes/Classes/AdminAjaxHandler.php:493
 msgid "Invalid transaction ID."
+msgstr ""
+
+#: includes/views/templates/AccountLogin.php:12
+msgid "Log In"
+msgstr ""
+
+#: includes/views/templates/AccountLogin.php:6
+msgid "Log in to view your subscriptions and manage your supporter profile."
 msgstr ""
 
 #: includes/Builder/Render.php:248
 msgid "Make it recurring"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:86
+msgid "Method"
 msgstr ""
 
 #: includes/Builder/Methods/Stripe/IPN.php:38
@@ -178,6 +238,7 @@ msgid "Missing Stripe webhook signature header"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:15
+#: includes/views/templates/SubscriberAccount.php:51
 msgid "Monthly"
 msgstr ""
 
@@ -185,29 +246,49 @@ msgstr ""
 msgid "monthly"
 msgstr ""
 
+#: includes/views/templates/FormTemplate.php:56
+msgid "My account"
+msgstr ""
+
 #: includes/views/templates/Confirmation.php:69
 msgid "Name"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:73
+#: includes/views/templates/SubscriberAccount.php:44
+msgid "Next Renewal"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:72
+msgid "No active subscriptions found."
+msgstr ""
+
+#: includes/views/templates/FormTemplate.php:97
 msgid "No bio yet."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:455
+#: includes/Classes/AdminAjaxHandler.php:510
 msgid ""
 "No charge ID on record — please process the refund directly from the payment "
 "gateway dashboard."
 msgstr ""
 
-#: includes/Models/Supporters.php:122
+#: includes/Builder/Render.php:277
+msgid "No signup required"
+msgstr ""
+
+#: includes/views/templates/AccountNoRecord.php:5
+msgid "No Subscription Found"
+msgstr ""
+
+#: includes/Models/Supporters.php:138
 msgid "No supporters found!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:318
+#: includes/Classes/AdminAjaxHandler.php:372
 msgid "Notification not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:305
+#: includes/Classes/AdminAjaxHandler.php:359
 msgid "Notification saved"
 msgstr ""
 
@@ -216,8 +297,16 @@ msgstr ""
 msgid "One-time"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:451
+#: includes/Classes/AdminAjaxHandler.php:506
 msgid "Only paid transactions can be refunded."
+msgstr ""
+
+#: includes/views/templates/AccountLogin.php:11
+msgid "Password"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:8
+msgid "Past Due"
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/PayPal.php:532
@@ -311,7 +400,7 @@ msgstr ""
 msgid "Please activate at least one payment method!"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:115
+#: includes/views/templates/FormTemplate.php:139
 msgid "Powered by"
 msgstr ""
 
@@ -319,8 +408,12 @@ msgstr ""
 msgid "Preview"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:78
+#: includes/views/templates/FormTemplate.php:102
 msgid "Recent supporters"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:79
+msgid "Recent Transactions"
 msgstr ""
 
 #: includes/Classes/EmailNotifications.php:102
@@ -338,20 +431,20 @@ msgstr ""
 msgid "Reference"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:521
+#: includes/Classes/AdminAjaxHandler.php:576
 msgid ""
 "Refund could not be finalized. Please check your payment gateway dashboard."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:459
+#: includes/Classes/AdminAjaxHandler.php:514
 msgid "Refund is already in progress or transaction is not refundable."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:509
+#: includes/Classes/AdminAjaxHandler.php:564
 msgid "Refund request submitted and is pending confirmation."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:477
+#: includes/Classes/AdminAjaxHandler.php:532
 msgid "Refunds are not supported for this payment method."
 msgstr ""
 
@@ -359,16 +452,16 @@ msgstr ""
 msgid "Setting up your recurring donation, please complete the payment below."
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:32
+#: includes/views/templates/FormTemplate.php:50
 msgid "Settings"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:183
-#: includes/Classes/AdminAjaxHandler.php:196
+#: includes/Classes/AdminAjaxHandler.php:227
+#: includes/Classes/AdminAjaxHandler.php:240
 msgid "Settings successfully updated"
 msgstr ""
 
-#: includes/views/templates/FormTemplate.php:27
+#: includes/views/templates/FormTemplate.php:45
 msgid "Share"
 msgstr ""
 
@@ -380,15 +473,21 @@ msgstr ""
 msgid "Sorry, you are not allowed to perform this action."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:88
+#: includes/Classes/AdminAjaxHandler.php:89
 msgid "Sorry, you do not have permission for this action."
 msgstr ""
 
+#: includes/views/templates/SubscriberAccount.php:45
+msgid "Started"
+msgstr ""
+
 #: includes/views/templates/Confirmation.php:99
+#: includes/views/templates/SubscriberAccount.php:43
+#: includes/views/templates/SubscriberAccount.php:87
 msgid "Status"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:404
+#: includes/Classes/AdminAjaxHandler.php:458
 msgid "Stripe cancellation was not confirmed. Please try again."
 msgstr ""
 
@@ -412,7 +511,7 @@ msgstr ""
 msgid "Subscription Active!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:425
+#: includes/Classes/AdminAjaxHandler.php:480
 msgid "Subscription cancelled successfully"
 msgstr ""
 
@@ -420,12 +519,12 @@ msgstr ""
 msgid "Subscription confirmation mismatch. Please refresh and try again."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:384
+#: includes/Classes/AdminAjaxHandler.php:438
 msgid "Subscription is already cancelled"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:351
-#: includes/Classes/AdminAjaxHandler.php:380
+#: includes/Classes/AdminAjaxHandler.php:405
+#: includes/Classes/AdminAjaxHandler.php:434
 msgid "Subscription not found"
 msgstr ""
 
@@ -435,7 +534,11 @@ msgstr ""
 msgid "Support %s"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:337
+#: includes/views/templates/AccountLogin.php:5
+msgid "Supporter Account"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:391
 msgid "Test email sent to "
 msgstr ""
 
@@ -447,7 +550,7 @@ msgstr ""
 msgid "Thank you for your recurring support"
 msgstr ""
 
-#: includes/views/templates/Confirmation.php:127
+#: includes/views/templates/Confirmation.php:140
 msgid "Thank You!"
 msgstr ""
 
@@ -455,7 +558,7 @@ msgstr ""
 msgid "Thanks for your support! <3"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:447
+#: includes/Classes/AdminAjaxHandler.php:502
 msgid "This transaction has already been refunded."
 msgstr ""
 
@@ -467,15 +570,15 @@ msgstr ""
 msgid "Transaction not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:443
+#: includes/Classes/AdminAjaxHandler.php:498
 msgid "Transaction not found."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:564
+#: includes/Classes/AdminAjaxHandler.php:619
 msgid "Transaction refunded successfully."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:529
+#: includes/Classes/AdminAjaxHandler.php:584
 msgid "Unexpected refund response received."
 msgstr ""
 
@@ -487,11 +590,26 @@ msgstr ""
 msgid "View Documentation"
 msgstr ""
 
+#: includes/views/templates/SubscriberAccount.php:109
+msgid "View receipt"
+msgstr ""
+
+#: includes/views/templates/Confirmation.php:128
+msgid "View your subscriptions →"
+msgstr ""
+
+#: includes/views/templates/AccountNoRecord.php:7
+msgid ""
+"We couldn't find a subscription linked to your account. If you recently "
+"subscribed using a different email, please contact support."
+msgstr ""
+
 #. Author of the plugin
 msgid "wpminers"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:14
+#: includes/views/templates/SubscriberAccount.php:51
 msgid "Yearly"
 msgstr ""
 
@@ -514,16 +632,26 @@ msgid ""
 "You will be billed %s. You can cancel anytime.\n"
 msgstr ""
 
+#. %s: Site name
+#: includes/Classes/UserManager.php:183
+#, php-format
+msgid "Your %s supporter account is ready"
+msgstr ""
+
 #: includes/Builder/Methods/PayPal/PayPal.php:303
 msgid "Your are redirecting to paypal now"
 msgstr ""
 
-#: includes/views/templates/Confirmation.php:128
+#: includes/views/templates/Confirmation.php:141
 msgid "Your contribution has been received"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:107
 msgid "Your Message"
+msgstr ""
+
+#: includes/views/templates/SubscriberAccount.php:34
+msgid "Your Subscriptions"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:116

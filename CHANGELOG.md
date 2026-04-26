@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 ---
 
+## [1.2.1] — 2026-04-26
+
+- Adds Subscription management
+- Adds Design Update v2
+- Adds Coffee theme and UI polish
+- Adds Account creation email details
+- Adds Active subscription helper and synced user meta
+- Fixes Subscription query issue
+- Fixes Payment flow and release pipeline
+- Improves Subscriber account history view
+- Improves Admin loader experience
+- Redesigns All Page styling
+
+---
+
 ## [1.2.0] — 2026-04-26
 
 ### Added
