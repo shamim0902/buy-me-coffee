@@ -10,7 +10,9 @@
         v-for="pill in statusPills"
         :key="pill.value"
         class="bmc-pill"
-        :class="{ 'bmc-pill--active': filter_status === pill.value }"
+        :class="[
+          filter_status === pill.value ? 'bmc-pill--active' : 'bmc-pill--' + pill.color
+        ]"
         @click="filter_status = pill.value; current = 0; getSupporters()"
       >
         {{ pill.label }}
@@ -146,11 +148,11 @@ export default {
       if (!this.statusReportData) return [];
       const d = this.statusReportData;
       return [
-        { label: 'All', value: 'all', count: d.total || 0 },
-        { label: 'Paid', value: 'paid', count: d.total_paid || 0 },
-        { label: 'Pending', value: 'pending', count: d.total_pending || 0 },
-        { label: 'Failed', value: 'failed', count: d.total_failed || 0 },
-        { label: 'Refunded', value: 'refunded', count: d.total_refunded || 0 }
+        { label: 'All', value: 'all', count: d.total || 0, color: 'default' },
+        { label: 'Paid', value: 'paid', count: d.total_paid || 0, color: 'green' },
+        { label: 'Pending', value: 'pending', count: d.total_pending || 0, color: 'orange' },
+        { label: 'Failed', value: 'failed', count: d.total_failed || 0, color: 'red' },
+        { label: 'Refunded', value: 'refunded', count: d.total_refunded || 0, color: 'blue' }
       ];
     }
   },
@@ -244,6 +246,18 @@ export default {
   opacity: 0.9;
   color: #fff;
   background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+}
+/* Semantic pill colors — text only, no backgrounds */
+.bmc-pill--green  { color: #16a34a; }
+.bmc-pill--orange { color: #d97706; }
+.bmc-pill--red    { color: #dc2626; }
+.bmc-pill--blue   { color: #2563eb; }
+
+.bmc-pill--green:hover,
+.bmc-pill--orange:hover,
+.bmc-pill--red:hover,
+.bmc-pill--blue:hover {
+  background: var(--bg-tertiary);
 }
 .bmc-pill__count {
   display: inline-flex;

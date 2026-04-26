@@ -3,7 +3,7 @@
         <!-- Brand -->
         <div class="bmc-sidebar__brand">
             <div class="bmc-sidebar__logo">
-                <Coffee :size="18" />
+                <Coffee :size="14" />
             </div>
             <span v-show="!isCollapsed" class="bmc-sidebar__brand-text">Buy Me Coffee</span>
         </div>
@@ -15,7 +15,7 @@
                 <ul class="bmc-sidebar__list" role="list">
                     <li v-for="item in mainItems" :key="item.route">
                         <router-link :to="item.route" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive(item) }">
-                            <component :is="item.icon" :size="20" class="bmc-sidebar__icon" />
+                            <component :is="item.icon" :size="16" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
                         </router-link>
                     </li>
@@ -33,7 +33,7 @@
                                 class="bmc-sidebar__item"
                                 :class="{ 'bmc-sidebar__item--active': isActive(item) && !item.children }"
                             >
-                                <component :is="item.icon" :size="20" class="bmc-sidebar__icon" />
+                                <component :is="item.icon" :size="16" class="bmc-sidebar__icon" />
                                 <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
                                 <component
                                     v-if="item.children && !isCollapsed"
@@ -66,19 +66,19 @@
                 <ul class="bmc-sidebar__list" role="list">
                     <li>
                         <a :href="previewUrl" target="_blank" rel="noopener" class="bmc-sidebar__item">
-                            <ExternalLink :size="20" class="bmc-sidebar__icon" />
+                            <ExternalLink :size="14" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Preview Page</span>
                         </a>
                     </li>
                     <li>
                         <router-link to="/quick-setup" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive({ activeNames: ['Onboarding'] }) }">
-                            <Sparkles :size="20" class="bmc-sidebar__icon bmc-sidebar__icon--sparkle" />
+                            <Sparkles :size="14" class="bmc-sidebar__icon bmc-sidebar__icon--sparkle" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Quick Setup</span>
                         </router-link>
                     </li>
                     <li v-if="!isWpAdmin">
                         <a :href="wpAdminUrl" class="bmc-sidebar__item bmc-sidebar__item--muted">
-                            <ArrowLeft :size="20" class="bmc-sidebar__icon" />
+                            <ArrowLeft :size="14" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">WP Admin</span>
                         </a>
                     </li>
@@ -89,14 +89,14 @@
         <!-- Utility icons row -->
         <div class="bmc-sidebar__utils" v-show="!isCollapsed">
             <button class="bmc-sidebar__util-btn" @click="toggleTheme" :title="isDark ? 'Light mode' : 'Dark mode'">
-                <Moon v-if="!isDark" :size="15" />
-                <Sun v-else :size="15" />
+                <Moon v-if="!isDark" :size="14" />
+                <Sun v-else :size="14" />
             </button>
             <a href="https://wpminers.com/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-sidebar__util-btn" title="Documentation">
-                <Info :size="15" />
+                <Info :size="14" />
             </a>
             <a v-if="isWpAdmin" :href="fullPageUrl" class="bmc-sidebar__util-btn" title="Open full-screen dashboard">
-                <Maximize2 :size="15" />
+                <Maximize2 :size="14" />
             </a>
         </div>
 
@@ -203,16 +203,16 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 0 16px;
-    height: 52px;
+    padding: 0 14px;
+    height: 46px;
     flex-shrink: 0;
 }
 .bmc-sidebar__logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 8px;
     background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-accent-pink) 100%);
     color: #fff;
@@ -220,7 +220,7 @@ onMounted(() => {
 }
 .bmc-sidebar__brand-text {
     font-family: var(--font-display);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--sidebar-text);
     white-space: nowrap;
@@ -235,21 +235,21 @@ onMounted(() => {
     overflow-y: auto;
 }
 .bmc-sidebar__section {
-    padding: 12px 10px;
+    padding: 12px 8px;
 }
 .bmc-sidebar__section--bottom {
     margin-top: auto;
-    padding-top: 8px;
-    padding-bottom: 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
     border-top: 1px solid var(--sidebar-border);
 }
 .bmc-sidebar__section-label {
     display: block;
-    padding: 0 10px 6px;
-    font-size: 9px;
+    padding: 0 8px 7px;
+    font-size: 10.5px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1px;
     color: var(--sidebar-text-label);
     white-space: nowrap;
 }
@@ -259,20 +259,20 @@ onMounted(() => {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 /* ── Parent items ── */
 .bmc-sidebar__item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     padding: 0 10px;
-    height: 34px;
+    height: 36px;
     border-radius: var(--radius-sm);
     color: var(--sidebar-text-muted);
     text-decoration: none;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 500;
     font-family: var(--font-sans);
     transition: background 0.15s ease, color 0.15s ease;
@@ -325,11 +325,11 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 10px 4px 34px;
+    padding: 6px 10px 6px 34px;
     border-radius: 7px;
     color: var(--sidebar-text-muted);
     text-decoration: none;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 400;
     font-family: var(--font-sans);
     transition: background 0.15s ease, color 0.15s ease;
@@ -372,17 +372,17 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 0 10px 8px;
+    gap: 4px;
+    padding: 6px 8px 8px;
 }
 .bmc-sidebar__util-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 6px;
     background: var(--sidebar-util-bg);
     color: var(--sidebar-text-muted);
     cursor: pointer;

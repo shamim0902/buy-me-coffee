@@ -13,6 +13,12 @@ div#buy-me-coffee_app svg {
     overflow: visible;
 }
 
+// WP admin injects ::after content on td elements (responsive list-table behaviour)
+// which bleeds a stray "." after badges inside Element Plus tables.
+div#buy-me-coffee_app .el-table__cell::after {
+    content: none !important;
+}
+
 // Legacy status classes (kept for backward compatibility with any 3rd-party extensions)
 .buymecoffee_status {
     padding: 2px 8px;

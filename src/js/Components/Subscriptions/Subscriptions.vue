@@ -9,7 +9,9 @@
         v-for="pill in statusPills"
         :key="pill.value"
         class="bmc-pill"
-        :class="{ 'bmc-pill--active': filter_status === pill.value }"
+        :class="[
+          filter_status === pill.value ? 'bmc-pill--active' : 'bmc-pill--' + pill.color
+        ]"
         @click="filter_status = pill.value; current = 0; getSubscriptions()"
       >
         {{ pill.label }}
@@ -188,10 +190,10 @@ export default {
     },
     statusPills() {
       return [
-        { label: 'All',       value: 'all',       count: this.total },
-        { label: 'Active',    value: 'active',    count: this.stats.active_count || 0 },
-        { label: 'Cancelled', value: 'cancelled', count: 0 },
-        { label: 'Past Due',  value: 'past_due',  count: 0 },
+        { label: 'All',       value: 'all',       count: this.total,                      color: 'default' },
+        { label: 'Active',    value: 'active',     count: this.stats.active_count || 0,    color: 'green' },
+        { label: 'Cancelled', value: 'cancelled',  count: 0,                               color: 'red' },
+        { label: 'Past Due',  value: 'past_due',   count: 0,                               color: 'orange' },
       ];
     },
   },
@@ -308,6 +310,18 @@ export default {
   opacity: 0.9;
   color: #fff;
   background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+}
+/* Semantic pill colors — text only, no backgrounds */
+.bmc-pill--green  { color: #16a34a; }
+.bmc-pill--orange { color: #d97706; }
+.bmc-pill--red    { color: #dc2626; }
+.bmc-pill--blue   { color: #2563eb; }
+
+.bmc-pill--green:hover,
+.bmc-pill--orange:hover,
+.bmc-pill--red:hover,
+.bmc-pill--blue:hover {
+  background: var(--bg-tertiary);
 }
 /* Card */
 .bmc-card {

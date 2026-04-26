@@ -10,11 +10,6 @@
                 <el-tab-pane label="Webhooks">
                     <Webhook />
                 </el-tab-pane>
-                <el-tab-pane label="Templates">
-                    <div class="bmc-empty-tab">
-                        <p class="bmc-empty-tab__text">Email template customization coming soon.</p>
-                    </div>
-                </el-tab-pane>
             </el-tabs>
         </div>
     </div>
@@ -42,14 +37,5 @@ export default {
     border-radius: 16px;
     padding: 24px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-.bmc-empty-tab {
-    padding: 40px 0;
-    text-align: center;
-}
-.bmc-empty-tab__text {
-    font-size: 14px;
-    color: var(--text-tertiary);
-    margin: 0;
 }
 </style>

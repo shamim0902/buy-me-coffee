@@ -16,7 +16,18 @@
           "id": "qT05c",
           "type": "ref",
           "ref": "L5uq5",
-          "name": "sidebar1"
+          "name": "sidebar1",
+          "width": 190,
+          "x": 0.05586470538255543,
+          "y": 0,
+          "rotation": -0.003556457604686235,
+          "descendants": {
+            "FAu8k": {
+              "x": 0.07467083601081406,
+              "y": 788.7944250583425,
+              "rotation": -0.062004704220435226
+            }
+          }
         },
         {
           "type": "frame",
@@ -2773,6 +2784,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sidebar2",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": "none"
@@ -2892,11 +2904,11 @@
                   "type": "frame",
                   "id": "RZqoZ",
                   "name": "tab2",
-                  "fill": "$bg-card",
+                  "fill": "$accent-green-light",
                   "cornerRadius": "$radius-pill",
                   "stroke": {
                     "thickness": 1,
-                    "fill": "$border-light"
+                    "fill": "#BBF7D0"
                   },
                   "gap": 6,
                   "padding": [
@@ -2909,7 +2921,7 @@
                       "type": "text",
                       "id": "BPYFa",
                       "name": "tab2txt",
-                      "fill": "$text-secondary",
+                      "fill": "$accent-green",
                       "content": "Paid",
                       "fontFamily": "Inter",
                       "fontSize": 13,
@@ -2919,7 +2931,7 @@
                       "type": "text",
                       "id": "LDmWI",
                       "name": "tab2cnt",
-                      "fill": "$text-tertiary",
+                      "fill": "#16A34A99",
                       "content": "16",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -2931,11 +2943,11 @@
                   "type": "frame",
                   "id": "ctjJ2",
                   "name": "tab3",
-                  "fill": "$bg-card",
+                  "fill": "$accent-orange-light",
                   "cornerRadius": "$radius-pill",
                   "stroke": {
                     "thickness": 1,
-                    "fill": "$border-light"
+                    "fill": "#FDE68A"
                   },
                   "gap": 6,
                   "padding": [
@@ -2948,7 +2960,7 @@
                       "type": "text",
                       "id": "e4kCA",
                       "name": "tab3txt",
-                      "fill": "$text-secondary",
+                      "fill": "$accent-orange",
                       "content": "Pending",
                       "fontFamily": "Inter",
                       "fontSize": 13,
@@ -2958,7 +2970,7 @@
                       "type": "text",
                       "id": "SGLbn",
                       "name": "tab3cnt",
-                      "fill": "$text-tertiary",
+                      "fill": "#D9770699",
                       "content": "28",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -2970,11 +2982,11 @@
                   "type": "frame",
                   "id": "lbyOV",
                   "name": "tab4",
-                  "fill": "$bg-card",
+                  "fill": "$accent-red-light",
                   "cornerRadius": "$radius-pill",
                   "stroke": {
                     "thickness": 1,
-                    "fill": "$border-light"
+                    "fill": "#FECACA"
                   },
                   "gap": 6,
                   "padding": [
@@ -2987,7 +2999,7 @@
                       "type": "text",
                       "id": "Hi8y4",
                       "name": "tab4txt",
-                      "fill": "$text-secondary",
+                      "fill": "$accent-red",
                       "content": "Failed",
                       "fontFamily": "Inter",
                       "fontSize": 13,
@@ -2997,7 +3009,7 @@
                       "type": "text",
                       "id": "qEI5A",
                       "name": "tab4cnt",
-                      "fill": "$text-tertiary",
+                      "fill": "#DC262699",
                       "content": "0",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -3009,11 +3021,11 @@
                   "type": "frame",
                   "id": "k9F6T",
                   "name": "tab5",
-                  "fill": "$bg-card",
+                  "fill": "$accent-blue-light",
                   "cornerRadius": "$radius-pill",
                   "stroke": {
                     "thickness": 1,
-                    "fill": "$border-light"
+                    "fill": "#BFDBFE"
                   },
                   "gap": 6,
                   "padding": [
@@ -3026,7 +3038,7 @@
                       "type": "text",
                       "id": "KBZqi",
                       "name": "tab5txt",
-                      "fill": "$text-secondary",
+                      "fill": "$accent-blue",
                       "content": "Refunded",
                       "fontFamily": "Inter",
                       "fontSize": 13,
@@ -3036,7 +3048,7 @@
                       "type": "text",
                       "id": "Amr1B",
                       "name": "tab5cnt",
-                      "fill": "$text-tertiary",
+                      "fill": "#2563EB99",
                       "content": "1",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -4159,6 +4171,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sidebar3",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": "none"
@@ -5423,6 +5436,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sidebar4",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": "none"
@@ -6788,6 +6802,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sb5",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": ""
@@ -6842,13 +6857,13 @@
                       "id": "1fV2k",
                       "name": "headerLeft",
                       "layout": "vertical",
-                      "gap": 6,
+                      "gap": 4,
                       "children": [
                         {
                           "type": "frame",
                           "id": "KS3dM",
                           "name": "titleRow",
-                          "gap": 12,
+                          "gap": 10,
                           "alignItems": "center",
                           "children": [
                             {
@@ -6876,7 +6891,7 @@
                                 ]
                               },
                               "width": 4,
-                              "height": 28
+                              "height": 24
                             },
                             {
                               "type": "text",
@@ -6885,7 +6900,7 @@
                               "fill": "$text-primary",
                               "content": "Settings",
                               "fontFamily": "Plus Jakarta Sans",
-                              "fontSize": 24,
+                              "fontSize": 20,
                               "fontWeight": "700"
                             }
                           ]
@@ -6897,7 +6912,7 @@
                           "fill": "$text-secondary",
                           "content": "Manage your donation form preferences and payment configuration",
                           "fontFamily": "Inter",
-                          "fontSize": 14,
+                          "fontSize": 13,
                           "fontWeight": "normal"
                         }
                       ]
@@ -6906,17 +6921,17 @@
                       "type": "frame",
                       "id": "UlLZ1",
                       "name": "headerRight",
-                      "gap": 12,
+                      "gap": 8,
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "frame",
                           "id": "bv6tH",
                           "name": "darkBtn",
-                          "width": 36,
-                          "height": 36,
+                          "width": 32,
+                          "height": 32,
                           "fill": "$bg-card",
-                          "cornerRadius": "$radius-sm",
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "$border-light"
@@ -6928,8 +6943,8 @@
                               "type": "icon_font",
                               "id": "9VIV7",
                               "name": "darkIcon",
-                              "width": 18,
-                              "height": 18,
+                              "width": 16,
+                              "height": 16,
                               "iconFontName": "moon",
                               "iconFontFamily": "lucide",
                               "fill": "$text-tertiary"
@@ -6940,10 +6955,10 @@
                           "type": "frame",
                           "id": "q8dlL",
                           "name": "helpBtn",
-                          "width": 36,
-                          "height": 36,
+                          "width": 32,
+                          "height": 32,
                           "fill": "$bg-card",
-                          "cornerRadius": "$radius-sm",
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "$border-light"
@@ -6955,8 +6970,8 @@
                               "type": "icon_font",
                               "id": "tyTu4",
                               "name": "helpIcon",
-                              "width": 18,
-                              "height": 18,
+                              "width": 16,
+                              "height": 16,
                               "iconFontName": "info",
                               "iconFontFamily": "lucide",
                               "fill": "$text-tertiary"
@@ -6983,17 +6998,17 @@
                       "type": "frame",
                       "id": "qrovT",
                       "name": "tab1",
-                      "height": 40,
+                      "height": 36,
                       "stroke": {
                         "thickness": {
                           "bottom": 2
                         },
                         "fill": "$accent-purple"
                       },
-                      "gap": 8,
+                      "gap": 6,
                       "padding": [
                         0,
-                        20
+                        16
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7001,8 +7016,8 @@
                           "type": "icon_font",
                           "id": "xgxdY",
                           "name": "tab1Icon",
-                          "width": 16,
-                          "height": 16,
+                          "width": 14,
+                          "height": 14,
                           "iconFontName": "settings",
                           "iconFontFamily": "lucide",
                           "fill": "$accent-purple"
@@ -7014,7 +7029,7 @@
                           "fill": "$accent-purple",
                           "content": "General",
                           "fontFamily": "Inter",
-                          "fontSize": 14,
+                          "fontSize": 13,
                           "fontWeight": "600"
                         }
                       ]
@@ -7023,11 +7038,11 @@
                       "type": "frame",
                       "id": "cXL8V",
                       "name": "tab2",
-                      "height": 40,
-                      "gap": 8,
+                      "height": 36,
+                      "gap": 6,
                       "padding": [
                         0,
-                        20
+                        16
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7035,8 +7050,8 @@
                           "type": "icon_font",
                           "id": "wHWiQ",
                           "name": "tab2Icon",
-                          "width": 16,
-                          "height": 16,
+                          "width": 14,
+                          "height": 14,
                           "iconFontName": "palette",
                           "iconFontFamily": "lucide",
                           "fill": "$text-tertiary"
@@ -7048,7 +7063,7 @@
                           "fill": "$text-tertiary",
                           "content": "Appearance",
                           "fontFamily": "Inter",
-                          "fontSize": 14,
+                          "fontSize": 13,
                           "fontWeight": "500"
                         }
                       ]
@@ -7057,11 +7072,11 @@
                       "type": "frame",
                       "id": "F7CU6",
                       "name": "tab3",
-                      "height": 40,
-                      "gap": 8,
+                      "height": 36,
+                      "gap": 6,
                       "padding": [
                         0,
-                        20
+                        16
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7069,8 +7084,8 @@
                           "type": "icon_font",
                           "id": "Y5qRX",
                           "name": "tab3Icon",
-                          "width": 16,
-                          "height": 16,
+                          "width": 14,
+                          "height": 14,
                           "iconFontName": "code",
                           "iconFontFamily": "lucide",
                           "fill": "$text-tertiary"
@@ -7082,7 +7097,7 @@
                           "fill": "$text-tertiary",
                           "content": "Shortcodes",
                           "fontFamily": "Inter",
-                          "fontSize": 14,
+                          "fontSize": 13,
                           "fontWeight": "500"
                         }
                       ]
@@ -7123,10 +7138,10 @@
                         },
                         "fill": "$border-card"
                       },
-                      "gap": 14,
+                      "gap": 12,
                       "padding": [
-                        20,
-                        24
+                        16,
+                        20
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7134,10 +7149,10 @@
                           "type": "frame",
                           "id": "0TbHN",
                           "name": "cardIconBg",
-                          "width": 36,
-                          "height": 36,
+                          "width": 32,
+                          "height": 32,
                           "fill": "$accent-purple-light",
-                          "cornerRadius": 10,
+                          "cornerRadius": 8,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
@@ -7145,8 +7160,8 @@
                               "type": "icon_font",
                               "id": "BiYur",
                               "name": "cardIcon",
-                              "width": 18,
-                              "height": 18,
+                              "width": 16,
+                              "height": 16,
                               "iconFontName": "file-text",
                               "iconFontFamily": "lucide",
                               "fill": "$accent-purple"
@@ -7167,7 +7182,7 @@
                               "fill": "$text-primary",
                               "content": "Form Configuration",
                               "fontFamily": "Plus Jakarta Sans",
-                              "fontSize": 16,
+                              "fontSize": 15,
                               "fontWeight": "700"
                             },
                             {
@@ -7177,7 +7192,7 @@
                               "fill": "$text-tertiary",
                               "content": "Control what information is collected from supporters",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7189,7 +7204,7 @@
                       "id": "FlT6b",
                       "name": "row-formtitle",
                       "width": "fill_container",
-                      "height": 64,
+                      "height": 56,
                       "stroke": {
                         "thickness": {
                           "bottom": 1
@@ -7198,7 +7213,7 @@
                       },
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "justifyContent": "space_between",
                       "alignItems": "center",
@@ -7217,8 +7232,8 @@
                               "fill": "$text-primary",
                               "content": "Show form title",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "fontSize": 13.5,
+                              "fontWeight": "500"
                             },
                             {
                               "type": "text",
@@ -7227,7 +7242,7 @@
                               "fill": "$text-tertiary",
                               "content": "Display the title section on the donation form",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7291,8 +7306,8 @@
                           "fill": "$text-primary",
                           "content": "Your name",
                           "fontFamily": "Inter",
-                          "fontSize": 13,
-                          "fontWeight": "600"
+                          "fontSize": 12.5,
+                          "fontWeight": "500"
                         },
                         {
                           "type": "frame",
@@ -7319,7 +7334,7 @@
                               "fill": "$text-primary",
                               "content": "Hasanuzzaman Shamim",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
+                              "fontSize": 13,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7612,10 +7627,10 @@
                         },
                         "fill": "$border-card"
                       },
-                      "gap": 14,
+                      "gap": 12,
                       "padding": [
-                        20,
-                        24
+                        16,
+                        20
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7623,10 +7638,10 @@
                           "type": "frame",
                           "id": "OL3Ws",
                           "name": "pricingIconBg",
-                          "width": 36,
-                          "height": 36,
-                          "fill": "$accent-teal-light",
-                          "cornerRadius": 10,
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#D5FCF0",
+                          "cornerRadius": 8,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
@@ -7634,8 +7649,8 @@
                               "type": "icon_font",
                               "id": "9BWLU",
                               "name": "dollarIcon",
-                              "width": 18,
-                              "height": 18,
+                              "width": 16,
+                              "height": 16,
                               "iconFontName": "dollar-sign",
                               "iconFontFamily": "lucide",
                               "fill": "$accent-teal"
@@ -7656,7 +7671,7 @@
                               "fill": "$text-primary",
                               "content": "Pricing & Payment",
                               "fontFamily": "Plus Jakarta Sans",
-                              "fontSize": 16,
+                              "fontSize": 15,
                               "fontWeight": "700"
                             },
                             {
@@ -7666,7 +7681,7 @@
                               "fill": "$text-tertiary",
                               "content": "Configure donation amounts and currency",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7684,10 +7699,10 @@
                         },
                         "fill": "$border-card"
                       },
-                      "gap": 24,
+                      "gap": 20,
                       "padding": [
-                        16,
-                        24
+                        14,
+                        20
                       ],
                       "children": [
                         {
@@ -7705,7 +7720,7 @@
                               "fill": "$text-primary",
                               "content": "Default coffee price",
                               "fontFamily": "Inter",
-                              "fontSize": 13,
+                              "fontSize": 12.5,
                               "fontWeight": "600"
                             },
                             {
@@ -7713,7 +7728,7 @@
                               "id": "UeYYm",
                               "name": "priceInput",
                               "width": "fill_container",
-                              "height": 42,
+                              "height": 38,
                               "fill": "$bg-secondary",
                               "cornerRadius": "$radius-sm",
                               "stroke": {
@@ -7755,7 +7770,7 @@
                               "fill": "$text-primary",
                               "content": "Currency",
                               "fontFamily": "Inter",
-                              "fontSize": 13,
+                              "fontSize": 12.5,
                               "fontWeight": "600"
                             },
                             {
@@ -7763,7 +7778,7 @@
                               "id": "3fwXw",
                               "name": "currencySelect",
                               "width": "fill_container",
-                              "height": 42,
+                              "height": 38,
                               "fill": "$bg-secondary",
                               "cornerRadius": "$radius-sm",
                               "stroke": {
@@ -7811,7 +7826,7 @@
                       "height": 64,
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "justifyContent": "space_between",
                       "alignItems": "center",
@@ -7830,7 +7845,7 @@
                               "fill": "$text-primary",
                               "content": "Allow recurring",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
+                              "fontSize": 13.5,
                               "fontWeight": "600"
                             },
                             {
@@ -7840,7 +7855,7 @@
                               "fill": "$text-tertiary",
                               "content": "Show a &quot;Make it recurring&quot; option on the checkout form (Stripe only)",
                               "fontFamily": "Inter",
-                              "fontSize": 12,
+                              "fontSize": 11.5,
                               "fontWeight": "normal"
                             }
                           ]
@@ -7886,9 +7901,15 @@
                   "id": "JL5oU",
                   "name": "ActionBar",
                   "width": "fill_container",
+                  "stroke": {
+                    "thickness": {
+                      "top": 1
+                    },
+                    "fill": "$border-card"
+                  },
                   "gap": 12,
                   "padding": [
-                    12,
+                    10,
                     0
                   ],
                   "justifyContent": "end",
@@ -7897,9 +7918,9 @@
                       "type": "frame",
                       "id": "TzPy2",
                       "name": "resetBtn",
-                      "height": 42,
+                      "height": 38,
                       "fill": "$bg-card",
-                      "cornerRadius": "$radius-sm",
+                      "cornerRadius": 8,
                       "stroke": {
                         "thickness": 1,
                         "fill": "$border-light"
@@ -7907,7 +7928,7 @@
                       "gap": 8,
                       "padding": [
                         0,
-                        20
+                        16
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7915,8 +7936,8 @@
                           "type": "icon_font",
                           "id": "1R4qw",
                           "name": "resetIcon",
-                          "width": 15,
-                          "height": 15,
+                          "width": 14,
+                          "height": 14,
                           "iconFontName": "rotate-ccw",
                           "iconFontFamily": "lucide",
                           "fill": "$text-secondary"
@@ -7928,7 +7949,7 @@
                           "fill": "$text-secondary",
                           "content": "Reset to Default",
                           "fontFamily": "Inter",
-                          "fontSize": 13,
+                          "fontSize": 12.5,
                           "fontWeight": "500"
                         }
                       ]
@@ -7937,7 +7958,7 @@
                       "type": "frame",
                       "id": "Qh69u",
                       "name": "saveBtn",
-                      "height": 42,
+                      "height": 38,
                       "fill": {
                         "type": "gradient",
                         "gradientType": "linear",
@@ -7971,7 +7992,7 @@
                       "gap": 8,
                       "padding": [
                         0,
-                        24
+                        20
                       ],
                       "alignItems": "center",
                       "children": [
@@ -7979,8 +8000,8 @@
                           "type": "icon_font",
                           "id": "7zGtT",
                           "name": "saveIcon",
-                          "width": 15,
-                          "height": 15,
+                          "width": 14,
+                          "height": 14,
                           "iconFontName": "save",
                           "iconFontFamily": "lucide",
                           "fill": "#FFFFFF"
@@ -7992,7 +8013,7 @@
                           "fill": "#FFFFFF",
                           "content": "Save Settings",
                           "fontFamily": "Inter",
-                          "fontSize": 13,
+                          "fontSize": 12.5,
                           "fontWeight": "600"
                         }
                       ]
@@ -8021,6 +8042,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sb6",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": ""
@@ -9065,6 +9087,7 @@
           "type": "ref",
           "ref": "L5uq5",
           "name": "sb7",
+          "width": 190,
           "descendants": {
             "ZHYHz": {
               "fill": ""
@@ -10334,14 +10357,14 @@
       "y": 0,
       "name": "Sidebar",
       "reusable": true,
-      "width": 240,
+      "width": 190,
       "height": "fill_container(0)",
       "fill": "$bg-sidebar",
       "stroke": {
         "thickness": {
           "right": 1
         },
-        "fill": "$border-light"
+        "fill": "$sidebar-border"
       },
       "layout": "vertical",
       "children": [
@@ -10350,11 +10373,11 @@
           "id": "4VKgm",
           "name": "logoArea",
           "width": "fill_container",
-          "height": 64,
-          "gap": 12,
+          "height": 46,
+          "gap": 10,
           "padding": [
             0,
-            24
+            14
           ],
           "alignItems": "center",
           "children": [
@@ -10362,8 +10385,8 @@
               "type": "frame",
               "id": "xeXK5",
               "name": "logoIcon",
-              "width": 32,
-              "height": 32,
+              "width": 26,
+              "height": 26,
               "fill": {
                 "type": "gradient",
                 "gradientType": "linear",
@@ -10383,7 +10406,7 @@
                   }
                 ]
               },
-              "cornerRadius": 10,
+              "cornerRadius": 8,
               "layout": "none",
               "children": [
                 {
@@ -10392,8 +10415,8 @@
                   "x": 0,
                   "y": 0,
                   "name": "coffeIcon",
-                  "width": 18,
-                  "height": 18,
+                  "width": 13,
+                  "height": 13,
                   "iconFontName": "coffee",
                   "iconFontFamily": "lucide",
                   "fill": "#FFFFFF"
@@ -10404,10 +10427,10 @@
               "type": "text",
               "id": "TCoWv",
               "name": "logoText",
-              "fill": "$text-on-dark",
+              "fill": "$sidebar-text",
               "content": "Buy Me Coffee",
               "fontFamily": "Plus Jakarta Sans",
-              "fontSize": 16,
+              "fontSize": 13,
               "fontWeight": "700"
             }
           ]
@@ -10418,22 +10441,22 @@
           "name": "navMain",
           "width": "fill_container",
           "layout": "vertical",
-          "gap": 4,
+          "gap": 1,
           "padding": [
-            16,
-            12
+            10,
+            8
           ],
           "children": [
             {
               "type": "text",
               "id": "5KP0F",
               "name": "mainLabel",
-              "fill": "$text-tertiary",
+              "fill": "$sidebar-text-label",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "MAIN",
               "fontFamily": "Inter",
-              "fontSize": 10,
+              "fontSize": 9,
               "fontWeight": "600",
               "letterSpacing": 1.5
             },
@@ -10442,13 +10465,13 @@
               "id": "ZHYHz",
               "name": "nav-dashboard",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "fill": "$bg-sidebar-active",
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10456,20 +10479,20 @@
                   "type": "icon_font",
                   "id": "QoTuV",
                   "name": "dashIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "layout-dashboard",
                   "iconFontFamily": "lucide",
-                  "fill": "$accent-purple"
+                  "fill": "$sidebar-active-text"
                 },
                 {
                   "type": "text",
                   "id": "8LLG5",
                   "name": "dashText",
-                  "fill": "$accent-purple",
+                  "fill": "$sidebar-active-text",
                   "content": "Dashboard",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10479,12 +10502,12 @@
               "id": "ykk6o",
               "name": "nav-supporters",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10492,20 +10515,20 @@
                   "type": "icon_font",
                   "id": "znOOM",
                   "name": "suppIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "heart",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "4NivS",
                   "name": "suppText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Supporters",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10515,12 +10538,12 @@
               "id": "nlmG3",
               "name": "nav-subscriptions",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10528,20 +10551,20 @@
                   "type": "icon_font",
                   "id": "1r9sY",
                   "name": "subIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "repeat",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "7Srhh",
                   "name": "subText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Subscriptions",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10551,12 +10574,12 @@
               "id": "H5mVN",
               "name": "nav-activity",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10564,20 +10587,20 @@
                   "type": "icon_font",
                   "id": "NxjEt",
                   "name": "actIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "file-text",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "CREwb",
                   "name": "actText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Activity Log",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10590,22 +10613,22 @@
           "name": "navConfig",
           "width": "fill_container",
           "layout": "vertical",
-          "gap": 4,
+          "gap": 1,
           "padding": [
-            16,
-            12
+            10,
+            8
           ],
           "children": [
             {
               "type": "text",
               "id": "Ezdy1",
               "name": "configLabel",
-              "fill": "$text-tertiary",
+              "fill": "$sidebar-text-label",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "CONFIGURATION",
               "fontFamily": "Inter",
-              "fontSize": 10,
+              "fontSize": 9,
               "fontWeight": "600",
               "letterSpacing": 1.5
             },
@@ -10614,12 +10637,12 @@
               "id": "hp8Tb",
               "name": "nav-settings",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10627,20 +10650,20 @@
                   "type": "icon_font",
                   "id": "KpohI",
                   "name": "setIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "settings",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "ZkU0j",
                   "name": "setText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Settings",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10650,12 +10673,12 @@
               "id": "xLDKn",
               "name": "nav-gateways",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10663,20 +10686,20 @@
                   "type": "icon_font",
                   "id": "Jr02w",
                   "name": "gwIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "credit-card",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "ebCF1",
                   "name": "gwText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Gateways",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10686,12 +10709,12 @@
               "id": "Xeqgf",
               "name": "nav-notifications",
               "width": "fill_container",
-              "height": 40,
+              "height": 30,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10699,20 +10722,20 @@
                   "type": "icon_font",
                   "id": "B7MnA",
                   "name": "notIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 16,
+                  "height": 16,
                   "iconFontName": "bell",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-on-dark-muted"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "3O9Sz",
                   "name": "notText",
-                  "fill": "$text-on-dark-muted",
+                  "fill": "$sidebar-text-muted",
                   "content": "Notifications",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 12,
                   "fontWeight": "500"
                 }
               ]
@@ -10731,13 +10754,17 @@
           "id": "FAu8k",
           "name": "bottomNav",
           "width": "fill_container",
+          "stroke": {
+            "thickness": {
+              "top": 1
+            },
+            "fill": "#E2E8F0"
+          },
           "layout": "vertical",
-          "gap": 4,
+          "gap": 1,
           "padding": [
-            12,
-            12,
-            20,
-            12
+            6,
+            8
           ],
           "children": [
             {
@@ -10745,12 +10772,12 @@
               "id": "cCQ2L",
               "name": "nav-preview",
               "width": "fill_container",
-              "height": 40,
+              "height": 28,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10758,20 +10785,20 @@
                   "type": "icon_font",
                   "id": "OAcB5",
                   "name": "prevIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 14,
+                  "height": 14,
                   "iconFontName": "external-link",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-secondary"
+                  "fill": "$sidebar-text-muted"
                 },
                 {
                   "type": "text",
                   "id": "Ka2LF",
                   "name": "prevText",
-                  "fill": "$text-secondary",
+                  "fill": "$sidebar-text-muted",
                   "content": "Preview Page",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 11,
                   "fontWeight": "500"
                 }
               ]
@@ -10781,12 +10808,12 @@
               "id": "envz9",
               "name": "nav-quicksetup",
               "width": "fill_container",
-              "height": 40,
+              "height": 28,
               "cornerRadius": "$radius-sm",
-              "gap": 12,
+              "gap": 8,
               "padding": [
                 0,
-                12
+                8
               ],
               "alignItems": "center",
               "children": [
@@ -10794,8 +10821,8 @@
                   "type": "icon_font",
                   "id": "WSzbB",
                   "name": "quickIcon",
-                  "width": 20,
-                  "height": 20,
+                  "width": 14,
+                  "height": 14,
                   "iconFontName": "sparkles",
                   "iconFontFamily": "lucide",
                   "fill": "$accent-orange"
@@ -10804,10 +10831,10 @@
                   "type": "text",
                   "id": "67VWl",
                   "name": "quickText",
-                  "fill": "$text-secondary",
+                  "fill": "$sidebar-text-muted",
                   "content": "Quick Setup",
                   "fontFamily": "Inter",
-                  "fontSize": 14,
+                  "fontSize": 11,
                   "fontWeight": "500"
                 }
               ]
@@ -10819,12 +10846,12 @@
           "id": "og1Y1",
           "name": "utilityIcons",
           "width": "fill_container",
-          "gap": 8,
+          "gap": 4,
           "padding": [
-            0,
-            12,
-            12,
-            12
+            6,
+            8,
+            8,
+            8
           ],
           "justifyContent": "center",
           "children": [
@@ -10832,10 +10859,10 @@
               "type": "frame",
               "id": "lB268",
               "name": "darkModeBtn",
-              "width": 36,
-              "height": 36,
-              "fill": "$bg-secondary",
-              "cornerRadius": "$radius-sm",
+              "width": 28,
+              "height": 28,
+              "fill": "$sidebar-util-bg",
+              "cornerRadius": 6,
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
@@ -10843,11 +10870,11 @@
                   "type": "icon_font",
                   "id": "otrQI",
                   "name": "darkIc",
-                  "width": 18,
-                  "height": 18,
+                  "width": 14,
+                  "height": 14,
                   "iconFontName": "moon",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-secondary"
+                  "fill": "$sidebar-text-muted"
                 }
               ]
             },
@@ -10855,10 +10882,10 @@
               "type": "frame",
               "id": "x8xdw",
               "name": "docsBtn",
-              "width": 36,
-              "height": 36,
-              "fill": "$bg-secondary",
-              "cornerRadius": "$radius-sm",
+              "width": 28,
+              "height": 28,
+              "fill": "$sidebar-util-bg",
+              "cornerRadius": 6,
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
@@ -10866,11 +10893,11 @@
                   "type": "icon_font",
                   "id": "slSa3",
                   "name": "docsIc",
-                  "width": 18,
-                  "height": 18,
+                  "width": 14,
+                  "height": 14,
                   "iconFontName": "info",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-secondary"
+                  "fill": "$sidebar-text-muted"
                 }
               ]
             },
@@ -10878,10 +10905,10 @@
               "type": "frame",
               "id": "QM4Ak",
               "name": "expandBtn",
-              "width": 36,
-              "height": 36,
-              "fill": "$bg-secondary",
-              "cornerRadius": "$radius-sm",
+              "width": 28,
+              "height": 28,
+              "fill": "$sidebar-util-bg",
+              "cornerRadius": 6,
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
@@ -10889,11 +10916,11 @@
                   "type": "icon_font",
                   "id": "Ehhpt",
                   "name": "expandIc",
-                  "width": 18,
-                  "height": 18,
+                  "width": 14,
+                  "height": 14,
                   "iconFontName": "maximize-2",
                   "iconFontFamily": "lucide",
-                  "fill": "$text-secondary"
+                  "fill": "$sidebar-text-muted"
                 }
               ]
             }
@@ -11091,7 +11118,7 @@
           "id": "jMe5c",
           "type": "ref",
           "ref": "L5uq5",
-          "width": 240,
+          "width": 190,
           "height": "fill_container",
           "name": "sidebar",
           "descendants": {
@@ -12089,7 +12116,7 @@
           "id": "cmxVY",
           "type": "ref",
           "ref": "L5uq5",
-          "width": 240,
+          "width": 190,
           "height": "fill_container",
           "name": "sidebar",
           "descendants": {
@@ -12830,6 +12857,117 @@
           ]
         }
       ]
+    },
+    {
+      "id": "5ZE7m",
+      "type": "ref",
+      "ref": "L5uq5",
+      "name": "Sidebar - Light Mode",
+      "x": -400,
+      "fill": "#FFFFFF",
+      "height": 800,
+      "stroke": {
+        "thickness": {
+          "right": 1
+        },
+        "fill": "$border-light"
+      },
+      "width": 210,
+      "y": 542,
+      "descendants": {
+        "TCoWv": {
+          "fill": "#18181B"
+        },
+        "5KP0F": {
+          "fill": "$text-tertiary"
+        },
+        "ZHYHz": {
+          "fill": "#EDE9FE"
+        },
+        "QoTuV": {
+          "fill": "$accent-purple"
+        },
+        "8LLG5": {
+          "fill": "$accent-purple"
+        },
+        "znOOM": {
+          "fill": "$text-secondary"
+        },
+        "4NivS": {
+          "fill": "$text-secondary"
+        },
+        "1r9sY": {
+          "fill": "$text-secondary"
+        },
+        "7Srhh": {
+          "fill": "$text-secondary"
+        },
+        "NxjEt": {
+          "fill": "$text-secondary"
+        },
+        "CREwb": {
+          "fill": "$text-secondary"
+        },
+        "Ezdy1": {
+          "fill": "$text-tertiary"
+        },
+        "KpohI": {
+          "fill": "$text-secondary"
+        },
+        "ZkU0j": {
+          "fill": "$text-secondary"
+        },
+        "Jr02w": {
+          "fill": "$text-secondary"
+        },
+        "ebCF1": {
+          "fill": "$text-secondary"
+        },
+        "B7MnA": {
+          "fill": "$text-secondary"
+        },
+        "3O9Sz": {
+          "fill": "$text-secondary"
+        },
+        "FAu8k": {
+          "stroke": {
+            "thickness": {
+              "top": 1
+            },
+            "fill": "$border-light"
+          }
+        },
+        "OAcB5": {
+          "fill": "$text-secondary"
+        },
+        "Ka2LF": {
+          "fill": "$text-secondary"
+        },
+        "WSzbB": {
+          "fill": "$accent-orange"
+        },
+        "67VWl": {
+          "fill": "$text-secondary"
+        },
+        "lB268": {
+          "fill": "#F1F5F9"
+        },
+        "otrQI": {
+          "fill": "$text-secondary"
+        },
+        "x8xdw": {
+          "fill": "#F1F5F9"
+        },
+        "slSa3": {
+          "fill": "$text-secondary"
+        },
+        "QM4Ak": {
+          "fill": "#F1F5F9"
+        },
+        "Ehhpt": {
+          "fill": "$text-secondary"
+        }
+      }
     }
   ],
   "variables": {
@@ -12913,6 +13051,9 @@
         },
         {
           "value": "#FFFFFF"
+        },
+        {
+          "value": "#FFFFFF"
         }
       ]
     },
@@ -12924,6 +13065,9 @@
         },
         {
           "value": "#EDE9FE"
+        },
+        {
+          "value": "#FAF5FF"
         }
       ]
     },
@@ -12932,6 +13076,9 @@
       "value": [
         {
           "value": "#1E293B"
+        },
+        {
+          "value": "#F1F5F9"
         },
         {
           "value": "#F1F5F9"
@@ -12978,6 +13125,9 @@
         },
         {
           "value": "#18181B"
+        },
+        {
+          "value": "#18181B"
         }
       ]
     },
@@ -12986,6 +13136,9 @@
       "value": [
         {
           "value": "#94A3B8"
+        },
+        {
+          "value": "#64748B"
         },
         {
           "value": "#64748B"
@@ -13003,6 +13156,30 @@
     "text-tertiary": {
       "type": "color",
       "value": "#94A3B8"
+    },
+    "sidebar-active-text": {
+      "type": "color",
+      "value": "#7C3AED"
+    },
+    "sidebar-border": {
+      "type": "color",
+      "value": "#E2E8F0"
+    },
+    "sidebar-text": {
+      "type": "color",
+      "value": "#18181B"
+    },
+    "sidebar-text-label": {
+      "type": "color",
+      "value": "#94A3B8"
+    },
+    "sidebar-text-muted": {
+      "type": "color",
+      "value": "#64748B"
+    },
+    "sidebar-util-bg": {
+      "type": "color",
+      "value": "#F1F5F9"
     }
   }
 }
