@@ -105,7 +105,50 @@ class AdminAjaxHandler
     public function getAllMethods()
     {
         $methods = PaymentHandler::getAllMethods();
-        wp_send_json_success($methods, 200);
+
+        // Aggregate transaction stats
+        $totalCount  = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->count();
+        $totalAmountRow = buyMeCoffeeQuery()->table('buymecoffee_transactions')
+            ->where('status', 'paid')
+            ->select(buyMeCoffeeQuery()->raw('SUM(payment_total) as total'))
+            ->first();
+        $totalAmount = $totalAmountRow ? (int) $totalAmountRow->total : 0;
+
+        $stats = [
+            'transaction_count' => $totalCount,
+            'total_amount'      => $totalAmount,
+        ];
+
+        // Enrich each gateway with per-method details
+        $enriched = [];
+        foreach ($methods as $key => $method) {
+            $settings = get_option('buymecoffee_payment_settings_' . $key, []);
+            $method['payment_mode'] = isset($settings['payment_mode']) ? $settings['payment_mode'] : 'test';
+
+            // Last transaction for this gateway
+            $last = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('payment_method', $key)
+                ->orderBy('created_at', 'DESC')
+                ->first();
+            $method['last_transaction'] = $last
+                ? human_time_diff(strtotime($last->created_at)) . ' ago'
+                : null;
+
+            // Supported currencies (static per gateway)
+            $currencyMap = [
+                'stripe' => '135+ supported',
+                'paypal' => 'USD, EUR, GBP +15 more',
+            ];
+            $method['currencies'] = isset($currencyMap[$key]) ? $currencyMap[$key] : 'Multiple';
+
+            $enriched[] = $method;
+        }
+
+        wp_send_json_success([
+            'gateways' => $enriched,
+            'stats'    => $stats,
+        ], 200);
     }
 
     public function statusReport()
@@ -268,9 +311,10 @@ class AdminAjaxHandler
         );
     }
 
-    public function getWeeklyRevenue()
+    public function getWeeklyRevenue($data = [])
     {
-        (new Supporters())->getWeeklyRevenue();
+        $dateFrom = !empty($data['date_from']) ? sanitize_text_field($data['date_from']) : '';
+        (new Supporters())->getWeeklyRevenue($dateFrom);
     }
 
 

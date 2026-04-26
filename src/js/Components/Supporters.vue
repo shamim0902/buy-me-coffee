@@ -33,17 +33,14 @@
         </div>
         <div>
           <el-select
-            v-model="filter_status"
-            placeholder="Filter by status"
-            style="width: 160px"
+            v-model="filter_method"
+            placeholder="All Gateways"
+            style="width: 150px"
             @change="current = 0; getSupporters()"
           >
-            <el-option
-              v-for="filter in filters"
-              :key="filter.value"
-              :label="filter.label"
-              :value="filter.value"
-            />
+            <el-option label="All" value="all" />
+            <el-option label="Stripe" value="stripe" />
+            <el-option label="PayPal" value="paypal" />
           </el-select>
         </div>
       </div>
@@ -113,18 +110,11 @@ export default {
       posts_per_page: 10,
       search: '',
       filter_status: 'all',
+      filter_method: 'all',
       loading: false,
       fetching: false,
       supporters: [],
-      statusReportData: null,
-      filters: [
-        { label: 'All', value: 'all' },
-        { label: 'Paid', value: 'paid' },
-        { label: 'Pending', value: 'pending' },
-        { label: 'Cancelled', value: 'cancelled' },
-        { label: 'Refunded', value: 'refunded' },
-        { label: 'Failed', value: 'failed' }
-      ]
+      statusReportData: null
     };
   },
   computed: {
@@ -173,6 +163,7 @@ export default {
         data: {
           search: this.search,
           filter_status: this.filter_status,
+          filter_method: this.filter_method,
           page: this.current,
           posts_per_page: this.posts_per_page
         },

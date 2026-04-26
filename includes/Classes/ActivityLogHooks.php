@@ -46,6 +46,7 @@ class ActivityLogHooks
             $context['amount']     = $transaction->payment_total;
             $context['currency']   = $transaction->currency;
             $context['method']     = $transaction->payment_method;
+            $context['entry_id']   = (int) ($transaction->entry_id ?? 0);
         }
 
         ActivityLogger::logPayment($transactionId, $event, $title, [

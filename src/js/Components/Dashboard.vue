@@ -9,14 +9,26 @@
         <p class="bmc-dash-header__subtitle">Here's what's happening with your donations today</p>
       </div>
       <div class="bmc-dash-header__right">
-        <div class="bmc-dash-header__date">
-          <Calendar :size="16" />
-          <span>Last 30 days</span>
-          <ChevronDown :size="14" class="text-neutral-400" />
-        </div>
-        <button class="bmc-dash-header__export" @click="exportData">
+        <el-dropdown trigger="click" @command="setDateRange" class="bmc-date-dropdown">
+          <div class="bmc-dash-header__date">
+            <Calendar :size="16" />
+            <span>{{ currentRangeLabel }}</span>
+            <ChevronDown :size="14" />
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="r in dateRanges"
+                :key="r.value"
+                :command="r.value"
+                :class="{ 'bmc-range-active': dateRange === r.value }"
+              >{{ r.label }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <button class="bmc-dash-header__export" :disabled="exporting" @click="exportData">
           <Download :size="15" />
-          <span>Export</span>
+          <span>{{ exporting ? 'Exporting…' : 'Export' }}</span>
         </button>
       </div>
     </div>
@@ -189,17 +201,17 @@
               <span class="bmc-amount">{{ stripHtml(row.amount_formatted) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Status" width="100">
+          <el-table-column label="Status" width="110">
             <template #default="{ row }">
               <StatusBadge :status="row.payment_status" />
             </template>
           </el-table-column>
-          <el-table-column label="Method" width="100">
+          <el-table-column label="Method" width="110">
             <template #default="{ row }">
               <span class="bmc-method">{{ row.payment_method || '--' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Date" width="100">
+          <el-table-column label="Date" width="110">
             <template #default="{ row }">
               <span class="bmc-date">{{ formatDate(row.created_at) }}</span>
             </template>
@@ -225,12 +237,13 @@
             </a>
           </div>
           <div class="bmc-sub-list">
-            <div class="bmc-sub-item" v-for="sub in activeSubscriptions" :key="sub.id">
+            <div class="bmc-sub-item" v-for="sub in activeSubscriptions" :key="sub.id" @click="$router.push({ name: 'SubscriptionDetail', params: { id: sub.id } })">
+              <div class="bmc-sub-item__avatar">{{ getInitials(sub.name) }}</div>
               <div class="bmc-sub-item__info">
                 <span class="bmc-sub-item__name">{{ sub.name }}</span>
-                <span class="bmc-sub-item__plan">{{ sub.plan }}</span>
+                <span class="bmc-sub-item__plan">{{ sub.amount }}</span>
               </div>
-              <span class="bmc-sub-item__amount">{{ sub.amount }}</span>
+              <span class="bmc-sub-item__badge">Active</span>
             </div>
             <div v-if="!activeSubscriptions.length" class="bmc-sub-empty">
               No active subscriptions
@@ -281,7 +294,15 @@ export default {
     return {
       fetching: true,
       chartLoading: true,
+      exporting: false,
       guidedTour: true,
+      dateRange: '30d',
+      dateRanges: [
+        { label: 'Last 7 days',  value: '7d',  days: 7 },
+        { label: 'Last 30 days', value: '30d', days: 30 },
+        { label: 'Last 90 days', value: '90d', days: 90 },
+        { label: 'Last year',    value: '1y',  days: 365 },
+      ],
       limit: 20,
       posts_per_page: 10,
       current: 0,
@@ -346,6 +367,14 @@ export default {
     userName() {
       return window.BuyMeCoffeeAdmin?.user_name || 'there';
     },
+    currentRangeLabel() {
+      return this.dateRanges.find(r => r.value === this.dateRange)?.label || 'Last 30 days';
+    },
+    dateFrom() {
+      const days = this.dateRanges.find(r => r.value === this.dateRange)?.days || 30;
+      const d = new Date(Date.now() - days * 86400 * 1000);
+      return d.toISOString().split('T')[0];
+    },
     recentSupporters() {
       return this.supporters.slice(0, 5);
     },
@@ -406,8 +435,50 @@ export default {
     goToSupporter(id) {
       this.$router.push({ name: 'Supporter', params: { id } });
     },
+    setDateRange(value) {
+      this.dateRange = value;
+      this.getSupporters();
+      this.getWeeklyRevenue();
+    },
     exportData() {
-      // Future: export CSV
+      this.exporting = true;
+      this.$get({
+        action: 'buymecoffee_admin_ajax',
+        route: 'get_supporters',
+        data: {
+          date_from: this.dateFrom,
+          page: 0,
+          posts_per_page: 9999,
+        },
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
+      }).then((response) => {
+        const rows = (response.data.supporters || []).map(s => [
+          s.supporters_name || '',
+          s.supporters_email || '',
+          this.stripHtml(s.amount_formatted || ''),
+          s.payment_status || '',
+          s.payment_method || '',
+          s.payment_mode || '',
+          s.created_at || '',
+        ]);
+        const header = ['Name', 'Email', 'Amount', 'Status', 'Method', 'Mode', 'Date'];
+        const csv = [header, ...rows]
+          .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+          .join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `supporters-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }).fail(() => {
+        this.$message.error('Export failed. Please try again.');
+      }).always(() => {
+        this.exporting = false;
+      });
     },
     setStore() {
       this.guidedTour = true;
@@ -420,6 +491,7 @@ export default {
         route: 'get_supporters',
         data: {
           filter_top: 'yes',
+          date_from: this.dateFrom,
           limit: this.limit,
           page: this.current,
           posts_per_page: this.posts_per_page
@@ -444,6 +516,7 @@ export default {
       this.$get({
         action: 'buymecoffee_admin_ajax',
         route: 'get_weekly_revenue',
+        data: { date_from: this.dateFrom },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
       })
         .then((response) => {
@@ -723,32 +796,62 @@ export default {
 .bmc-sub-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: var(--radius-sm);
 }
 .bmc-sub-item:last-child {
   border-bottom: none;
 }
+.bmc-sub-item:hover {
+  background: var(--bg-secondary);
+}
+.bmc-sub-item__avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
 .bmc-sub-item__info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 .bmc-sub-item__name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .bmc-sub-item__plan {
   font-size: 11px;
   color: var(--text-tertiary);
-}
-.bmc-sub-item__amount {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+}
+.bmc-sub-item__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #166534;
 }
 .bmc-sub-empty {
   padding: 16px 0;
@@ -905,6 +1008,11 @@ export default {
   letter-spacing: 0.5px;
   color: var(--text-tertiary);
   padding: 10px 24px;
+  white-space: nowrap;
+}
+:deep(.bmc-supporters-table .el-table__header th .cell) {
+  white-space: nowrap;
+  overflow: visible;
 }
 :deep(.bmc-supporters-table .el-table__body td) {
   padding: 12px 24px;
@@ -978,10 +1086,12 @@ export default {
   font-size: 13px;
   color: var(--text-secondary);
   text-transform: capitalize;
+  white-space: nowrap;
 }
 .bmc-date {
   font-size: 13px;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {

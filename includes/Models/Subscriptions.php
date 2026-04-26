@@ -88,9 +88,42 @@ class Subscriptions extends Model
             }
         }
 
+        // Recent active subscriptions for dashboard widget
+        $recent_rows = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
+            ->select(
+                'buymecoffee_subscriptions.id',
+                'buymecoffee_subscriptions.amount',
+                'buymecoffee_subscriptions.currency',
+                'buymecoffee_subscriptions.interval_type',
+                'buymecoffee_subscriptions.status',
+                'buymecoffee_supporters.supporters_name',
+                'buymecoffee_supporters.supporters_email'
+            )
+            ->where('buymecoffee_subscriptions.status', 'active')
+            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
+            ->limit(4)
+            ->get();
+
+        $recent = [];
+        foreach ($recent_rows as $row) {
+            $amountFormatted = '$' . number_format((int) $row->amount / 100, 2);
+            $interval = ($row->interval_type === 'year') ? '/yr' : '/mo';
+            $recent[] = [
+                'id'     => $row->id,
+                'name'   => $row->supporters_name ?: 'Anonymous',
+                'email'  => $row->supporters_email ?: '',
+                'amount' => $amountFormatted . $interval,
+                'plan'   => ucfirst($row->interval_type ?? 'month') . 'ly',
+                'status' => $row->status,
+            ];
+        }
+
         return [
             'active_count' => $active_count,
             'mrr'          => $mrr,
+            'recent'       => $recent,
         ];
     }
 }

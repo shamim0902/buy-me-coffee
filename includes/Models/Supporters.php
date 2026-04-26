@@ -15,14 +15,20 @@ class Supporters extends Model
     {
         $offset = intval($args['page'] * $args['posts_per_page']);
 
-        $query = $this->getQuery()
+        $query = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->leftJoin('buymecoffee_transactions', 'buymecoffee_supporters.id', '=', 'buymecoffee_transactions.entry_id')
+            ->select(
+                'buymecoffee_supporters.*',
+                'buymecoffee_transactions.transaction_type'
+            )
             ->offset($offset)
             ->limit($args['posts_per_page']);
 
         if (isset($args['filter_top'])) {
-            $query->where('payment_status', 'paid')
-                ->orWhere('payment_status', 'paid-initially')
-                ->orderBy('payment_total', 'DESC');
+            $query->where('buymecoffee_supporters.payment_status', 'paid')
+                ->orWhere('buymecoffee_supporters.payment_status', 'paid-initially')
+                ->orderBy('buymecoffee_supporters.payment_total', 'DESC');
 
             $currencyTotalPending = $this->getQuery()
                 ->groupBy('currency')
@@ -34,17 +40,27 @@ class Supporters extends Model
                 $currency->formatted_total = PaymentHelper::getFormattedAmount($currency->total_amount, $currency->currency);
             }
         } else {
-            $query->orderBy('id', 'DESC');
+            $query->orderBy('buymecoffee_supporters.id', 'DESC');
         }
 
         if (isset($args['filter_status']) && $args['filter_status'] !== 'all') {
-            $query->where('payment_status', $args['filter_status']);
+            $query->where('buymecoffee_supporters.payment_status', $args['filter_status']);
+        }
+
+        if (isset($args['filter_method']) && $args['filter_method'] !== 'all') {
+            $query->where('buymecoffee_supporters.payment_method', sanitize_text_field($args['filter_method']));
         }
 
         if (!empty($args['search'])) {
-            $query->where('supporters_name', 'LIKE', '%' . $args['search'] . '%')
-                ->orWhere('supporters_email', 'LIKE', '%' . $args['search'] . '%')
-                ->Where('payment_status', $args['filter_status']);
+            $search = $args['search'];
+            $query->where(function($q) use ($search) {
+                $q->where('buymecoffee_supporters.supporters_name', 'LIKE', '%' . $search . '%')
+                  ->orWhere('buymecoffee_supporters.supporters_email', 'LIKE', '%' . $search . '%');
+            });
+        }
+
+        if (!empty($args['date_from'])) {
+            $query->where('buymecoffee_supporters.created_at', '>=', sanitize_text_field($args['date_from']));
         }
 
         $supporters = $query->get();
@@ -186,17 +202,22 @@ class Supporters extends Model
         return $supporter;
     }
 
-    public function getWeeklyRevenue()
+    public function getWeeklyRevenue($dateFrom = '')
     {
-        $revenue = $this->getQuery()->select(
+        $query = $this->getQuery()->select(
             'currency',
             'payment_status',
             $this->raw('Date(created_at) as date'),
             $this->raw("SUM(round(payment_total / 100, 2)) as total_paid"),
             $this->raw("COUNT(*) as submissions")
         )->whereIn('payment_status', ['paid'])
-            ->where('payment_total', '>', 0)
-            ->groupBy([$this->raw('Date(created_at)'), 'currency'])
+            ->where('payment_total', '>', 0);
+
+        if (!empty($dateFrom)) {
+            $query->where('created_at', '>=', $dateFrom);
+        }
+
+        $revenue = $query->groupBy([$this->raw('Date(created_at)'), 'currency'])
             ->orderBy('id', 'desc')
             ->limit(50)
             ->getArray();

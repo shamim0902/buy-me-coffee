@@ -54,6 +54,20 @@
           </template>
         </el-table-column>
 
+        <!-- Ref -->
+        <el-table-column label="Ref" width="90">
+          <template #default="{ row }">
+            <router-link
+              v-if="refLink(row)"
+              :to="refLink(row)"
+              class="bmc-act-ref bmc-act-ref--link"
+            >
+              #{{ row.object_id }}
+            </router-link>
+            <span v-else class="bmc-act-ref">#{{ row.object_id }}</span>
+          </template>
+        </el-table-column>
+
         <!-- Status -->
         <el-table-column label="Status" width="110">
           <template #default="{ row }">
@@ -206,6 +220,22 @@ export default {
       });
     },
 
+    refLink(row) {
+      const id  = row.object_id;
+      const ctx = row.context || {};
+      switch (row.object_type) {
+        case 'payment':
+          return ctx.entry_id ? { name: 'Supporter', params: { id: ctx.entry_id } } : null;
+        case 'subscription':
+          return { name: 'SubscriptionDetail', params: { id } };
+        case 'submission':
+        case 'email':
+          return { name: 'Supporter', params: { id } };
+        default:
+          return null;
+      }
+    },
+
     moduleLabel(type) {
       return MODULE_LABELS[type] || type || '—';
     },
@@ -315,6 +345,24 @@ export default {
 .bmc-act-type--subscription { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 .bmc-act-type--submission   { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
 .bmc-act-type--email        { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+
+/* ── Ref ──────────────────────────────────────────────────── */
+.bmc-act-ref {
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-tertiary);
+}
+.bmc-act-ref--link {
+  color: var(--color-primary-600, #2563eb);
+  text-decoration: none;
+  border-bottom: 1px dashed currentColor;
+  cursor: pointer;
+  transition: color var(--duration-normal) var(--ease-default);
+}
+.bmc-act-ref--link:hover {
+  color: var(--color-primary-700, #1d4ed8);
+}
 
 /* ── Status badge ─────────────────────────────────────────── */
 .bmc-act-status {

@@ -102,15 +102,14 @@ export default {
     components: { CreditCard, ArrowUpDown, DollarSign, PageTitle, CoffeeLoader },
     data() {
         return {
-            gateways: {},
+            gateways: [],
             stats: {},
             loading: true
         };
     },
     computed: {
         gatewayList() {
-            if (Array.isArray(this.gateways)) return this.gateways;
-            return Object.values(this.gateways);
+            return this.gateways;
         },
         connectedCount() {
             return this.gatewayList.filter(g => g.status).length;
@@ -125,7 +124,7 @@ export default {
                 buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
             })
             .then((response) => {
-                this.gateways = response.data;
+                this.gateways = response.data?.gateways || [];
                 if (response.data?.stats) {
                     this.stats = response.data.stats;
                 }

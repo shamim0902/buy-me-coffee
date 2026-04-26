@@ -45,16 +45,11 @@
       </el-table-column>
 
       <!-- Mode -->
-      <el-table-column label="Mode" width="90">
+      <el-table-column label="Mode" width="100">
         <template #default="{ row }">
-          <span
-            v-if="row.payment_mode"
-            class="bmc-mode"
-            :class="row.payment_mode === 'live' ? 'bmc-mode--live' : 'bmc-mode--test'"
-          >
-            {{ row.payment_mode.toUpperCase() }}
+          <span class="bmc-mode" :class="row.transaction_type === 'recurring' ? 'bmc-mode--recurring' : 'bmc-mode--onetime'">
+            {{ row.transaction_type === 'recurring' ? 'Recurring' : 'One-time' }}
           </span>
-          <span v-else class="bmc-method">-</span>
         </template>
       </el-table-column>
 
@@ -218,22 +213,19 @@ export default {
 .bmc-mode {
   display: inline-flex;
   align-items: center;
-  padding: 1px 8px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  font-family: var(--font-sans);
 }
-.bmc-mode--live {
-  background: var(--color-success-50);
-  color: var(--color-success-700);
-  border: 1px solid var(--color-success-500);
+.bmc-mode--recurring {
+  background: var(--color-accent-purple-light);
+  color: var(--color-accent-purple);
 }
-.bmc-mode--test {
-  background: var(--color-warning-50);
-  color: var(--color-warning-700);
-  border: 1px solid var(--color-warning-500);
+.bmc-mode--onetime {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .bmc-date {
