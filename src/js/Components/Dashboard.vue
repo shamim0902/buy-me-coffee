@@ -8,6 +8,10 @@
       v-if="!supporters.length && !guidedTour && !fetching"
       class="bmc-setup-banner"
     >
+      <!-- Decorative coffee cup illustration -->
+      <svg class="bmc-setup-banner__deco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>
+      </svg>
       <div class="flex items-center gap-3">
         <div class="bmc-setup-banner__icon">
           <Rocket :size="20" />
@@ -520,9 +524,33 @@ export default {
   gap: 16px;
   padding: 16px 20px;
   margin-bottom: 24px;
-  background: var(--color-primary-50);
-  border: 1px solid var(--color-primary-200, var(--border-primary));
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-coffee-50) 100%);
+  border: 1px solid var(--color-coffee-200);
   border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.bmc-setup-banner__deco {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 64px;
+  height: 64px;
+  color: var(--color-coffee-300);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: bmc-bob 3s ease-in-out infinite;
+}
+
+@keyframes bmc-bob {
+  0%, 100% { transform: translateY(-50%); }
+  50%       { transform: translateY(calc(-50% - 5px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bmc-setup-banner__deco { animation: none; }
 }
 
 .bmc-setup-banner__icon {
@@ -531,10 +559,11 @@ export default {
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: var(--color-primary-100, rgba(99,102,241,0.1));
+  background: radial-gradient(circle at 30% 30%, var(--color-primary-100) 0%, var(--color-primary-50) 100%);
   color: var(--color-primary-600);
   border-radius: 10px;
   flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
 }
 
 .bmc-setup-banner__title {

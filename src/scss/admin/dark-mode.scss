@@ -21,6 +21,25 @@ html.dark {
   --border-secondary: var(--color-neutral-800);
   --border-focus:     var(--color-primary-400);
 
+  // ── Coffee scale (dark) ───────────────────────────────────
+  --color-coffee-50:  #1c1208;
+  --color-coffee-100: #2a1c0e;
+  --color-coffee-200: #3d2914;
+  --color-coffee-300: #5c3d1e;
+  --color-coffee-400: #7c5229;
+  --color-coffee-500: #9c6b35;
+  --color-coffee-600: #b88244;
+  --color-coffee-700: #d4a060;
+  --color-coffee-800: #e8be84;
+  --color-coffee-900: #f5ddb3;
+
+  // ── Gradient washes (dark — lower opacity) ────────────────
+  --gradient-card-wash-teal:   linear-gradient(135deg, rgba(13, 148, 136, 0.10) 0%, rgba(13, 148, 136, 0.02) 100%);
+  --gradient-card-wash-violet: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(124, 58, 237, 0.02) 100%);
+  --gradient-card-wash-amber:  linear-gradient(135deg, rgba(217, 119, 6, 0.12) 0%, rgba(217, 119, 6, 0.02) 100%);
+  --gradient-card-wash-sky:    linear-gradient(135deg, rgba(14, 165, 233, 0.10) 0%, rgba(14, 165, 233, 0.02) 100%);
+  --gradient-card-wash-green:  linear-gradient(135deg, rgba(22, 163, 74, 0.10) 0%, rgba(22, 163, 74, 0.02) 100%);
+
   --shadow-xs:   0 1px 2px 0 rgb(0 0 0 / 0.2);
   --shadow-sm:   0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
   --shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);

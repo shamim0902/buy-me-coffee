@@ -30,6 +30,19 @@ defineProps({
     color: var(--text-primary);
     margin: 0;
     line-height: 1.3;
+    position: relative;
+    padding-left: 14px;
+}
+.bmc-page-title__heading::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 70%;
+    background: var(--gradient-brand);
+    border-radius: 2px;
 }
 .bmc-page-title__subtitle {
     font-size: 14px;

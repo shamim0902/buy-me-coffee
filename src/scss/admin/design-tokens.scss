@@ -66,6 +66,28 @@
   --color-accent-rose:   #f43f5e;
   --color-accent-sky:    #0ea5e9;
 
+  // ── Coffee warm scale ─────────────────────────────────────
+  --color-coffee-50:  #fdf6ee;
+  --color-coffee-100: #fbecd8;
+  --color-coffee-200: #f6d5a8;
+  --color-coffee-300: #f0b870;
+  --color-coffee-400: #e8943a;
+  --color-coffee-500: #d97706;
+  --color-coffee-600: #b45309;
+  --color-coffee-700: #92400e;
+  --color-coffee-800: #78350f;
+  --color-coffee-900: #451a03;
+
+  // ── Gradients ─────────────────────────────────────────────
+  --gradient-brand:            linear-gradient(135deg, #0d9488 0%, #0f766e 60%, #134e4a 100%);
+  --gradient-warm:             linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  --gradient-accent-bar:       linear-gradient(90deg, #0d9488, #0891b2, #7c3aed, #db2777, #d97706, #0d9488);
+  --gradient-card-wash-teal:   linear-gradient(135deg, rgba(13, 148, 136, 0.06) 0%, rgba(13, 148, 136, 0.01) 100%);
+  --gradient-card-wash-violet: linear-gradient(135deg, rgba(124, 58, 237, 0.07) 0%, rgba(124, 58, 237, 0.01) 100%);
+  --gradient-card-wash-amber:  linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, rgba(217, 119, 6, 0.01) 100%);
+  --gradient-card-wash-sky:    linear-gradient(135deg, rgba(14, 165, 233, 0.07) 0%, rgba(14, 165, 233, 0.01) 100%);
+  --gradient-card-wash-green:  linear-gradient(135deg, rgba(22, 163, 74, 0.06) 0%, rgba(22, 163, 74, 0.01) 100%);
+
   // ── Semantic Tokens (light mode defaults) ─────────────────
   --bg-primary:     var(--color-neutral-0);
   --bg-secondary:   var(--color-neutral-50);
