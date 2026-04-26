@@ -1,39 +1,11 @@
-const glob = require('glob');
 const fs = require('fs');
+const item = 'buy-me-coffee.php';
 
-// For entry file selection
-glob.glob("buy-me-coffee.php", function(err, files) {
-    if (err) {
-        console.error('Error finding files:', err);
-        return;
-    }
-
-    files.forEach(function(item) {
-        // Read the file synchronously
-        fs.readFile(item, 'utf8', (err, data) => {
-            if (err) {
-                console.error('Error reading file:', err);
-                return;
-            }
-
-            // Define the mapping of the terms to replace
-            const mapObj = {
-                BUYMECOFFEE_DEVELOPMENT: "BUYMECOFFEE_PRODUCTION"
-            };
-
-            // Replace occurrences in the file's content
-            const result = data.replace(/BUYMECOFFEE_DEVELOPMENT/gi, function(matched) {
-                return mapObj[matched];
-            });
-
-            // Write the changes back to the same file
-            fs.writeFile(item, result, 'utf8', function(err) {
-                if (err) {
-                    console.error('Error writing file:', err);
-                } else {
-                    console.log('✅  Development asset enqueued in', item);
-                }
-            });
-        });
+fs.readFile(item, 'utf8', (err, data) => {
+    if (err) { console.error('Error reading file:', err); return; }
+    const result = data.replace(/BUYMECOFFEE_DEVELOPMENT/gi, () => 'BUYMECOFFEE_PRODUCTION');
+    fs.writeFile(item, result, 'utf8', (err) => {
+        if (err) { console.error('Error writing file:', err); return; }
+        console.log('✅  Production asset enqueued in', item);
     });
 });
