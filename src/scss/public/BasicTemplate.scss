@@ -921,6 +921,22 @@ form.wpm_submitting_form {
     color: #71717a;
     margin: 0;
   }
+
+  &__account-link {
+    padding: 12px 24px;
+    text-align: center;
+    background: #f0fdf4;
+    border-top: 1px solid #dcfce7;
+
+    a {
+      font-size: 13px;
+      font-weight: 600;
+      color: #059669;
+      text-decoration: none;
+
+      &:hover { text-decoration: underline; }
+    }
+  }
 }
 
 // ── Modal ──────────────────────────────────────

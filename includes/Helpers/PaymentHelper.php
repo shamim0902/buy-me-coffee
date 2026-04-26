@@ -81,6 +81,7 @@ class PaymentHelper
                 'status'     => 'active',
                 'updated_at' => current_time('mysql'),
             ]);
+            do_action('buymecoffee_subscription_activated', (int) $order->transaction->subscription_id);
         }
 
         do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);

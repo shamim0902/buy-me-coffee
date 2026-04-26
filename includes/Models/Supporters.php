@@ -255,6 +255,13 @@ class Supporters extends Model
         ], 200);
     }
 
+    public function findByWpUser(int $wpUserId)
+    {
+        return $this->getQuery()
+            ->where('wp_user_id', $wpUserId)
+            ->first();
+    }
+
     public function delete($id)
     {
         return $this->getQuery()->where('id', $id)->delete();

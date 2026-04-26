@@ -13,6 +13,9 @@
           <!-- General -->
           <section v-show="active === 'general'">
 
+            <!-- Form Configuration + Subscriber Account: 2-col row -->
+            <div class="bmc-sc-2col">
+
             <!-- Form Configuration Card -->
             <div class="bmc-sc">
               <div class="bmc-sc__hd">
@@ -70,6 +73,60 @@
                 <el-switch v-model="template.enableMessage" active-value="yes" inactive-value="no" />
               </div>
             </div>
+
+            <!-- Subscriber Account Card -->
+            <div class="bmc-sc">
+              <div class="bmc-sc__hd">
+                <div class="bmc-sc__icon bmc-sc__icon--blue">
+                  <User :size="16" />
+                </div>
+                <div>
+                  <h3 class="bmc-sc__title">Subscriber Account</h3>
+                  <p class="bmc-sc__sub">Let subscribers view their subscriptions on a dedicated page</p>
+                </div>
+              </div>
+
+              <!-- Enable toggle -->
+              <div class="bmc-sr" :class="{ 'bmc-sr--last': template.enable_account !== 'yes' }">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Enable subscriber accounts</p>
+                  <p class="bmc-toggle-row__desc">
+                    Create a WordPress account for subscribers automatically after payment, and allow them to view their subscriptions
+                  </p>
+                </div>
+                <el-switch v-model="template.enable_account" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Account page selector — only shown when feature is on -->
+              <div v-if="template.enable_account === 'yes'" class="bmc-sr bmc-sr--field bmc-sr--last">
+                <label class="bmc-label">Account page</label>
+                <el-select
+                  v-model="template.account_page_id"
+                  placeholder="Select a page"
+                  style="width: 100%"
+                >
+                  <el-option label="— None —" :value="0" />
+                  <el-option
+                    v-for="page in pages"
+                    :key="page.id"
+                    :label="page.title"
+                    :value="page.id"
+                  />
+                </el-select>
+                <p class="bmc-hint">
+                  Select the page that contains <code class="bmc-inline-code">[buymecoffee_account]</code>.
+                  A "View subscriptions" link will appear on the receipt for subscription supporters.
+                </p>
+                <div v-if="!template.account_page_id" class="bmc-shortcode-status bmc-shortcode-status--warn" style="margin-top: 10px">
+                  No page selected — create a page with <code>[buymecoffee_account]</code> then select it here.
+                </div>
+                <div v-else class="bmc-shortcode-status bmc-shortcode-status--ok" style="margin-top: 10px">
+                  ✓ Ready — subscribers will see a "View subscriptions" link on their receipt.
+                </div>
+              </div>
+            </div>
+
+            </div><!-- /.bmc-sc-2col -->
 
             <!-- Pricing & Payment Card -->
             <div class="bmc-sc">
@@ -134,6 +191,7 @@
                 </el-select>
               </div>
             </div>
+
           </section>
 
           <!-- Appearance -->
@@ -406,6 +464,24 @@
               </p>
               <CodeBlock label="Donation page URL" :code="previewUrl" />
             </div>
+
+            <div class="bmc-card">
+              <h3 class="bmc-section-title bmc-section-title--sm" style="margin-bottom: 12px">Subscriber account page</h3>
+              <p class="text-sm" style="color: var(--text-secondary); margin: 0 0 12px">
+                Place this shortcode on any page to let subscription supporters log in and view their subscriptions and profile.
+                Then go to <strong>General → Subscriber Account</strong> to link that page.
+              </p>
+              <CodeBlock label="Subscriber account page" code="[buymecoffee_account]" />
+              <div v-if="template.enable_account === 'yes' && template.account_page_id" class="bmc-shortcode-status bmc-shortcode-status--ok">
+                ✓ Subscriber accounts are enabled — a "View subscriptions" link will appear on receipts.
+              </div>
+              <div v-else-if="template.enable_account !== 'yes'" class="bmc-shortcode-status bmc-shortcode-status--warn">
+                Subscriber accounts are disabled. Enable them in <strong>General → Subscriber Account</strong>.
+              </div>
+              <div v-else class="bmc-shortcode-status bmc-shortcode-status--warn">
+                Feature is enabled but no account page is selected. Go to <strong>General → Subscriber Account</strong> to pick one.
+              </div>
+            </div>
           </section>
 
         </div>
@@ -438,7 +514,7 @@
 </template>
 
 <script>
-import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign } from 'lucide-vue-next';
+import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User } from 'lucide-vue-next';
 import PageTitle from './UI/PageTitle.vue';
 import CodeBlock from './UI/CodeBlock.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
@@ -446,7 +522,7 @@ import MediaButton from './Parts/MediaButton.vue';
 
 export default {
   name: 'Settings',
-  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
+  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
 
   data() {
     return {
@@ -454,6 +530,7 @@ export default {
       saving: false,
       resetting: false,
       currencies: {},
+      pages: [],
       previewUrl: window.BuyMeCoffeeAdmin.preview_url,
       predefineColors: [
         '#ff813f', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6',
@@ -470,6 +547,8 @@ export default {
         currency: 'USD',
         allow_recurring: 'no',
         recurring_interval: 'month',
+        enable_account: 'no',
+        account_page_id: 0,
         advanced: {
           image: '',
           bgColor: '#ff813f',
@@ -522,6 +601,11 @@ export default {
       }).then((res) => {
         this.template = res.data.template;
         this.currencies = res.data.currencies;
+        this.pages = res.data.pages || [];
+        // account_page_id may come back from PHP as a string — normalize to number
+        if (this.template) {
+          this.template.account_page_id = parseInt(this.template.account_page_id) || 0;
+        }
       }).fail((error) => {
         this.$message.error(error?.responseJSON?.data?.message || 'Failed to load settings');
       }).always(() => {
@@ -568,6 +652,17 @@ export default {
 
 <style scoped>
 /* ─── Settings cards (General section) ────── */
+.bmc-sc-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+.bmc-sc-2col > .bmc-sc {
+  margin-bottom: 0;
+}
+
 .bmc-sc {
   background: var(--bg-primary);
   border: 1px solid var(--border-secondary);
@@ -603,6 +698,11 @@ export default {
 .bmc-sc__icon--teal {
   background: #d5fcf0;
   color: var(--color-accent-teal);
+}
+
+.bmc-sc__icon--blue {
+  background: #dbeafe;
+  color: #2563eb;
 }
 
 .bmc-sc__title {
@@ -1284,6 +1384,22 @@ export default {
   border-radius: 4px;
   border: 1px solid var(--border-primary);
   color: var(--text-secondary);
+}
+
+/* ─── Shortcode status pills ─────────────── */
+.bmc-shortcode-status {
+  margin-top: 12px;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.bmc-shortcode-status--ok {
+  background: #f0fdf4;
+  color: #166534;
+}
+.bmc-shortcode-status--warn {
+  background: #fefce8;
+  color: #854d0e;
 }
 
 /* ─── Sticky action bar ──────────────────── */

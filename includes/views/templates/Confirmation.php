@@ -115,6 +115,19 @@ if ($paymentData):
         <img class="bmc-receipt__gif" width="60" src="<?php echo esc_url(Vite::staticPath() . 'images/coffee.gif'); ?>" alt="">
         <p class="bmc-receipt__thanks"><?php esc_html_e('Your support means the world!', 'buy-me-coffee'); ?></p>
     </div>
+
+    <?php
+    if ($isRecurring) {
+        $bmcSettings      = get_option('buymecoffee_payment_setting', []);
+        $accountEnabled   = !empty($bmcSettings['enable_account']) && $bmcSettings['enable_account'] === 'yes';
+        $accountPageId    = $accountEnabled && !empty($bmcSettings['account_page_id']) ? (int) $bmcSettings['account_page_id'] : 0;
+        $accountPageUrl   = $accountPageId ? get_permalink($accountPageId) : '';
+        if ($accountEnabled && $accountPageUrl) :
+    ?>
+    <div class="bmc-receipt__account-link">
+        <a href="<?php echo esc_url($accountPageUrl); ?>"><?php esc_html_e('View your subscriptions →', 'buy-me-coffee'); ?></a>
+    </div>
+    <?php endif; } ?>
 </div>
 <?php else: ?>
 <div class="bmc-receipt">

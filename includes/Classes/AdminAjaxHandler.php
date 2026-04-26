@@ -302,10 +302,19 @@ class AdminAjaxHandler
     {
         $settings = (new Buttons())->getButton();
 
+        $rawPages = get_pages(['sort_column' => 'post_title', 'sort_order' => 'ASC', 'post_status' => 'publish']);
+        $pages = [];
+        if (is_array($rawPages)) {
+            foreach ($rawPages as $page) {
+                $pages[] = ['id' => $page->ID, 'title' => $page->post_title];
+            }
+        }
+
         wp_send_json_success(
             array(
-                'template' => $settings,
-                'currencies' => Currencies::all()
+                'template'   => $settings,
+                'currencies' => Currencies::all(),
+                'pages'      => $pages,
             ),
             200
         );

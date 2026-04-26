@@ -73,6 +73,9 @@ class SanitizeHelper
                 'data-price' => [],
                 'data-element_type' => [],
                 'data-payment_selected' => [],
+                'data-default' => [],
+                'data-recurring' => [],
+                'data-interval' => [],
             ];
         }
 

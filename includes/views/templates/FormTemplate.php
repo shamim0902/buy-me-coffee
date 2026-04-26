@@ -4,6 +4,15 @@
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
 use BuyMeCoffee\Classes\Vite;
 $isAdmin = current_user_can('manage_options');
+
+// Subscriber account nav link — shown to logged-in non-admin subscribers when the feature is enabled
+$bmcNavAccountUrl = '';
+if (!$isAdmin && is_user_logged_in()) {
+    $bmcNavSettings   = get_option('buymecoffee_payment_setting', []);
+    $bmcNavEnabled    = !empty($bmcNavSettings['enable_account']) && $bmcNavSettings['enable_account'] === 'yes';
+    $bmcNavPageId     = $bmcNavEnabled && !empty($bmcNavSettings['account_page_id']) ? (int) $bmcNavSettings['account_page_id'] : 0;
+    $bmcNavAccountUrl = $bmcNavPageId ? get_permalink($bmcNavPageId) : '';
+}
 $recentSupporters = [];
 if (class_exists('\BuyMeCoffee\Models\Supporters')) {
     $supportersModel = new \BuyMeCoffee\Models\Supporters();
@@ -31,6 +40,12 @@ if (class_exists('\BuyMeCoffee\Models\Supporters')) {
             <a href="<?php echo esc_url(admin_url('admin.php?page=buy-me-coffee.php#/settings?tab=appearance')); ?>"
                class="bmc-nav__icon-btn" title="<?php esc_attr_e('Settings', 'buy-me-coffee'); ?>">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </a>
+            <?php endif; ?>
+            <?php if ($bmcNavAccountUrl): ?>
+            <a href="<?php echo esc_url($bmcNavAccountUrl); ?>"
+               class="bmc-nav__icon-btn" title="<?php esc_attr_e('My account', 'buy-me-coffee'); ?>">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
             </a>
             <?php endif; ?>
         </div>

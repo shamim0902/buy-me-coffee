@@ -23,6 +23,7 @@ class Buttons
             "currency" => 'USD',
             "allow_recurring" => 'no',
             "recurring_interval" => 'month',
+            "enable_account" => 'no',
             "advanced" => array(
                 "image" => '',
                 "banner_image" => '',

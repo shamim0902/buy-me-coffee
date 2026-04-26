@@ -126,6 +126,7 @@ class Menu
             'admin_email'       => get_option('admin_email'),
             'show_whats_new'    => $showWhatsNew,
             'plugin_version'    => BUYMECOFFEE_VERSION,
+            'user_name'         => wp_get_current_user()->display_name,
         ));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);

@@ -40,7 +40,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
     define('BUYMECOFFEE_DEVELOPMENT', 'yes');
-    define('BUYMECOFFEE_DB_VERSION', '1.6');
+    define('BUYMECOFFEE_DB_VERSION', '1.7');
 
     class BuyMeCoffee
     {
@@ -99,6 +99,8 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
             add_shortcode('buymecoffee_basic', [$demoPage, 'renderBasicTemplate']);
 
+            add_shortcode('buymecoffee_account', [new \BuyMeCoffee\Classes\AccountPage(), 'render']);
+
         }
 
         public function addAssets()
@@ -134,6 +136,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             // Email Notifications
             require BUYMECOFFEE_DIR . 'includes/Classes/EmailNotifications.php';
             (new \BuyMeCoffee\Classes\EmailNotifications())->register();
+
+            // User Manager — creates WP users for subscribers
+            require BUYMECOFFEE_DIR . 'includes/Classes/UserManager.php';
+            (new \BuyMeCoffee\Classes\UserManager())->register();
 
             // Activity Log
             require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogger.php';

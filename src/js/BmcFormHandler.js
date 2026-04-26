@@ -64,12 +64,18 @@ class BmcFormHandler {
 
     toggleRecurringEmail(isChecked) {
         const emailField = this.form.find('.bmc_email_recurring_only');
-        if (!emailField.length) return; // email already visible (enableEmail=yes)
-        if (isChecked) {
-            emailField.slideDown(150);
-        } else {
-            emailField.slideUp(150);
-            emailField.find('input').val('');
+        if (emailField.length) {
+            if (isChecked) {
+                emailField.slideDown(150);
+            } else {
+                emailField.slideUp(150);
+                emailField.find('input').val('');
+            }
+        }
+
+        const noSignup = this.form.find('.buymecoffee_no_signup');
+        if (noSignup.length) {
+            noSignup.text(isChecked ? noSignup.data('recurring') : noSignup.data('default'));
         }
     }
 

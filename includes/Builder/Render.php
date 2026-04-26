@@ -274,7 +274,7 @@ class Render
                     </button>
                 </div>
             </div>
-            <p class="buymecoffee_no_signup">No signup required</p>
+            <p class="buymecoffee_no_signup" data-default="<?php esc_attr_e('No signup required', 'buy-me-coffee'); ?>" data-recurring="<?php esc_attr_e('An account will be created to manage your subscription', 'buy-me-coffee'); ?>"><?php esc_html_e('No signup required', 'buy-me-coffee'); ?></p>
         </form>
         <?php
         return ob_get_clean();
@@ -300,9 +300,15 @@ class Render
     {
         Vite::enqueueStyle('buymecoffee_css', 'scss/public/public-style.scss', array(), BUYMECOFFEE_VERSION);
         Vite::enqueueScript('buymecoffee_public_js',  'js/BmcPublic.js', array('jquery'), BUYMECOFFEE_VERSION, true);
+        $bmcSettings      = get_option('buymecoffee_payment_setting', []);
+        $accountEnabled   = !empty($bmcSettings['enable_account']) && $bmcSettings['enable_account'] === 'yes';
+        $accountPageId    = $accountEnabled && !empty($bmcSettings['account_page_id']) ? (int) $bmcSettings['account_page_id'] : 0;
+        $accountPageUrl   = $accountPageId ? (string) get_permalink($accountPageId) : '';
+
         wp_localize_script('buymecoffee_public_js', 'buymecoffee_general', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
+            'ajax_url'         => admin_url('admin-ajax.php'),
             'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'account_page_url' => $accountPageUrl,
         ));
     }
 

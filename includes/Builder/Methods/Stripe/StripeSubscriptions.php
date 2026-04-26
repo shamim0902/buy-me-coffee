@@ -238,6 +238,7 @@ class StripeSubscriptions
                     'period_end'      => $periodEnd,
                 ],
             ]);
+            do_action('buymecoffee_subscription_activated', (int) $subscription->id);
             return;
         }
 

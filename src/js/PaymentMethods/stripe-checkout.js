@@ -105,6 +105,19 @@ class StripeCheckout {
             receiptContainer.append(receiptLink);
         }
 
+        if (isSubscription) {
+            const accountPageUrl = this.getSafeReceiptUrl(window.buymecoffee_general?.account_page_url);
+            if (accountPageUrl) {
+                if (safeReceiptUrl) {
+                    receiptContainer.append(document.createTextNode(' · '));
+                }
+                const accountLink = jQuery('<a></a>')
+                    .attr('href', accountPageUrl)
+                    .text('View subscriptions');
+                receiptContainer.append(accountLink);
+            }
+        }
+
         this.parentWrapper.append(receiptContainer);
         this.parentWrapper.find('.buymecoffee_form').hide();
         this.parentWrapper.find('.buymecoffee_form_to, .bmc-form-card__title').hide();

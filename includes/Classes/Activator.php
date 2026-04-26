@@ -73,7 +73,9 @@ class Activator
 				other_infos longtext,
 				created_at timestamp NULL,
 				updated_at timestamp NULL,
+				wp_user_id BIGINT(20) UNSIGNED DEFAULT NULL,
                 KEY bmc_sup_email (supporters_email(191)),
+                KEY bmc_sup_wp_user (wp_user_id),
                 KEY bmc_sup_status (payment_status),
                 KEY bmc_sup_hash (entry_hash(191)),
                 KEY bmc_sup_created (created_at)
