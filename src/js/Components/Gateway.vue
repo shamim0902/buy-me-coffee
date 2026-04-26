@@ -1,35 +1,91 @@
 <template>
     <div class="relative min-h-[200px]">
         <CoffeeLoader :loading="loading" />
-        <PageTitle title="Payment Gateways" subtitle="Configure your payment methods" />
+        <PageTitle title="Payment Gateways" subtitle="Configure and manage your payment processing methods." />
 
-        <div class="bmc-gateways">
+        <!-- Stats Row -->
+        <div v-if="!loading" class="bmc-gw-stats">
+            <div class="bmc-gw-stat">
+                <div class="bmc-gw-stat__icon bmc-gw-stat__icon--purple">
+                    <CreditCard :size="18" />
+                </div>
+                <div>
+                    <p class="bmc-gw-stat__value">{{ connectedCount }} Connected</p>
+                    <p class="bmc-gw-stat__label">Active gateways</p>
+                </div>
+            </div>
+            <div class="bmc-gw-stat">
+                <div class="bmc-gw-stat__icon bmc-gw-stat__icon--blue">
+                    <ArrowUpDown :size="18" />
+                </div>
+                <div>
+                    <p class="bmc-gw-stat__value">{{ stats.transaction_count || 0 }} Transactions</p>
+                    <p class="bmc-gw-stat__label">Total processed</p>
+                </div>
+            </div>
+            <div class="bmc-gw-stat">
+                <div class="bmc-gw-stat__icon bmc-gw-stat__icon--green">
+                    <DollarSign :size="18" />
+                </div>
+                <div>
+                    <p class="bmc-gw-stat__value">{{ formatTotal(stats.total_amount) }}</p>
+                    <p class="bmc-gw-stat__label">Total volume</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gateway Cards -->
+        <div v-if="!loading" class="bmc-gateways">
             <div
                 v-for="(gateway, index) in gatewayList"
                 :key="index"
                 class="bmc-gateway-card"
-                @click="$router.push({ name: gateway.route })"
             >
-                <div class="bmc-gateway-card__icon">
-                    <img
-                        v-if="gateway.image"
-                        :src="gateway.image"
-                        :alt="gateway.title + ' logo'"
-                        class="bmc-gateway-card__logo"
-                    />
-                    <CreditCard v-else :size="22" />
-                </div>
-                <div class="bmc-gateway-card__body">
-                    <div class="bmc-gateway-card__header">
+                <div class="bmc-gateway-card__top">
+                    <div class="bmc-gateway-card__icon">
+                        <img
+                            v-if="gateway.image"
+                            :src="gateway.image"
+                            :alt="gateway.title + ' logo'"
+                            class="bmc-gateway-card__logo"
+                        />
+                        <CreditCard v-else :size="22" />
+                    </div>
+                    <div class="bmc-gateway-card__info">
                         <h3 class="bmc-gateway-card__name">{{ gateway.title }}</h3>
-                        <span v-if="gateway.status" class="bmc-gateway-card__status bmc-gateway-card__status--connected">
-                            <Check :size="14" /> Connected
+                        <span v-if="gateway.status" class="bmc-gateway-card__badge bmc-gateway-card__badge--connected">
+                            Connected
                         </span>
-                        <span v-else class="bmc-gateway-card__status bmc-gateway-card__status--inactive">
+                        <span v-else class="bmc-gateway-card__badge bmc-gateway-card__badge--inactive">
                             Not Connected
                         </span>
                     </div>
-                    <p class="bmc-gateway-card__desc">{{ gateway.description }}</p>
+                    <button
+                        class="bmc-gateway-card__btn"
+                        @click="$router.push({ name: gateway.route })"
+                    >
+                        Configure
+                    </button>
+                </div>
+
+                <p class="bmc-gateway-card__desc">{{ gateway.description }}</p>
+
+                <div class="bmc-gateway-card__details">
+                    <div class="bmc-gateway-card__detail">
+                        <span class="bmc-gateway-card__detail-label">API Mode</span>
+                        <span class="bmc-gateway-card__detail-value">
+                            <span class="bmc-gateway-card__dot" :class="gateway.payment_mode === 'live' ? 'bmc-gateway-card__dot--live' : 'bmc-gateway-card__dot--test'"></span>
+                            {{ gateway.payment_mode === 'live' ? 'Live' : 'Test' }}
+                        </span>
+                    </div>
+                    <div class="bmc-gateway-card__detail">
+                        <span class="bmc-gateway-card__detail-label">Currencies</span>
+                        <span class="bmc-gateway-card__detail-value">{{ gateway.currencies || '—' }}</span>
+                    </div>
+                    <div class="bmc-gateway-card__detail">
+                        <span class="bmc-gateway-card__detail-label">Last Transaction</span>
+                        <span class="bmc-gateway-card__detail-value">{{ gateway.last_transaction || '—' }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -37,16 +93,17 @@
 </template>
 
 <script>
-import { CreditCard, Check } from 'lucide-vue-next';
+import { CreditCard, ArrowUpDown, DollarSign } from 'lucide-vue-next';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
 import PageTitle from './UI/PageTitle.vue';
 
 export default {
     name: 'Gateway',
-    components: { CreditCard, Check, PageTitle, CoffeeLoader },
+    components: { CreditCard, ArrowUpDown, DollarSign, PageTitle, CoffeeLoader },
     data() {
         return {
             gateways: {},
+            stats: {},
             loading: true
         };
     },
@@ -54,6 +111,9 @@ export default {
         gatewayList() {
             if (Array.isArray(this.gateways)) return this.gateways;
             return Object.values(this.gateways);
+        },
+        connectedCount() {
+            return this.gatewayList.filter(g => g.status).length;
         }
     },
     methods: {
@@ -66,6 +126,9 @@ export default {
             })
             .then((response) => {
                 this.gateways = response.data;
+                if (response.data?.stats) {
+                    this.stats = response.data.stats;
+                }
             })
             .catch((error) => {
                 console.log(error);
@@ -73,6 +136,10 @@ export default {
             .always(() => {
                 this.loading = false;
             });
+        },
+        formatTotal(cents) {
+            if (!cents) return '$0.00';
+            return '$' + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
     },
     mounted() {
@@ -82,96 +149,193 @@ export default {
 </script>
 
 <style scoped>
+/* Stats Row */
+.bmc-gw-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.bmc-gw-stat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.bmc-gw-stat__icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bmc-gw-stat__icon--purple {
+    background: var(--color-accent-purple-light);
+    color: var(--color-accent-purple);
+}
+.bmc-gw-stat__icon--blue {
+    background: var(--color-accent-blue-light);
+    color: var(--color-accent-blue);
+}
+.bmc-gw-stat__icon--green {
+    background: var(--color-accent-green-light);
+    color: var(--color-accent-green);
+}
+.bmc-gw-stat__value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    font-family: var(--font-display);
+}
+.bmc-gw-stat__label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 2px 0 0;
+}
+
+/* Gateway Cards */
 .bmc-gateways {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 20px;
-    min-height: 120px;
 }
-
 .bmc-gateway-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
     padding: 24px;
     background: var(--bg-primary);
-    border: 1px solid var(--border-primary);
-    border-radius: 14px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    border: 1px solid var(--border-secondary);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .bmc-gateway-card:hover {
-    border-color: var(--color-primary-300, #a5b4fc);
+    border-color: var(--color-primary-300);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-    transform: translateY(-1px);
 }
 
+.bmc-gateway-card__top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
 .bmc-gateway-card__icon {
     flex-shrink: 0;
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #475569;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    color: var(--text-secondary);
 }
 .bmc-gateway-card__logo {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
-    display: block;
 }
-.bmc-gateway-card:hover .bmc-gateway-card__icon {
-    background: var(--color-primary-50, #eef2ff);
-    border-color: var(--color-primary-200, #c7d2fe);
-    color: var(--color-primary-600, #4f46e5);
-}
-
-.bmc-gateway-card__body {
+.bmc-gateway-card__info {
     flex: 1;
-    min-width: 0;
-}
-
-.bmc-gateway-card__header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 6px;
+    gap: 8px;
+    min-width: 0;
 }
-
 .bmc-gateway-card__name {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
 }
-
-.bmc-gateway-card__status {
+.bmc-gateway-card__badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.bmc-gateway-card__badge--connected {
+    background: var(--color-success-100);
+    color: var(--color-success-700);
+}
+.bmc-gateway-card__badge--inactive {
+    background: var(--color-neutral-100);
+    color: var(--text-tertiary);
+}
+
+.bmc-gateway-card__btn {
+    flex-shrink: 0;
+    padding: 6px 16px;
+    border-radius: var(--radius-md);
     font-size: 13px;
     font-weight: 500;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
-.bmc-gateway-card__status--connected {
-    color: var(--color-success-600);
-}
-.bmc-gateway-card__status--inactive {
-    color: var(--text-tertiary);
+.bmc-gateway-card__btn:hover {
+    background: var(--bg-tertiary);
 }
 
 .bmc-gateway-card__desc {
     font-size: 13px;
     color: var(--text-secondary);
-    margin: 0;
+    margin: 0 0 16px;
     line-height: 1.5;
 }
 
+/* Detail rows */
+.bmc-gateway-card__details {
+    border-top: 1px solid var(--border-secondary);
+    padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.bmc-gateway-card__detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.bmc-gateway-card__detail-label {
+    font-size: 13px;
+    color: var(--text-tertiary);
+}
+.bmc-gateway-card__detail-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bmc-gateway-card__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.bmc-gateway-card__dot--live {
+    background: var(--color-success-500);
+}
+.bmc-gateway-card__dot--test {
+    background: var(--color-warning-500);
+}
+
 @media (max-width: 480px) {
+    .bmc-gw-stats {
+        grid-template-columns: 1fr;
+    }
     .bmc-gateways {
         grid-template-columns: 1fr;
     }

@@ -2,20 +2,19 @@
     <div class="relative min-h-[200px]">
         <CoffeeLoader :loading="fetching" />
         <!-- Header card: back + title + enable toggle -->
-        <div class="bg-white rounded-xl border border-neutral-200 shadow-xs px-5 py-4 mb-4 flex items-center gap-4">
+        <div class="bmc-card bmc-settings-header">
             <button
-                class="flex items-center gap-1 text-sm font-medium cursor-pointer border-0 bg-transparent flex-shrink-0"
-                style="color: var(--text-secondary)"
+                class="bmc-back-btn"
                 @click="$router.push({ name: 'Gateway' })"
             >
                 <ArrowLeft :size="15" />
             </button>
-            <div class="flex-1 min-w-0">
-                <h3 class="text-sm font-semibold text-[var(--text-primary)]">PayPal</h3>
-                <p class="text-xs text-[var(--text-secondary)]">Accept payments via PayPal</p>
+            <div class="bmc-settings-header__info">
+                <h3 class="bmc-settings-header__title">PayPal</h3>
+                <p class="bmc-settings-header__subtitle">Accept payments via PayPal</p>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <span class="text-xs text-[var(--text-secondary)]">{{ settings.enable === 'yes' ? 'Enabled' : 'Disabled' }}</span>
+            <div class="bmc-settings-header__toggle">
+                <span class="bmc-settings-header__status">{{ settings.enable === 'yes' ? 'Enabled' : 'Disabled' }}</span>
                 <el-switch
                     v-model="settings.enable"
                     active-value="yes"
@@ -25,12 +24,12 @@
         </div>
 
         <div :class="settings.enable !== 'yes' ? 'opacity-50 pointer-events-none' : ''">
-            <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-5 mb-4 space-y-4">
+            <div class="bmc-card bmc-settings-body">
                 <!-- Mode row -->
-                <div class="flex items-center justify-between">
+                <div class="bmc-settings-row">
                     <div>
-                        <span class="text-sm font-medium text-[var(--text-primary)]">Payment Mode</span>
-                        <p v-if="settings.payment_mode === 'test'" class="text-xs text-amber-600 mt-0.5 flex items-center gap-1 m-0">
+                        <span class="bmc-settings-row__label">Payment Mode</span>
+                        <p v-if="settings.payment_mode === 'test'" class="bmc-settings-row__hint bmc-settings-row__hint--warn">
                             <AlertTriangle :size="12" /> Sandbox — no real charges
                         </p>
                     </div>
@@ -40,23 +39,23 @@
                     </el-radio-group>
                 </div>
 
-                <div class="h-px bg-neutral-100"></div>
+                <div class="bmc-divider"></div>
 
                 <!-- Type row -->
-                <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium text-[var(--text-primary)]">Payment Type</span>
+                <div class="bmc-settings-row">
+                    <span class="bmc-settings-row__label">Payment Type</span>
                     <el-radio-group v-model="settings.payment_type" size="small">
                         <el-radio-button value="pro">Pro</el-radio-button>
                         <el-radio-button value="standard">Standard</el-radio-button>
                     </el-radio-group>
                 </div>
 
-                <div class="h-px bg-neutral-100"></div>
+                <div class="bmc-divider"></div>
 
                 <!-- Pro: API Keys -->
-                <div v-if="settings.payment_type === 'pro'" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                <div v-if="settings.payment_type === 'pro'" class="bmc-field-group">
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">
                             {{ settings.payment_mode === 'live' ? 'Live' : 'Test' }} Public Key
                         </label>
                         <el-input
@@ -66,8 +65,8 @@
                             show-password
                         />
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">
                             {{ settings.payment_mode === 'live' ? 'Live' : 'Test' }} Secret Key
                         </label>
                         <el-input
@@ -80,19 +79,19 @@
                 </div>
 
                 <!-- Standard: Email + IPN toggle -->
-                <div v-if="settings.payment_type === 'standard'" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">PayPal Email Address</label>
+                <div v-if="settings.payment_type === 'standard'" class="bmc-field-group">
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">PayPal Email Address</label>
                         <el-input
                             v-model="settings.paypal_email"
                             type="text"
                             placeholder="your-email@example.com"
                         />
                     </div>
-                    <div class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                    <div class="bmc-ipn-toggle">
                         <div>
-                            <span class="text-sm font-medium text-[var(--text-primary)]">Disable IPN Verification</span>
-                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">
+                            <span class="bmc-settings-row__label">Disable IPN Verification</span>
+                            <p class="bmc-settings-row__hint">
                                 Available in test mode only.
                                 <span v-if="settings.payment_mode === 'live'">Live mode always enforces verification.</span>
                             </p>
@@ -107,20 +106,20 @@
                     </div>
                 </div>
 
-                <div class="h-px bg-neutral-100"></div>
+                <div class="bmc-divider"></div>
 
                 <!-- IPN URL -->
                 <div>
-                    <div class="flex items-start justify-between gap-3 mb-2">
+                    <div class="bmc-settings-row" style="margin-bottom: 12px;">
                         <div>
-                            <span class="text-sm font-medium text-[var(--text-primary)]">IPN URL</span>
-                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">Add to your PayPal account to receive payment notifications.</p>
+                            <span class="bmc-settings-row__label">IPN URL</span>
+                            <p class="bmc-settings-row__hint">Add to your PayPal account to receive payment notifications.</p>
                         </div>
                         <a
                             href="https://developer.paypal.com/dashboard/"
                             target="_blank"
                             rel="noopener"
-                            class="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] hover:underline flex-shrink-0 mt-0.5"
+                            class="bmc-ext-link"
                         >
                             Dashboard <ExternalLink :size="11" />
                         </a>
@@ -251,3 +250,127 @@ export default {
     mounted() { this.getSettings(); }
 }
 </script>
+
+<style scoped>
+.bmc-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bmc-settings-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    margin-bottom: 16px;
+}
+.bmc-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.15s ease;
+}
+.bmc-back-btn:hover { color: var(--text-primary); }
+
+.bmc-settings-header__info { flex: 1; min-width: 0; }
+.bmc-settings-header__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+.bmc-settings-header__subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 2px 0 0;
+}
+.bmc-settings-header__toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.bmc-settings-header__status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.bmc-settings-body {
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.bmc-settings-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.bmc-settings-row__label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.bmc-settings-row__hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 4px 0 0;
+}
+.bmc-settings-row__hint--warn {
+    color: var(--color-warning-600);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bmc-divider {
+    height: 1px;
+    background: var(--border-secondary);
+    margin: 20px 0;
+}
+
+.bmc-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bmc-field__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.bmc-ipn-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+}
+
+.bmc-ext-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-primary-600);
+    text-decoration: none;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.bmc-ext-link:hover { text-decoration: underline; }
+</style>

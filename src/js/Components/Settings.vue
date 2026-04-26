@@ -591,10 +591,11 @@ export default {
 /* ─── Cards ──────────────────────────────── */
 .bmc-card {
   background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
   padding: 20px 24px;
   margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .bmc-card--no-mb {

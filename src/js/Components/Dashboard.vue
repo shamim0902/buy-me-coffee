@@ -1,14 +1,31 @@
 <template>
   <div class="bmc-dashboard relative min-h-[200px]">
     <CoffeeLoader :loading="fetching" />
-    <PageTitle title="Dashboard" subtitle="Overview of your donations" />
+
+    <!-- Header -->
+    <div class="bmc-dash-header">
+      <div class="bmc-dash-header__left">
+        <h1 class="bmc-dash-header__greeting">Good morning, {{ userName }}</h1>
+        <p class="bmc-dash-header__subtitle">Here's what's happening with your donations today</p>
+      </div>
+      <div class="bmc-dash-header__right">
+        <div class="bmc-dash-header__date">
+          <Calendar :size="16" />
+          <span>Last 30 days</span>
+          <ChevronDown :size="14" class="text-neutral-400" />
+        </div>
+        <button class="bmc-dash-header__export" @click="exportData">
+          <Download :size="15" />
+          <span>Export</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Quick Setup Banner -->
     <div
       v-if="!supporters.length && !guidedTour && !fetching"
       class="bmc-setup-banner"
     >
-      <!-- Decorative coffee cup illustration -->
       <svg class="bmc-setup-banner__deco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>
       </svg>
@@ -31,180 +48,234 @@
       </button>
     </div>
 
-    <!-- Metric Cards -->
+    <!-- Metric Cards (4-column) -->
     <div class="bmc-metrics-grid">
       <MetricCard
         label="Total Revenue"
         :value="primaryRevenue"
         icon="DollarSign"
-        color="primary"
+        color="purple"
+        :trend="revenueTrend"
       />
       <MetricCard
         label="Supporters"
         :value="String(reportData.total_supporters || 0)"
         icon="Users"
-        color="violet"
-      />
-      <MetricCard
-        label="Total Coffees"
-        :value="String(reportData.total_coffee || 0)"
-        icon="Coffee"
-        color="amber"
-      />
-      <MetricCard
-        label="Pending"
-        :value="primaryPending"
-        icon="Clock"
-        color="sky"
+        color="teal"
+        :trend="supportersTrend"
       />
       <MetricCard
         label="Active Subscriptions"
         :value="String(subscriptionStats.active_count || 0)"
         icon="RefreshCw"
-        color="green"
+        color="blue"
       />
       <MetricCard
         label="Monthly Recurring"
         :value="mrrFormatted"
         icon="TrendingUp"
-        color="emerald"
+        color="green"
       />
     </div>
 
-    <!-- Revenue Chart -->
-    <div class="bmc-card" v-loading="chartLoading">
-      <div class="bmc-card__header">
-        <div>
-          <h2 class="bmc-card__title">Revenue Overview</h2>
-          <p class="bmc-card__subtitle" v-if="dummyChart">
-            Sample data shown. This chart updates once you receive donations.
-          </p>
+    <!-- Middle Row: Chart + Payment Breakdown -->
+    <div class="bmc-dash-row">
+      <!-- Revenue Chart -->
+      <div class="bmc-card bmc-card--flex" v-loading="chartLoading">
+        <div class="bmc-card__header">
+          <div>
+            <h2 class="bmc-card__title">Revenue Overview</h2>
+            <p class="bmc-card__subtitle" v-if="dummyChart">
+              Sample data shown. This chart updates once you receive donations.
+            </p>
+          </div>
+          <el-select
+            v-if="currencyOptions.length > 1"
+            v-model="selectedCurrency"
+            size="small"
+            class="bmc-currency-select"
+            @change="onCurrencyChange"
+          >
+            <el-option
+              v-for="opt in currencyOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </div>
-        <el-select
-          v-if="currencyOptions.length > 1"
-          v-model="selectedCurrency"
-          size="small"
-          class="bmc-currency-select"
-          @change="onCurrencyChange"
-        >
-          <el-option
-            v-for="opt in currencyOptions"
-            :key="opt.value"
-            :label="opt.label"
-            :value="opt.value"
+        <div class="bmc-chart-container">
+          <ChartRenderer
+            v-if="renderChart"
+            :chartProps="totalRevenue"
+            :chartOptions="overviewOptions"
+            height="260"
           />
-        </el-select>
+        </div>
       </div>
-      <div class="bmc-chart-container">
-        <ChartRenderer
-          v-if="renderChart"
-          :chartProps="totalRevenue"
-          :chartOptions="overviewOptions"
-          height="400"
+
+      <!-- Payment Methods Breakdown -->
+      <div class="bmc-card bmc-card--side">
+        <h2 class="bmc-card__title">Payment Methods</h2>
+        <div class="bmc-payment-breakdown">
+          <div class="bmc-donut-placeholder">
+            <div class="bmc-donut-ring">
+              <span class="bmc-donut-total">{{ primaryRevenue }}</span>
+            </div>
+          </div>
+          <div class="bmc-payment-legend">
+            <div class="bmc-payment-legend__item" v-for="method in paymentMethods" :key="method.name">
+              <span class="bmc-payment-legend__dot" :style="{ background: method.color }"></span>
+              <span class="bmc-payment-legend__name">{{ method.name }}</span>
+              <span class="bmc-payment-legend__value">{{ method.value }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row: Table + Sidebar -->
+    <div class="bmc-dash-row">
+      <!-- Recent Supporters -->
+      <div class="bmc-card bmc-card--flex bmc-card--no-pad">
+        <div class="bmc-card__header bmc-card__header--padded">
+          <div>
+            <h2 class="bmc-card__title">Recent Supporters</h2>
+            <p class="bmc-card__subtitle">Latest donations received</p>
+          </div>
+          <a
+            v-if="supporters.length"
+            class="bmc-view-all"
+            @click="$router.push({ name: 'Supporters' })"
+          >
+            View all
+            <ChevronRight :size="14" />
+          </a>
+        </div>
+
+        <el-table
+          v-if="supporters.length"
+          :data="recentSupporters"
+          class="bmc-supporters-table"
+          :show-header="true"
+          row-class-name="bmc-supporters-table__row"
+          @row-click="(row) => goToSupporter(row.id)"
+        >
+          <el-table-column label="Supporter" min-width="220">
+            <template #default="{ row }">
+              <div class="flex items-center gap-3">
+                <img
+                  v-if="row.supporters_image"
+                  :src="row.supporters_image"
+                  :alt="row.supporters_name"
+                  class="bmc-avatar"
+                />
+                <div
+                  v-else
+                  class="bmc-avatar-placeholder"
+                  :class="getAvatarColor(row.supporters_name)"
+                >
+                  {{ getInitials(row.supporters_name) }}
+                </div>
+                <div class="min-w-0">
+                  <p class="bmc-supporter-name">{{ row.supporters_name }}</p>
+                  <p class="bmc-supporter-email" v-if="row.supporters_email">{{ row.supporters_email }}</p>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="Amount" width="120">
+            <template #default="{ row }">
+              <span class="bmc-amount">{{ stripHtml(row.amount_formatted) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Status" width="100">
+            <template #default="{ row }">
+              <StatusBadge :status="row.payment_status" />
+            </template>
+          </el-table-column>
+          <el-table-column label="Method" width="100">
+            <template #default="{ row }">
+              <span class="bmc-method">{{ row.payment_method || '--' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Date" width="100">
+            <template #default="{ row }">
+              <span class="bmc-date">{{ formatDate(row.created_at) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <EmptyState
+          v-else-if="!fetching"
+          title="No supporters yet"
+          description="Share your donation page to start receiving support from your audience."
+          icon="Heart"
         />
       </div>
-    </div>
 
-    <!-- Recent Supporters -->
-    <div class="bmc-card" >
-      <div class="bmc-card__header">
-        <div>
-          <h2 class="bmc-card__title">Recent Supporters</h2>
-          <p class="bmc-card__subtitle">Latest donations received</p>
-        </div>
-        <a
-          v-if="supporters.length"
-          class="bmc-view-all"
-          @click="$router.push({ name: 'Supporters' })"
-        >
-          View all
-          <ChevronRight :size="16" />
-        </a>
-      </div>
-
-      <el-table
-        v-if="supporters.length"
-        :data="recentSupporters"
-        class="bmc-supporters-table"
-        :show-header="true"
-        row-class-name="bmc-supporters-table__row"
-        @row-click="(row) => goToSupporter(row.id)"
-      >
-        <el-table-column label="Supporter" min-width="220">
-          <template #default="{ row }">
-            <div class="flex items-center gap-3">
-              <img
-                v-if="row.supporters_image"
-                :src="row.supporters_image"
-                :alt="row.supporters_name"
-                class="bmc-avatar"
-              />
-              <div
-                v-else
-                class="bmc-avatar-placeholder"
-              >
-                {{ getInitials(row.supporters_name) }}
+      <!-- Right column -->
+      <div class="bmc-dash-right-col">
+        <!-- Active Subscriptions -->
+        <div class="bmc-card">
+          <div class="bmc-card__header">
+            <h2 class="bmc-card__title">Active Subscriptions</h2>
+            <a class="bmc-view-all" @click="$router.push({ name: 'Subscriptions' })">
+              View all
+            </a>
+          </div>
+          <div class="bmc-sub-list">
+            <div class="bmc-sub-item" v-for="sub in activeSubscriptions" :key="sub.id">
+              <div class="bmc-sub-item__info">
+                <span class="bmc-sub-item__name">{{ sub.name }}</span>
+                <span class="bmc-sub-item__plan">{{ sub.plan }}</span>
               </div>
-              <div class="min-w-0">
-                <p class="bmc-supporter-name">{{ row.supporters_name }}</p>
-                <p class="bmc-supporter-email" v-if="row.supporters_email">{{ row.supporters_email }}</p>
-              </div>
+              <span class="bmc-sub-item__amount">{{ sub.amount }}</span>
             </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="Amount" width="160">
-          <template #default="{ row }">
-            <span class="bmc-amount">{{ stripHtml(row.amount_formatted) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="Status" width="120">
-          <template #default="{ row }">
-            <StatusBadge :status="row.payment_status" />
-          </template>
-        </el-table-column>
-        <el-table-column label="Method" width="120">
-          <template #default="{ row }">
-            <span class="bmc-method">{{ row.payment_method || '--' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="Date" width="160">
-          <template #default="{ row }">
-            <span class="bmc-date">{{ row.created_at }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
+            <div v-if="!activeSubscriptions.length" class="bmc-sub-empty">
+              No active subscriptions
+            </div>
+          </div>
+        </div>
 
-      <EmptyState
-        v-else-if="!fetching"
-        title="No supporters yet"
-        description="Share your donation page to start receiving support from your audience."
-        icon="Heart"
-      />
+        <!-- Quick Stats -->
+        <div class="bmc-card">
+          <h2 class="bmc-card__title">Quick Stats</h2>
+          <div class="bmc-quick-stats">
+            <div class="bmc-quick-stat">
+              <span class="bmc-quick-stat__label">Avg. Donation</span>
+              <span class="bmc-quick-stat__value">{{ avgDonation }}</span>
+            </div>
+            <div class="bmc-quick-stat">
+              <span class="bmc-quick-stat__label">Total Coffees</span>
+              <span class="bmc-quick-stat__value">{{ reportData.total_coffee || 0 }}</span>
+            </div>
+            <div class="bmc-quick-stat">
+              <span class="bmc-quick-stat__label">Pending</span>
+              <span class="bmc-quick-stat__value">{{ primaryPending }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { Rocket, X, ChevronRight } from 'lucide-vue-next';
-import PageTitle from './UI/PageTitle.vue';
+import { Rocket, X, ChevronRight, ChevronDown, Calendar, Download } from 'lucide-vue-next';
 import MetricCard from './UI/MetricCard.vue';
 import StatusBadge from './UI/StatusBadge.vue';
 import EmptyState from './UI/EmptyState.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
 import ChartRenderer from './Parts/ChartRenderer.vue';
 
+const AVATAR_COLORS = ['purple', 'teal', 'orange', 'blue', 'pink', 'green'];
+
 export default {
   name: 'Dashboard',
   components: {
-    Rocket,
-    X,
-    ChevronRight,
-    PageTitle,
-    MetricCard,
-    StatusBadge,
-    EmptyState,
-    ChartRenderer,
-    CoffeeLoader
+    Rocket, X, ChevronRight, ChevronDown, Calendar, Download,
+    MetricCard, StatusBadge, EmptyState, ChartRenderer, CoffeeLoader
   },
   data() {
     return {
@@ -226,6 +297,7 @@ export default {
         active_count: 0,
         mrr: 0,
       },
+      activeSubscriptions: [],
       reportData: {
         total_supporters: 0,
         total_coffee: 0,
@@ -235,10 +307,10 @@ export default {
       totalRevenue: {
         id: 'revenue_chart',
         type: 'line',
-        height: '200',
+        height: '260',
         title: 'Total Revenue',
-        color: 'rgba(99,102,241,0.8)',
-        backgroundColor: 'rgba(99,102,241,0.08)',
+        color: 'rgba(139, 92, 246, 0.8)',
+        backgroundColor: 'rgba(139, 92, 246, 0.08)',
         data: [20, 18, 20, 20, 25],
         label: ['January', 'February', 'March', 'April', 'May']
       },
@@ -246,83 +318,68 @@ export default {
         responsive: true,
         maintainAspectRatio: false,
         elements: {
-          line: {
-            tension: 0.35,
-            borderWidth: 2
-          },
-          point: {
-            radius: 4,
-            hoverRadius: 6
-          }
+          line: { tension: 0.35, borderWidth: 2 },
+          point: { radius: 4, hoverRadius: 6 }
         },
         scales: {
-          x: {
-            grid: {
-              display: false
-            },
-            ticks: {
-              font: { size: 12 }
-            }
-          },
+          x: { grid: { display: false }, ticks: { font: { size: 12 } } },
           y: {
             beginAtZero: true,
-            grid: {
-              color: 'rgba(0,0,0,0.04)'
-            },
-            ticks: {
-              font: { size: 12 }
-            }
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { font: { size: 12 } }
           }
         },
         plugins: {
-          legend: {
-            display: false
-          },
+          legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(0,0,0,0.8)',
             padding: 10,
             cornerRadius: 8,
             titleFont: { size: 13 },
-            bodyFont: { size: 13 },
-            callbacks: {
-              label: (context) => {
-                return context.formattedValue + ' ' + this.top_paid_currency;
-              }
-            }
+            bodyFont: { size: 13 }
           }
         }
       }
     };
   },
   computed: {
+    userName() {
+      return window.BuyMeCoffeeAdmin?.user_name || 'there';
+    },
     recentSupporters() {
-      return this.supporters.slice(0, 10);
+      return this.supporters.slice(0, 5);
     },
     primaryRevenue() {
-      if (!this.reportData.currency_total || !this.reportData.currency_total.length) {
-        return '$0.00';
-      }
-      if (this.reportData.currency_total.length === 1) {
-        return this.stripHtml(this.reportData.currency_total[0].formatted_total);
-      }
-      return this.reportData.currency_total
-        .map(c => this.stripHtml(c.formatted_total))
-        .join(' / ');
+      if (!this.reportData.currency_total || !this.reportData.currency_total.length) return '$0.00';
+      if (this.reportData.currency_total.length === 1) return this.stripHtml(this.reportData.currency_total[0].formatted_total);
+      return this.reportData.currency_total.map(c => this.stripHtml(c.formatted_total)).join(' / ');
     },
     primaryPending() {
-      if (!this.reportData.currency_total_pending || !this.reportData.currency_total_pending.length) {
-        return '$0.00';
-      }
-      if (this.reportData.currency_total_pending.length === 1) {
-        return this.stripHtml(this.reportData.currency_total_pending[0].formatted_total);
-      }
-      return this.reportData.currency_total_pending
-        .map(c => this.stripHtml(c.formatted_total))
-        .join(' / ');
+      if (!this.reportData.currency_total_pending || !this.reportData.currency_total_pending.length) return '$0.00';
+      if (this.reportData.currency_total_pending.length === 1) return this.stripHtml(this.reportData.currency_total_pending[0].formatted_total);
+      return this.reportData.currency_total_pending.map(c => this.stripHtml(c.formatted_total)).join(' / ');
     },
     mrrFormatted() {
       const mrr = this.subscriptionStats.mrr || 0;
       return '$' + (mrr / 100).toFixed(2);
+    },
+    avgDonation() {
+      const total = this.reportData.currency_total?.[0]?.total || 0;
+      const count = this.reportData.total_supporters || 0;
+      if (!count) return '$0.00';
+      return '$' + (total / count / 100).toFixed(2);
+    },
+    revenueTrend() {
+      return '';
+    },
+    supportersTrend() {
+      return '';
+    },
+    paymentMethods() {
+      return [
+        { name: 'Stripe', value: '--', color: '#8B5CF6' },
+        { name: 'PayPal', value: '--', color: '#F59E0B' },
+      ];
     }
   },
   methods: {
@@ -334,21 +391,27 @@ export default {
     },
     getInitials(name) {
       if (!name) return '?';
-      return name
-        .split(' ')
-        .map(w => w[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
+      return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    },
+    getAvatarColor(name) {
+      if (!name) return 'bmc-avatar--purple';
+      const idx = name.charCodeAt(0) % AVATAR_COLORS.length;
+      return 'bmc-avatar--' + AVATAR_COLORS[idx];
+    },
+    formatDate(date) {
+      if (!date) return '--';
+      const d = new Date(date);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     },
     goToSupporter(id) {
       this.$router.push({ name: 'Supporter', params: { id } });
     },
+    exportData() {
+      // Future: export CSV
+    },
     setStore() {
       this.guidedTour = true;
-      if (window.localStorage) {
-        localStorage.setItem('buymecoffee_guided_tour', false);
-      }
+      if (window.localStorage) localStorage.setItem('buymecoffee_guided_tour', false);
     },
     getSupporters() {
       this.fetching = true;
@@ -388,14 +451,12 @@ export default {
           this.chartDataMap = response?.data?.chartData || {};
           this.currencyOptions = response?.data?.options || [];
           this.selectedCurrency = this.top_paid_currency;
-
           const graphData = this.chartDataMap[this.top_paid_currency];
           if (graphData) {
             this.totalRevenue.data = graphData.data;
             this.totalRevenue.label = graphData.label;
             this.dummyChart = false;
           }
-
           this.renderChart = true;
           this.chartLoading = false;
         })
@@ -412,6 +473,7 @@ export default {
       }).then((response) => {
         if (response?.data) {
           this.subscriptionStats = response.data;
+          this.activeSubscriptions = response.data.recent || [];
         }
       });
     },
@@ -428,9 +490,7 @@ export default {
         this.totalRevenue.label = ['January', 'February', 'March', 'April', 'May'];
         this.dummyChart = true;
       }
-      this.$nextTick(() => {
-        this.renderChart = true;
-      });
+      this.$nextTick(() => { this.renderChart = true; });
     }
   },
   mounted() {
@@ -446,77 +506,286 @@ export default {
 
 <style scoped>
 .bmc-dashboard {
-  max-width: 1200px;
+  max-width: 1280px;
 }
 
-/* Metric cards grid */
+/* ── Header ── */
+.bmc-dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.bmc-dash-header__greeting {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+.bmc-dash-header__subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+.bmc-dash-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bmc-dash-header__date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.bmc-dash-header__export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.bmc-dash-header__export:hover {
+  opacity: 0.9;
+}
+
+/* ── Metrics Grid ── */
 .bmc-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
-
-@media (min-width: 1280px) {
-  .bmc-metrics-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
-}
-
 @media (max-width: 1024px) {
-  .bmc-metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .bmc-metrics-grid { grid-template-columns: repeat(2, 1fr); }
 }
-
 @media (max-width: 600px) {
-  .bmc-metrics-grid {
-    grid-template-columns: 1fr;
-  }
+  .bmc-metrics-grid { grid-template-columns: 1fr; }
 }
 
-/* Card */
-.bmc-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-  padding: 24px;
+/* ── Dashboard Row ── */
+.bmc-dash-row {
+  display: flex;
+  gap: 20px;
   margin-bottom: 24px;
 }
+@media (max-width: 960px) {
+  .bmc-dash-row { flex-direction: column; }
+}
 
+/* ── Card ── */
+.bmc-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.bmc-card--flex {
+  flex: 1;
+  min-width: 0;
+}
+.bmc-card--side {
+  width: 360px;
+  flex-shrink: 0;
+}
+.bmc-card--no-pad {
+  padding: 0;
+}
 .bmc-card__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 20px;
 }
-
+.bmc-card__header--padded {
+  padding: 20px 24px;
+  margin-bottom: 0;
+}
 .bmc-card__title {
+  font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
 }
-
 .bmc-card__subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: var(--text-tertiary);
   margin: 4px 0 0;
 }
 
-/* Chart container */
+/* ── Chart ── */
 .bmc-chart-container {
-  min-height: 300px;
+  min-height: 260px;
   position: relative;
 }
-
-/* Currency selector */
 .bmc-currency-select {
   width: 130px;
 }
 
-/* Setup banner */
+/* ── Payment Breakdown ── */
+.bmc-payment-breakdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.bmc-donut-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 160px;
+}
+.bmc-donut-ring {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 16px solid var(--color-primary-500);
+  border-right-color: var(--color-accent-orange);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bmc-donut-total {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.bmc-payment-legend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bmc-payment-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bmc-payment-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bmc-payment-legend__name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.bmc-payment-legend__value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Right Column ── */
+.bmc-dash-right-col {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (max-width: 960px) {
+  .bmc-card--side,
+  .bmc-dash-right-col { width: 100%; }
+}
+
+/* ── Subscriptions list ── */
+.bmc-sub-list {
+  display: flex;
+  flex-direction: column;
+}
+.bmc-sub-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.bmc-sub-item:last-child {
+  border-bottom: none;
+}
+.bmc-sub-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bmc-sub-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.bmc-sub-item__plan {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.bmc-sub-item__amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.bmc-sub-empty {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* ── Quick Stats ── */
+.bmc-quick-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.bmc-quick-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.bmc-quick-stat:last-child {
+  border-bottom: none;
+}
+.bmc-quick-stat__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.bmc-quick-stat__value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Setup Banner ── */
 .bmc-setup-banner {
   display: flex;
   align-items: center;
@@ -525,12 +794,11 @@ export default {
   padding: 16px 20px;
   margin-bottom: 24px;
   background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-coffee-50) 100%);
-  border: 1px solid var(--color-coffee-200);
-  border-radius: 12px;
+  border: 1px solid var(--color-primary-200);
+  border-radius: 16px;
   position: relative;
   overflow: hidden;
 }
-
 .bmc-setup-banner__deco {
   position: absolute;
   right: 20px;
@@ -543,53 +811,44 @@ export default {
   pointer-events: none;
   animation: bmc-bob 3s ease-in-out infinite;
 }
-
 @keyframes bmc-bob {
   0%, 100% { transform: translateY(-50%); }
   50%       { transform: translateY(calc(-50% - 5px)); }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .bmc-setup-banner__deco { animation: none; }
 }
-
 .bmc-setup-banner__icon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: radial-gradient(circle at 30% 30%, var(--color-primary-100) 0%, var(--color-primary-50) 100%);
+  background: var(--color-primary-100);
   color: var(--color-primary-600);
   border-radius: 10px;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
 }
-
 .bmc-setup-banner__title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
-
 .bmc-setup-banner__desc {
   font-size: 13px;
   color: var(--text-secondary);
   margin: 2px 0 0;
 }
-
 .bmc-setup-banner__link {
   color: var(--color-primary-600);
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
 }
-
 .bmc-setup-banner__link:hover {
   text-decoration: underline;
 }
-
 .bmc-setup-banner__close {
   display: flex;
   align-items: center;
@@ -604,114 +863,129 @@ export default {
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
-
 .bmc-setup-banner__close:hover {
-  background: var(--color-primary-100, rgba(0,0,0,0.05));
+  background: rgba(0,0,0,0.05);
 }
 
-/* View all link */
+/* ── View all ── */
 .bmc-view-all {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  padding: 0 12px;
+  height: 30px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
   font-weight: 500;
-  color: var(--color-primary-600);
+  color: var(--color-primary-500);
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
 }
-
 .bmc-view-all:hover {
-  color: var(--color-primary-700, var(--color-primary-600));
-  text-decoration: none;
+  background: var(--color-primary-50);
 }
 
-/* Supporters table */
+/* ── Table ── */
 .bmc-supporters-table {
-  --el-table-border-color: var(--border-primary);
-  --el-table-header-bg-color: var(--color-neutral-50, #f9fafb);
-  --el-table-row-hover-bg-color: var(--color-neutral-50, #f9fafb);
+  --el-table-border-color: var(--border-secondary);
+  --el-table-header-bg-color: var(--bg-secondary);
+  --el-table-row-hover-bg-color: var(--bg-secondary);
   width: 100%;
 }
-
 :deep(.bmc-supporters-table__row) {
   cursor: pointer;
   transition: background 0.15s ease;
 }
-
 :deep(.bmc-supporters-table .el-table__header th) {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-secondary);
-  padding: 10px 12px;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  padding: 10px 24px;
 }
-
 :deep(.bmc-supporters-table .el-table__body td) {
-  padding: 12px;
-  border-bottom: 1px solid var(--border-primary);
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
+/* ── Avatars ── */
 .bmc-avatar {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 9999px;
   object-fit: cover;
   flex-shrink: 0;
 }
-
 .bmc-avatar-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 9999px;
-  background: var(--color-primary-50);
-  color: var(--color-primary-600);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   flex-shrink: 0;
+}
+.bmc-avatar--purple {
+  background: var(--color-accent-purple-light);
+  color: var(--color-accent-purple);
+}
+.bmc-avatar--teal {
+  background: var(--color-accent-teal-light);
+  color: var(--color-accent-teal);
+}
+.bmc-avatar--orange {
+  background: var(--color-accent-orange-light);
+  color: var(--color-accent-orange);
+}
+.bmc-avatar--blue {
+  background: var(--color-accent-blue-light);
+  color: var(--color-accent-blue);
+}
+.bmc-avatar--pink {
+  background: var(--color-accent-pink-light);
+  color: var(--color-accent-pink);
+}
+.bmc-avatar--green {
+  background: var(--color-accent-green-light);
+  color: var(--color-accent-green);
 }
 
 .bmc-supporter-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-
 .bmc-supporter-email {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--text-tertiary);
   margin: 1px 0 0;
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-
 .bmc-amount {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
-
 .bmc-method {
   font-size: 13px;
   color: var(--text-secondary);
   text-transform: capitalize;
 }
-
 .bmc-date {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .bmc-dash-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .bmc-dash-header__right { flex-wrap: wrap; }
 }
 </style>

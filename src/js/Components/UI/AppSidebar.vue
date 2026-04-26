@@ -3,9 +3,7 @@
         <!-- Brand -->
         <div class="bmc-sidebar__brand">
             <div class="bmc-sidebar__logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>
-                </svg>
+                <Coffee :size="18" />
             </div>
             <span v-show="!isCollapsed" class="bmc-sidebar__brand-text">Buy Me Coffee</span>
         </div>
@@ -74,7 +72,7 @@
                     </li>
                     <li>
                         <router-link to="/quick-setup" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive({ activeNames: ['Onboarding'] }) }">
-                            <Sparkles :size="20" class="bmc-sidebar__icon" />
+                            <Sparkles :size="20" class="bmc-sidebar__icon bmc-sidebar__icon--sparkle" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Quick Setup</span>
                         </router-link>
                     </li>
@@ -87,6 +85,20 @@
                 </ul>
             </div>
         </nav>
+
+        <!-- Utility icons row -->
+        <div class="bmc-sidebar__utils" v-show="!isCollapsed">
+            <button class="bmc-sidebar__util-btn" @click="toggleTheme" :title="isDark ? 'Light mode' : 'Dark mode'">
+                <Moon v-if="!isDark" :size="15" />
+                <Sun v-else :size="15" />
+            </button>
+            <a href="https://wpminers.com/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-sidebar__util-btn" title="Documentation">
+                <Info :size="15" />
+            </a>
+            <a v-if="isWpAdmin" :href="fullPageUrl" class="bmc-sidebar__util-btn" title="Open full-screen dashboard">
+                <Maximize2 :size="15" />
+            </a>
+        </div>
 
         <!-- Collapse toggle -->
         <button class="bmc-sidebar__toggle" @click="toggleCollapse" :title="isCollapsed ? 'Expand' : 'Collapse'">
@@ -102,8 +114,10 @@ import {
     LayoutDashboard, Heart, Settings, Palette, Code2,
     CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
     ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
-    RefreshCw, ClipboardList,
+    RefreshCw, ClipboardList, Coffee,
+    Moon, Sun, Info, Maximize2,
 } from 'lucide-vue-next';
+import { useTheme } from '../../composables/useTheme';
 
 const COLLAPSE_KEY = '__buymecoffee_sidebar_collapsed';
 
@@ -112,12 +126,17 @@ const emit = defineEmits(['update:collapsed']);
 
 const route = useRoute();
 const isCollapsed = ref(props.collapsed);
+const { isDark, toggleTheme } = useTheme();
 
 watch(isCollapsed, (val) => emit('update:collapsed', val));
 
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
 const wpAdminUrl = computed(() => (window.BuyMeCoffeeAdmin?.wp_admin_url || '/wp-admin/') + 'admin.php?page=buy-me-coffee.php');
 const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
+const fullPageUrl = computed(() => {
+    const base = window.location.origin;
+    return base + '/?buymecoffee_admin';
+});
 
 const mainItems = [
     { label: 'Dashboard',     route: '/',             icon: LayoutDashboard, activeNames: ['Dashboard'] },
@@ -164,63 +183,74 @@ onMounted(() => {
 
 <style scoped>
 .bmc-sidebar {
-    width: 220px;
-    min-width: 220px;
+    width: 210px;
+    min-width: 210px;
     height: 100vh;
-    background: var(--bg-primary);
-    border-right: 1px solid var(--border-primary);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--sidebar-border);
     display: flex;
     flex-direction: column;
     transition: width 0.2s ease, min-width 0.2s ease;
     overflow: hidden;
 }
 .bmc-sidebar--collapsed {
-    width: 60px;
-    min-width: 60px;
+    width: 52px;
+    min-width: 52px;
 }
 
+/* ── Brand ── */
 .bmc-sidebar__brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 18px 16px;
-    border-bottom: 1px solid var(--border-secondary);
+    padding: 0 16px;
+    height: 52px;
+    flex-shrink: 0;
 }
 .bmc-sidebar__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-accent-pink) 100%);
+    color: #fff;
     flex-shrink: 0;
-    color: var(--color-primary-500);
 }
 .bmc-sidebar__brand-text {
-    font-family: var(--font-sans);
-    font-size: 15px;
+    font-family: var(--font-display);
+    font-size: 14px;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--sidebar-text);
     white-space: nowrap;
 }
 
+/* ── Nav ── */
 .bmc-sidebar__nav {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 10px 8px;
-    gap: 2px;
+    padding: 0;
     overflow-y: auto;
 }
-.bmc-sidebar__section { margin-bottom: 14px; }
+.bmc-sidebar__section {
+    padding: 12px 10px;
+}
 .bmc-sidebar__section--bottom {
     margin-top: auto;
-    margin-bottom: 0;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-secondary);
+    padding-top: 8px;
+    padding-bottom: 12px;
+    border-top: 1px solid var(--sidebar-border);
 }
 .bmc-sidebar__section-label {
     display: block;
-    padding: 4px 12px 6px;
-    font-size: 11px;
+    padding: 0 10px 6px;
+    font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-tertiary);
+    letter-spacing: 1.5px;
+    color: var(--sidebar-text-label);
     white-space: nowrap;
 }
 .bmc-sidebar__list {
@@ -229,7 +259,7 @@ onMounted(() => {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 /* ── Parent items ── */
@@ -237,11 +267,12 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    color: var(--text-secondary);
+    padding: 0 10px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    color: var(--sidebar-text-muted);
     text-decoration: none;
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 500;
     font-family: var(--font-sans);
     transition: background 0.15s ease, color 0.15s ease;
@@ -249,28 +280,34 @@ onMounted(() => {
     white-space: nowrap;
 }
 .bmc-sidebar__item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    background: var(--bg-sidebar-hover);
+    color: var(--sidebar-text);
 }
 .bmc-sidebar__item--active {
-    background: var(--color-primary-50);
-    color: var(--color-primary-700);
+    background: var(--bg-sidebar-active);
+    color: var(--sidebar-active-text);
 }
 .bmc-sidebar__item--active .bmc-sidebar__icon {
-    color: var(--color-primary-500);
+    color: var(--sidebar-active-text);
 }
 .bmc-sidebar__item--muted {
-    color: var(--text-tertiary);
+    color: var(--sidebar-text-muted);
     font-size: 13px;
 }
 
 .bmc-sidebar__icon {
     flex-shrink: 0;
-    color: var(--text-tertiary);
+    color: var(--sidebar-text-muted);
     transition: color 0.15s ease;
 }
+.bmc-sidebar__icon--sparkle {
+    color: var(--color-accent-orange);
+}
 .bmc-sidebar__item:hover .bmc-sidebar__icon {
-    color: var(--text-secondary);
+    color: var(--sidebar-text);
+}
+.bmc-sidebar__item--active .bmc-sidebar__icon {
+    color: var(--sidebar-active-text);
 }
 .bmc-sidebar__label {
     flex: 1;
@@ -279,7 +316,7 @@ onMounted(() => {
 }
 .bmc-sidebar__chevron {
     flex-shrink: 0;
-    color: var(--text-tertiary);
+    color: var(--sidebar-text-muted);
     margin-left: auto;
 }
 
@@ -288,11 +325,11 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px 6px 38px;
+    padding: 4px 10px 4px 34px;
     border-radius: 7px;
-    color: var(--text-secondary);
+    color: var(--sidebar-text-muted);
     text-decoration: none;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 400;
     font-family: var(--font-sans);
     transition: background 0.15s ease, color 0.15s ease;
@@ -300,38 +337,61 @@ onMounted(() => {
     white-space: nowrap;
     position: relative;
 }
-
-/* vertical guide line */
 .bmc-sidebar__subitem::before {
     content: '';
     position: absolute;
-    left: 21px;
+    left: 18px;
     top: 50%;
     transform: translateY(-50%);
     width: 5px;
     height: 1px;
-    background: var(--border-primary);
+    background: var(--sidebar-border);
 }
-
 .bmc-sidebar__subitem:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    background: var(--bg-sidebar-hover);
+    color: var(--sidebar-text);
 }
 .bmc-sidebar__subitem--active {
-    color: var(--color-primary-700);
+    color: var(--sidebar-active-text);
     font-weight: 500;
 }
 .bmc-sidebar__subitem--active::before {
-    background: var(--color-primary-500);
+    background: var(--sidebar-active-text);
 }
-
 .bmc-sidebar__subicon {
     flex-shrink: 0;
-    color: var(--text-tertiary);
+    color: var(--sidebar-text-muted);
 }
 .bmc-sidebar__subitem--active .bmc-sidebar__subicon,
 .bmc-sidebar__subitem:hover .bmc-sidebar__subicon {
-    color: var(--color-primary-500);
+    color: var(--sidebar-active-text);
+}
+
+/* ── Utility icons ── */
+.bmc-sidebar__utils {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px 8px;
+}
+.bmc-sidebar__util-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--sidebar-util-bg);
+    color: var(--sidebar-text-muted);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+.bmc-sidebar__util-btn:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--sidebar-text);
 }
 
 /* ── Collapse toggle ── */
@@ -339,29 +399,21 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 8px;
-    padding: 8px;
-    border: 1px solid var(--border-primary);
+    margin: 6px;
+    padding: 6px;
+    border: 1px solid var(--sidebar-border);
     border-radius: 8px;
-    background: var(--bg-primary);
-    color: var(--text-tertiary);
+    background: transparent;
+    color: var(--sidebar-text-muted);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 .bmc-sidebar__toggle:hover {
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-:global(html.dark) .bmc-sidebar__item--active {
-    background: rgba(13, 148, 136, 0.15);
-    color: var(--color-primary-400);
-}
-:global(html.dark) .bmc-sidebar__subitem--active {
-    color: var(--color-primary-400);
+    background: var(--bg-sidebar-hover);
+    color: var(--sidebar-text);
 }
 
 @media (max-width: 768px) {
-    .bmc-sidebar { width: 60px; min-width: 60px; }
+    .bmc-sidebar { width: 52px; min-width: 52px; }
 }
 </style>

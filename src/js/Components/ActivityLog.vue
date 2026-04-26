@@ -3,7 +3,7 @@
     <CoffeeLoader :loading="loading && logs.length === 0" />
     <PageTitle title="Activity Log" subtitle="Full event history across payments, subscriptions, and emails." />
 
-    <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6">
+    <div class="bmc-card">
 
       <!-- Filter row -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -237,6 +237,15 @@ export default {
 </script>
 
 <style scoped>
+/* Card */
+.bmc-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
 /* ── Table base ───────────────────────────────────────────── */
 .bmc-table {
   --el-table-border-color: var(--border-secondary);

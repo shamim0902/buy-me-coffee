@@ -3,6 +3,7 @@
     <CoffeeLoader :loading="loading" />
     <PageTitle title="Supporters" subtitle="Manage and view all your supporters" />
 
+
     <!-- Status Pills -->
     <div v-if="!loading" class="flex flex-wrap gap-2 mb-6">
       <button
@@ -18,7 +19,7 @@
     </div>
 
     <!-- Filters Row -->
-    <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6">
+    <div class="bmc-card">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div class="relative">
           <Search :size="16" class="bmc-search-icon" />
@@ -214,6 +215,15 @@ export default {
 </script>
 
 <style scoped>
+/* Card */
+.bmc-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
 /* Status pills */
 .bmc-pill {
   display: inline-flex;
@@ -235,12 +245,14 @@ export default {
   color: var(--text-primary);
 }
 .bmc-pill--active {
-  background: var(--color-primary-50);
-  color: var(--color-primary-700);
-  border-color: var(--color-primary-300);
+  background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+  color: #fff;
+  border-color: var(--color-primary-500);
 }
 .bmc-pill--active:hover {
-  background: var(--color-primary-100);
+  opacity: 0.9;
+  color: #fff;
+  background: linear-gradient(180deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
 }
 .bmc-pill__count {
   display: inline-flex;
@@ -256,8 +268,8 @@ export default {
   color: var(--text-secondary);
 }
 .bmc-pill--active .bmc-pill__count {
-  background: var(--color-primary-200);
-  color: var(--color-primary-800);
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 /* Search input */

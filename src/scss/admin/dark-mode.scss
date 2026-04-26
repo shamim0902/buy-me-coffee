@@ -3,13 +3,29 @@
 // ============================================================
 
 html.dark {
+  // ── Primary color overrides (purple) ──────────────────────
+  --color-primary-400: #c084fc;
+  --color-primary-500: #8b5cf6;
+
   // ── Semantic tokens ───────────────────────────────────────
   --bg-primary:     var(--color-neutral-900);
   --bg-secondary:   var(--color-neutral-800);
   --bg-tertiary:    var(--color-neutral-700);
   --bg-elevated:    var(--color-neutral-800);
-  --bg-sidebar:     var(--color-neutral-950);
-  --bg-hover:       var(--color-neutral-700);
+  --bg-sidebar:          var(--color-neutral-950);
+  --bg-sidebar-hover:    var(--color-neutral-800);
+  --bg-sidebar-active:   rgba(139, 92, 246, 0.15);
+  --bg-hover:            var(--color-neutral-700);
+
+  --sidebar-text:        var(--color-neutral-50);
+  --sidebar-text-muted:  var(--color-neutral-400);
+  --sidebar-text-label:  var(--color-neutral-500);
+  --sidebar-border:      var(--color-neutral-800);
+  --sidebar-util-bg:     var(--color-neutral-800);
+  --sidebar-active-text: var(--color-primary-400);
+
+  --text-on-dark:        var(--sidebar-text);
+  --text-on-dark-muted:  var(--sidebar-text-muted);
 
   --text-primary:   var(--color-neutral-50);
   --text-secondary: var(--color-neutral-400);
@@ -45,7 +61,7 @@ html.dark {
   --shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   --shadow-lg:   0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
   --shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
-  --shadow-ring: 0 0 0 3px rgb(13 148 136 / 0.25);
+  --shadow-ring: 0 0 0 3px rgb(139 92 246 / 0.25);
 
   // ── Element Plus CSS variable overrides ───────────────────
   --el-bg-color:                var(--bg-primary);
@@ -192,7 +208,7 @@ html.dark {
   }
   .el-select-dropdown__item.is-selected {
     color: var(--color-primary-400) !important;
-    background-color: rgba(13, 148, 136, 0.12) !important;
+    background-color: rgba(139, 92, 246, 0.12) !important;
   }
 
   // Radio buttons (mode toggles)

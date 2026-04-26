@@ -59,10 +59,10 @@ div#buy-me-coffee_app svg {
 
 // Subtle dot texture on main content area
 .bmc-layout__content {
-    background-image: radial-gradient(circle, rgba(13, 148, 136, 0.07) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(139, 92, 246, 0.07) 1px, transparent 1px);
     background-size: 24px 24px;
 }
 
 html.dark .bmc-layout__content {
-    background-image: radial-gradient(circle, rgba(13, 148, 136, 0.12) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(139, 92, 246, 0.12) 1px, transparent 1px);
 }

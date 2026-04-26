@@ -2,20 +2,19 @@
     <div class="relative min-h-[200px]">
         <CoffeeLoader :loading="fetching" />
         <!-- Header card: back + title + enable toggle -->
-        <div class="bg-white rounded-xl border border-neutral-200 shadow-xs px-5 py-4 mb-4 flex items-center gap-4">
+        <div class="bmc-card bmc-settings-header">
             <button
-                class="flex items-center gap-1 text-sm font-medium cursor-pointer border-0 bg-transparent flex-shrink-0"
-                style="color: var(--text-secondary)"
+                class="bmc-back-btn"
                 @click="$router.push({ name: 'Gateway' })"
             >
                 <ArrowLeft :size="15" />
             </button>
-            <div class="flex-1 min-w-0">
-                <h3 class="text-sm font-semibold text-[var(--text-primary)]">Stripe</h3>
-                <p class="text-xs text-[var(--text-secondary)]">Accept payments via Stripe</p>
+            <div class="bmc-settings-header__info">
+                <h3 class="bmc-settings-header__title">Stripe</h3>
+                <p class="bmc-settings-header__subtitle">Accept payments via Stripe</p>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <span class="text-xs text-[var(--text-secondary)]">{{ settings.enable === 'yes' ? 'Enabled' : 'Disabled' }}</span>
+            <div class="bmc-settings-header__toggle">
+                <span class="bmc-settings-header__status">{{ settings.enable === 'yes' ? 'Enabled' : 'Disabled' }}</span>
                 <el-switch
                     v-model="settings.enable"
                     active-value="yes"
@@ -25,14 +24,14 @@
         </div>
 
         <div :class="settings.enable !== 'yes' ? 'opacity-50 pointer-events-none' : ''">
-            <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-5 mb-4 space-y-4">
+            <div class="bmc-card bmc-settings-body">
                 <!-- Mode row -->
-                <div class="flex items-center justify-between">
+                <div class="bmc-settings-row">
                     <div>
-                        <span class="text-sm font-medium text-[var(--text-primary)]">
+                        <span class="bmc-settings-row__label">
                             {{ settings.payment_mode === 'live' ? 'Live' : 'Test' }} API Keys
                         </span>
-                        <p v-if="settings.payment_mode === 'test'" class="text-xs text-amber-600 mt-0.5 flex items-center gap-1 m-0">
+                        <p v-if="settings.payment_mode === 'test'" class="bmc-settings-row__hint bmc-settings-row__hint--warn">
                             <AlertTriangle :size="12" /> Test mode — no real charges
                         </p>
                     </div>
@@ -42,12 +41,12 @@
                     </el-radio-group>
                 </div>
 
-                <div class="h-px bg-neutral-100"></div>
+                <div class="bmc-divider"></div>
 
                 <!-- Keys -->
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">Publishable Key</label>
+                <div class="bmc-field-group">
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">Publishable Key</label>
                         <el-input
                             v-model="activePublishableKey"
                             type="password"
@@ -55,8 +54,8 @@
                             show-password
                         />
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">Secret Key</label>
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">Secret Key</label>
                         <el-input
                             v-model="activeSecretKey"
                             type="password"
@@ -64,8 +63,8 @@
                             show-password
                         />
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">Webhook Signing Secret</label>
+                    <div class="bmc-field">
+                        <label class="bmc-field__label">Webhook Signing Secret</label>
                         <el-input
                             v-model="activeWebhookSecret"
                             type="password"
@@ -75,32 +74,32 @@
                     </div>
                 </div>
 
-                <div class="h-px bg-neutral-100"></div>
+                <div class="bmc-divider"></div>
 
                 <!-- Webhook URL -->
                 <div>
-                    <div class="flex items-start justify-between gap-3 mb-2">
+                    <div class="bmc-settings-row" style="margin-bottom: 12px;">
                         <div>
-                            <span class="text-sm font-medium text-[var(--text-primary)]">Webhook URL</span>
-                            <p class="text-xs text-[var(--text-secondary)] mt-0.5">Add to your Stripe dashboard to receive payment events.</p>
+                            <span class="bmc-settings-row__label">Webhook URL</span>
+                            <p class="bmc-settings-row__hint">Add to your Stripe dashboard to receive payment events.</p>
                         </div>
                         <a
                             href="https://dashboard.stripe.com/account/webhooks"
                             target="_blank"
                             rel="noopener"
-                            class="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] hover:underline flex-shrink-0 mt-0.5"
+                            class="bmc-ext-link"
                         >
                             Dashboard <ExternalLink :size="11" />
                         </a>
                     </div>
                     <CodeBlock :code="webhook_url" />
-                    <div class="mt-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200">
-                        <p class="text-xs font-medium text-[var(--text-secondary)] mb-1">Required webhook events:</p>
-                        <ul class="text-xs text-[var(--text-tertiary)] space-y-0.5 list-none m-0 p-0">
-                            <li>• <code class="text-xs">charge.succeeded</code></li>
-                            <li>• <code class="text-xs">invoice.payment_succeeded</code> — recurring renewal payments</li>
-                            <li>• <code class="text-xs">customer.subscription.deleted</code> — subscription cancellations</li>
-                            <li>• <code class="text-xs">customer.subscription.updated</code> — status changes</li>
+                    <div class="bmc-webhook-events">
+                        <p class="bmc-webhook-events__title">Required webhook events:</p>
+                        <ul class="bmc-webhook-events__list">
+                            <li>• <code>charge.succeeded</code></li>
+                            <li>• <code>invoice.payment_succeeded</code> — recurring renewal payments</li>
+                            <li>• <code>customer.subscription.deleted</code> — subscription cancellations</li>
+                            <li>• <code>customer.subscription.updated</code> — status changes</li>
                         </ul>
                     </div>
                 </div>
@@ -253,3 +252,145 @@ export default {
     mounted() { this.getSettings(); }
 }
 </script>
+
+<style scoped>
+.bmc-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bmc-settings-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    margin-bottom: 16px;
+}
+.bmc-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.15s ease;
+}
+.bmc-back-btn:hover { color: var(--text-primary); }
+
+.bmc-settings-header__info { flex: 1; min-width: 0; }
+.bmc-settings-header__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+.bmc-settings-header__subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 2px 0 0;
+}
+.bmc-settings-header__toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.bmc-settings-header__status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.bmc-settings-body {
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.bmc-settings-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.bmc-settings-row__label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.bmc-settings-row__hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 4px 0 0;
+}
+.bmc-settings-row__hint--warn {
+    color: var(--color-warning-600);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bmc-divider {
+    height: 1px;
+    background: var(--border-secondary);
+    margin: 20px 0;
+}
+
+.bmc-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bmc-field__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.bmc-ext-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-primary-600);
+    text-decoration: none;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.bmc-ext-link:hover { text-decoration: underline; }
+
+.bmc-webhook-events {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+}
+.bmc-webhook-events__title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+}
+.bmc-webhook-events__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+.bmc-webhook-events__list code {
+    font-size: 12px;
+    font-family: var(--font-mono);
+}
+</style>

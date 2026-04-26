@@ -3,29 +3,24 @@
         <CoffeeLoader :loading="fetching" />
 
         <!-- Notification rows -->
-        <div class="divide-y divide-neutral-100">
+        <div class="bmc-notif-list">
             <div
                 v-for="notif in notifications"
                 :key="notif.id"
-                class="flex items-center gap-4 py-4"
+                class="bmc-notif-row"
             >
                 <!-- Icon -->
-                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                    :class="notif.id === 'donor' ? 'bg-blue-50' : 'bg-amber-50'"
-                >
+                <div class="bmc-notif-row__icon" :class="iconClass(notif)">
                     <component
-                        :is="notif.id === 'donor' ? Heart : ShieldCheck"
+                        :is="iconComponent(notif)"
                         :size="17"
-                        :class="notif.id === 'donor' ? 'text-blue-500' : 'text-amber-500'"
                     />
                 </div>
 
                 <!-- Label + trigger -->
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-[var(--text-primary)]">{{ notif.label }}</p>
-                    <p class="text-xs text-[var(--text-tertiary)] mt-0.5">
-                        {{ notif.id === 'donor' ? 'Sent to the donor on successful payment' : 'Sent to site admin on successful payment' }}
-                    </p>
+                <div class="bmc-notif-row__body">
+                    <p class="bmc-notif-row__title">{{ notif.label }}</p>
+                    <p class="bmc-notif-row__desc">{{ notifDescription(notif) }}</p>
                 </div>
 
                 <!-- Enabled toggle -->
@@ -35,10 +30,7 @@
                 />
 
                 <!-- Edit button -->
-                <button
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 bg-white text-[var(--text-secondary)] hover:bg-neutral-50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                    @click="openEdit(notif)"
-                >
+                <button class="bmc-notif-row__edit" @click="openEdit(notif)">
                     <Pencil :size="13" />
                     Edit
                 </button>
@@ -52,24 +44,24 @@
             width="620px"
             :close-on-click-modal="false"
         >
-            <div v-if="editTarget" class="space-y-4">
+            <div v-if="editTarget" class="bmc-dialog-form">
                 <!-- Enabled -->
-                <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium text-[var(--text-primary)]">Enable this notification</span>
+                <div class="bmc-dialog-row">
+                    <span class="bmc-dialog-row__label">Enable this notification</span>
                     <el-switch v-model="editTarget.enabled" />
                 </div>
 
-                <div class="h-px bg-neutral-100" />
+                <div class="bmc-divider"></div>
 
                 <!-- Subject -->
-                <div>
-                    <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Subject</label>
+                <div class="bmc-field">
+                    <label class="bmc-field__label">Subject</label>
                     <el-input v-model="editTarget.subject" placeholder="Email subject..." />
                 </div>
 
                 <!-- Body -->
-                <div>
-                    <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Message Body</label>
+                <div class="bmc-field">
+                    <label class="bmc-field__label">Message Body</label>
                     <el-input
                         v-model="editTarget.body"
                         type="textarea"
@@ -79,22 +71,22 @@
                 </div>
 
                 <!-- Shortcode reference -->
-                <div class="bg-neutral-50 rounded-lg border border-neutral-200 p-3">
-                    <p class="text-xs font-medium text-[var(--text-secondary)] mb-2">Available shortcodes:</p>
-                    <div class="flex flex-wrap gap-1.5">
+                <div class="bmc-shortcode-ref">
+                    <p class="bmc-shortcode-ref__title">Available shortcodes:</p>
+                    <div class="bmc-shortcode-ref__list">
                         <code
                             v-for="sc in shortcodes"
                             :key="sc"
-                            class="px-2 py-0.5 text-xs bg-white border border-neutral-200 rounded text-[var(--text-secondary)] cursor-pointer hover:bg-neutral-100 transition-colors"
+                            class="bmc-shortcode-ref__tag"
                             @click="insertShortcode(sc)"
                             :title="'Click to copy ' + sc"
                         >{{ sc }}</code>
                     </div>
-                    <p class="text-xs text-[var(--text-tertiary)] mt-2">Click a shortcode to copy it to your clipboard.</p>
+                    <p class="bmc-shortcode-ref__hint">Click a shortcode to copy it to your clipboard.</p>
                 </div>
 
                 <!-- Test email -->
-                <div class="flex items-center gap-2 pt-1">
+                <div class="bmc-test-email">
                     <el-input
                         v-model="testEmailTo"
                         placeholder="Test recipient email..."
@@ -125,12 +117,21 @@
 </template>
 
 <script>
-import { Heart, ShieldCheck, Pencil, Send } from 'lucide-vue-next';
+import { Heart, ShieldCheck, Pencil, Send, Bell, RefreshCw } from 'lucide-vue-next';
 import CoffeeLoader from '../UI/CoffeeLoader.vue';
+
+const NOTIF_META = {
+    donor:        { icon: 'Heart',       colorClass: 'bmc-notif-row__icon--blue',   desc: 'Sent to the donor on successful payment' },
+    admin:        { icon: 'ShieldCheck', colorClass: 'bmc-notif-row__icon--amber',  desc: 'Sent to site admin on successful payment' },
+    subscription: { icon: 'RefreshCw',   colorClass: 'bmc-notif-row__icon--green',  desc: 'Sent to subscriber on renewal or status change' },
+    cancelled:    { icon: 'Bell',        colorClass: 'bmc-notif-row__icon--red',    desc: 'Sent when a subscription is cancelled' },
+};
+
+const ICON_MAP = { Heart, ShieldCheck, Bell, RefreshCw };
 
 export default {
     name: 'Emails',
-    components: { Heart, ShieldCheck, Pencil, Send, CoffeeLoader },
+    components: { Heart, ShieldCheck, Pencil, Send, Bell, RefreshCw, CoffeeLoader },
 
     data() {
         return {
@@ -150,12 +151,23 @@ export default {
                 '{{site_url}}',
                 '{{admin_email}}',
             ],
-            Heart,
-            ShieldCheck,
         };
     },
 
     methods: {
+        iconComponent(notif) {
+            const meta = NOTIF_META[notif.id];
+            return meta ? ICON_MAP[meta.icon] || Heart : Heart;
+        },
+        iconClass(notif) {
+            const meta = NOTIF_META[notif.id];
+            return meta ? meta.colorClass : 'bmc-notif-row__icon--blue';
+        },
+        notifDescription(notif) {
+            const meta = NOTIF_META[notif.id];
+            return meta ? meta.desc : '';
+        },
+
         fetchNotifications() {
             this.fetching = true;
             this.$get({
@@ -193,7 +205,6 @@ export default {
                 buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
             }).then((res) => {
                 this.$handleSuccess(res.data.message);
-                // Update the local list
                 const idx = this.notifications.findIndex(n => n.id === this.editTarget.id);
                 if (idx !== -1) this.notifications[idx] = { ...this.editTarget };
                 this.dialogVisible = false;
@@ -235,3 +246,156 @@ export default {
     },
 };
 </script>
+
+<style scoped>
+/* Notification List */
+.bmc-notif-list {
+    display: flex;
+    flex-direction: column;
+}
+.bmc-notif-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-secondary);
+}
+.bmc-notif-row:last-child {
+    border-bottom: 0;
+}
+
+.bmc-notif-row__icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bmc-notif-row__icon--blue {
+    background: var(--color-info-50);
+    color: var(--color-info-500);
+}
+.bmc-notif-row__icon--amber {
+    background: var(--color-warning-50);
+    color: var(--color-warning-500);
+}
+.bmc-notif-row__icon--green {
+    background: var(--color-success-50);
+    color: var(--color-success-500);
+}
+.bmc-notif-row__icon--red {
+    background: var(--color-error-50);
+    color: var(--color-error-500);
+}
+
+.bmc-notif-row__body {
+    flex: 1;
+    min-width: 0;
+}
+.bmc-notif-row__title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0;
+}
+.bmc-notif-row__desc {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 2px 0 0;
+}
+
+.bmc-notif-row__edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.bmc-notif-row__edit:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+/* Dialog form */
+.bmc-dialog-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bmc-dialog-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.bmc-dialog-row__label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.bmc-divider {
+    height: 1px;
+    background: var(--border-secondary);
+}
+.bmc-field__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+/* Shortcode reference */
+.bmc-shortcode-ref {
+    padding: 14px;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+}
+.bmc-shortcode-ref__title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+}
+.bmc-shortcode-ref__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.bmc-shortcode-ref__tag {
+    padding: 2px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.bmc-shortcode-ref__tag:hover {
+    background: var(--bg-tertiary);
+}
+.bmc-shortcode-ref__hint {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 8px 0 0;
+}
+
+/* Test email */
+.bmc-test-email {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+}
+</style>

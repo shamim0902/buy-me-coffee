@@ -1,7 +1,10 @@
+// ── Font Imports ────────────────────────────────────────────
+
 @use './design-tokens.scss';
 @use './dark-mode.scss';
 @use './element-plus.scss';
 @use './global_css.scss';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -23,7 +26,7 @@
     box-shadow: none !important;
   }
 
-  // Re-add a clean teal ring ONLY for keyboard navigation
+  // Re-add a clean purple ring ONLY for keyboard navigation
   *:focus-visible,
   a:focus-visible,
   button:focus-visible,
