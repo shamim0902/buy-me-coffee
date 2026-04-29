@@ -152,13 +152,13 @@
       <div class="bmc-card bmc-card--flex bmc-card--no-pad">
         <div class="bmc-card__header bmc-card__header--padded">
           <div>
-            <h2 class="bmc-card__title">Recent Supporters</h2>
+            <h2 class="bmc-card__title">Recent Transactions</h2>
             <p class="bmc-card__subtitle">Latest donations received</p>
           </div>
           <a
             v-if="supporters.length"
             class="bmc-view-all"
-            @click="$router.push({ name: 'Supporters' })"
+            @click="$router.push({ name: 'RecentTransactions' })"
           >
             View all
             <ChevronRight :size="14" />
@@ -393,7 +393,7 @@ export default {
       return '$' + (mrr / 100).toFixed(2);
     },
     avgDonation() {
-      const total = this.reportData.currency_total?.[0]?.total || 0;
+      const total = this.reportData.currency_total?.[0]?.total_amount || 0;
       const count = this.reportData.total_supporters || 0;
       if (!count) return '$0.00';
       return '$' + (total / count / 100).toFixed(2);

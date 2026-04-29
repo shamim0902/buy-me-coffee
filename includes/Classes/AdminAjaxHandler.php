@@ -73,6 +73,11 @@ class AdminAjaxHandler
             'save_email_notification'  => 'saveEmailNotification',
             'send_test_email'          => 'sendTestEmail',
 
+            'get_supporters_list'    => 'getSupportersList',
+            'get_supporter_stats'    => 'getSupporterStats',
+            'get_supporter_settings' => 'getSupporterSettings',
+            'save_supporter_settings' => 'saveSupporterSettings',
+
             'get_subscriptions'      => 'getSubscriptions',
             'get_subscription'       => 'getSubscription',
             'cancel_subscription'    => 'cancelSubscription',
@@ -184,6 +189,54 @@ class AdminAjaxHandler
         return (new Supporters())->index($request);
     }
 
+    public function getSupportersList($request)
+    {
+        return (new Supporters())->getUniqueSupporters($request);
+    }
+
+    public function getSupporterStats()
+    {
+        $stats = (new Supporters())->getSupporterStats();
+        wp_send_json_success($stats, 200);
+    }
+
+    public function getTopSupporters()
+    {
+        $supporters = (new Supporters())->getTopSupportersList(10);
+        wp_send_json_success(['supporters' => $supporters], 200);
+    }
+
+    public function getSupporterSettings()
+    {
+        $settings = get_option('buymecoffee_supporters_display_settings', []);
+        $defaults = [
+            'show_name'       => 'yes',
+            'show_avatar'     => 'yes',
+            'show_amount'     => 'no',
+            'show_message'    => 'yes',
+            'max_supporters'  => 20,
+            'hide_email'      => 'yes',
+            'allow_anonymous' => 'yes',
+        ];
+        wp_send_json_success(wp_parse_args($settings, $defaults), 200);
+    }
+
+    public function saveSupporterSettings($request)
+    {
+        $toggleKeys = ['show_name', 'show_avatar', 'show_amount', 'show_message', 'hide_email', 'allow_anonymous'];
+        $settings = [];
+        foreach ($toggleKeys as $key) {
+            if (isset($request[$key])) {
+                $settings[$key] = sanitize_text_field($request[$key]) === 'yes' ? 'yes' : 'no';
+            }
+        }
+        if (isset($request['max_supporters'])) {
+            $settings['max_supporters'] = max(1, min(100, absint($request['max_supporters'])));
+        }
+        update_option('buymecoffee_supporters_display_settings', $settings, false);
+        wp_send_json_success(['message' => __('Settings saved successfully', 'buy-me-coffee')], 200);
+    }
+
     public function editSupporter($request)
     {
         $id = Arr::get($request, 'id');
@@ -200,15 +253,73 @@ class AdminAjaxHandler
 
     public function deleteSupporter($request)
     {
-        $id = Arr::get($request, 'id');
-        $supporter = (new Supporters());
-        $transactions = (new Transactions());
-        if ($supporter->find($id)) {
-            $supporter->delete($id);
-            $transactions->delete($id, 'entry_id');
-            wp_send_json_success($supporter, 200);
+        $id = intval(Arr::get($request, 'id'));
+        $supporterModel = new Supporters();
+        $supporter = $supporterModel->find($id);
+
+        if (!$supporter) {
+            wp_send_json_error(['message' => __('Supporter not found', 'buy-me-coffee')], 404);
         }
-        wp_send_json_error();
+
+        // Collect transaction IDs before deleting them (needed for activity log cleanup)
+        $transactionIds = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('entry_id', $id)
+            ->select('id')
+            ->get();
+
+        $txIds = array_map(function ($tx) {
+            return (int) $tx->id;
+        }, $transactionIds);
+
+        // Delete activity logs for this supporter (submission + email events)
+        buyMeCoffeeQuery()
+            ->table('buymecoffee_activities')
+            ->whereIn('object_type', ['submission', 'email'])
+            ->where('object_id', $id)
+            ->delete();
+
+        // Delete activity logs for this supporter's transactions (payment events)
+        if ($txIds) {
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_activities')
+                ->where('object_type', 'payment')
+                ->whereIn('object_id', $txIds)
+                ->delete();
+        }
+
+        // Delete subscriptions linked to this supporter
+        $subscriptions = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->where('supporter_id', $id)
+            ->select('id')
+            ->get();
+
+        if ($subscriptions) {
+            $subIds = array_map(function ($sub) {
+                return (int) $sub->id;
+            }, $subscriptions);
+
+            // Delete subscription activity logs
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_activities')
+                ->where('object_type', 'subscription')
+                ->whereIn('object_id', $subIds)
+                ->delete();
+
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('supporter_id', $id)
+                ->delete();
+        }
+
+        // Delete transactions
+        (new Transactions())->delete($id, 'entry_id');
+
+        // Delete supporter entry
+        $supporterModel->delete($id);
+
+        wp_send_json_success(['message' => __('Supporter and all related data deleted', 'buy-me-coffee')], 200);
     }
 
     public function getPaymentSettings($request)
@@ -772,6 +883,9 @@ class AdminAjaxHandler
             'get_subscriptions',
             'get_subscription',
             'get_subscription_stats',
+            'get_supporters_list',
+            'get_supporter_stats',
+            'get_supporter_settings',
             'get_activities',
         ];
 
