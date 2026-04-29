@@ -69,18 +69,18 @@ class SubmissionHandler
             $recurringInterval = 'month';
         }
 
+        $supporterName = ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous');
+        $supporterEmail = ArrayHelper::get($form_data, 'wpm-supporter-email');
+        $supporterMessage = ArrayHelper::get($form_data, 'wpm-supporter-message');
+
         if ($isRecurring === 'yes') {
-            $this->validateRecurringRequest($paymentMethod, $template, $supporterEmail);
+            $this->validateRecurringRequest($paymentMethod, $template);
         }
 
         $form_data['payment_method']      = $paymentMethod;
         $form_data['payment_total']       = $paymentTotal;
         $form_data['is_recurring']        = $isRecurring;
         $form_data['recurring_interval']  = $recurringInterval;
-
-        $supporterName = ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous');
-        $supporterEmail = ArrayHelper::get($form_data, 'wpm-supporter-email');
-        $supporterMessage = ArrayHelper::get($form_data, 'wpm-supporter-message');
 
         $hash = sanitize_text_field($this->getHash());
         $reference = ArrayHelper::get($form_data, '__buymecoffee_ref', '');
@@ -185,7 +185,7 @@ class SubmissionHandler
         ];
     }
 
-    private function validateRecurringRequest($paymentMethod, $template, $supporterEmail)
+    private function validateRecurringRequest($paymentMethod, $template)
     {
         if ($paymentMethod !== 'stripe') {
             wp_send_json_error([
@@ -199,11 +199,6 @@ class SubmissionHandler
             ], 400);
         }
 
-        if (empty($supporterEmail) || !is_email($supporterEmail)) {
-            wp_send_json_error([
-                'message' => __('A valid email is required for recurring donations.', 'buy-me-coffee')
-            ], 400);
-        }
     }
 
     private function sanitizeFormData($formDataArray)
