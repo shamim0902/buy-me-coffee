@@ -377,16 +377,6 @@ class Stripe extends BaseMethods
             'updated_at' => current_time('mysql')
         ]);
 
-        ActivityLogger::logPayment((int) $transaction->id, 'webhook_received', 'Stripe webhook: payment status ' . $status, [
-            'status'     => 'info',
-            'created_by' => 'webhook:stripe',
-            'context'    => [
-                'transaction_id' => $transaction->id,
-                'stripe_status'  => $status,
-                'entry_hash'     => $orderHash,
-            ],
-        ]);
-
         do_action('buymecoffee_payment_status_updated', $transaction->id, $status);
         self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' status updated and action fired');
     }

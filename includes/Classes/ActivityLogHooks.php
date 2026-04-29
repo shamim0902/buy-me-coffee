@@ -35,6 +35,10 @@ class ActivityLogHooks
 
         [$event, $logStatus, $title] = $eventMap[$status];
 
+        if ($this->hasPaymentEvent($transactionId, $event)) {
+            return;
+        }
+
         $transaction = buyMeCoffeeQuery()
             ->table('buymecoffee_transactions')
             ->where('id', $transactionId)
@@ -53,6 +57,18 @@ class ActivityLogHooks
             'status'  => $logStatus,
             'context' => $context,
         ]);
+    }
+
+    private function hasPaymentEvent(int $transactionId, string $event): bool
+    {
+        $existing = buyMeCoffeeQuery()
+            ->table(ActivityLogger::TABLE)
+            ->where('object_type', 'payment')
+            ->where('object_id', $transactionId)
+            ->where('event', $event)
+            ->first();
+
+        return (bool) $existing;
     }
 
     /**

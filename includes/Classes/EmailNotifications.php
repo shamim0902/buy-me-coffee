@@ -175,14 +175,6 @@ class EmailNotifications
             $subject = self::parse($donor['subject'], $vars);
             $body    = self::parse($donor['body'], $vars);
             self::send($supporter->supporters_email, $subject, $body);
-            ActivityLogger::logEmail((int) $transaction->entry_id, 'email_sent', 'Donor confirmation email sent', [
-                'status'  => 'info',
-                'context' => [
-                    'transaction_id' => $transactionId,
-                    'recipient'      => $supporter->supporters_email,
-                    'type'           => 'donor',
-                ],
-            ]);
         }
 
         // Admin email
@@ -191,14 +183,6 @@ class EmailNotifications
             $subject = self::parse($admin['subject'], $vars);
             $body    = self::parse($admin['body'], $vars);
             self::send(get_option('admin_email'), $subject, $body);
-            ActivityLogger::logEmail((int) $transaction->entry_id, 'email_sent', 'Admin notification email sent', [
-                'status'  => 'info',
-                'context' => [
-                    'transaction_id' => $transactionId,
-                    'recipient'      => get_option('admin_email'),
-                    'type'           => 'admin',
-                ],
-            ]);
         }
     }
 
