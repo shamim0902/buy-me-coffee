@@ -381,15 +381,13 @@ class Supporters extends Model
 
         // Use a single raw SQL query with LEFT JOINs to get aggregated data per unique email.
         // Anonymous donors (empty email) are grouped individually via COALESCE.
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are from $wpdb->prefix
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix, dynamic WHERE is pre-prepared
         $groupCol = "COALESCE(NULLIF(s.supporters_email, ''), CONCAT('anon_', s.id))";
 
         // $whereClause is either empty or built entirely from $wpdb->prepare() calls above.
-        // No additional user input is interpolated beyond what was already prepared.
         $countSql = "SELECT COUNT(*) FROM (
             SELECT {$groupCol} as grp FROM {$supTable} s {$whereClause} GROUP BY grp
         ) as cnt";
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $whereClause is pre-prepared or empty
         $total = (int) $wpdb->get_var($countSql);
 
         $sql = "SELECT
@@ -411,7 +409,7 @@ class Supporters extends Model
             LIMIT %d OFFSET %d";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $postsPerPage, $offset));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
 
         foreach ($results as $supporter) {
             $supporter->total_paid      = (int) $supporter->total_paid;
@@ -476,7 +474,7 @@ class Supporters extends Model
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
         $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix
         $sql = "SELECT
                 MAX(s.id) as latest_entry_id,
                 MAX(s.supporters_name) as supporters_name,
@@ -496,7 +494,7 @@ class Supporters extends Model
             LIMIT %d";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $limit));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
 
         foreach ($results as $supporter) {
             $supporter->total_paid       = (int) $supporter->total_paid;
@@ -525,7 +523,7 @@ class Supporters extends Model
         $showMessage = ($settings['show_message'] ?? 'yes') === 'yes';
         $showAvatar  = ($settings['show_avatar'] ?? 'yes') === 'yes';
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix
         $sql = "SELECT
                 MAX(s.supporters_name) as supporters_name,
                 s.supporters_email,
@@ -541,7 +539,7 @@ class Supporters extends Model
             LIMIT %d";
 
         $rows = $wpdb->get_results($wpdb->prepare($sql, $limit));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
 
         $result = [];
         $rank   = 0;
