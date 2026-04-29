@@ -103,6 +103,8 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
             add_shortcode('buymecoffee_account', [new \BuyMeCoffee\Classes\AccountPage(), 'render']);
 
+            add_shortcode('buymecoffee_supporters', [$demoPage, 'renderSupportersWall']);
+
         }
 
         public function addAssets()

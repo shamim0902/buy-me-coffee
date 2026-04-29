@@ -293,3 +293,112 @@ button.buymecoffee_pay_now {
   padding-bottom: 12px;
   margin-bottom: 4px;
 }
+
+// ============================================================
+// [buymecoffee_supporters] — Public Supporters Wall (Ranked List)
+// ============================================================
+
+.buymecoffee-supporters-wall {
+  font-family: $bmc-font;
+  max-width: 700px;
+
+  &__empty {
+    text-align: center;
+    color: #71717a;
+    font-size: 14px;
+    padding: 32px 16px;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+.buymecoffee-supporter-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  transition: box-shadow 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  // Top-3 accent borders
+  &--gold   { border-color: #fbbf24; }
+  &--silver { border-color: #c4b5fd; }
+  &--bronze { border-color: #fdba74; }
+
+  &__rank {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: #f4f4f5;
+    color: #71717a;
+  }
+
+  &--gold &__rank   { background: #fef3c7; color: #92400e; }
+  &--silver &__rank  { background: #ede9fe; color: #6d28d9; }
+  &--bronze &__rank  { background: #ffedd5; color: #9a3412; }
+
+  &__avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid #e4e4e7;
+  }
+
+  &__avatar-placeholder {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #f4f4f5;
+    color: #a1a1aa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 2px solid #e4e4e7;
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__name {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #18181b;
+  }
+
+  &__meta {
+    display: block;
+    font-size: 13px;
+    color: #7c3aed;
+    margin-top: 1px;
+  }
+
+  &__amount {
+    font-size: 18px;
+    font-weight: 700;
+    color: #7c3aed;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}

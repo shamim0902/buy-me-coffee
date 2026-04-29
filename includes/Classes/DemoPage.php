@@ -5,7 +5,8 @@ namespace BuyMeCoffee\Classes;
 use BuyMeCoffee\Classes\View;
 use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\ArrayHelper;
-use \BuyMeCoffee\Models\Buttons;
+use BuyMeCoffee\Models\Buttons;
+use BuyMeCoffee\Models\Supporters;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -196,6 +197,39 @@ class DemoPage
             default:
                 return sanitize_text_field($data[$field]);
         }
+    }
+
+    public function renderSupportersWall($atts = [])
+    {
+        $atts = shortcode_atts([
+            'limit'       => '',
+            'show_amount' => '',
+        ], $atts, 'buymecoffee_supporters');
+
+        $savedSettings = get_option('buymecoffee_supporters_display_settings', []);
+        $settings = wp_parse_args($savedSettings, [
+            'show_name'      => 'yes',
+            'show_avatar'    => 'yes',
+            'show_amount'    => 'no',
+            'show_message'   => 'yes',
+            'max_supporters' => 20,
+        ]);
+
+        // Shortcode attributes override saved settings
+        if ($atts['limit'] !== '') {
+            $settings['max_supporters'] = absint($atts['limit']);
+        }
+        if ($atts['show_amount'] !== '') {
+            $settings['show_amount'] = $atts['show_amount'] === 'yes' ? 'yes' : 'no';
+        }
+
+        Vite::enqueueStyle('buymecoffee_public_style', 'scss/public/public-style.scss', [], BUYMECOFFEE_VERSION);
+
+        $supporters = (new Supporters())->getPublicSupporters($settings);
+
+        ob_start();
+        include BUYMECOFFEE_DIR . 'includes/views/templates/SupportersWall.php';
+        return ob_get_clean();
     }
 
     public static function getSanitizedArguments($args): array
