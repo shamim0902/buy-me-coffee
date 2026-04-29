@@ -61,11 +61,16 @@ class SubmissionHandler
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
         $isRecurring      = isset($_REQUEST['is_recurring']) ? sanitize_text_field(wp_unslash($_REQUEST['is_recurring'])) : 'no';
+        $isRecurring      = $isRecurring === 'yes' ? 'yes' : 'no';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Public form submission
         $recurringInterval = isset($_REQUEST['recurring_interval']) ? sanitize_text_field(wp_unslash($_REQUEST['recurring_interval'])) : 'month';
         $allowedIntervals  = ['month', 'year'];
         if (!in_array($recurringInterval, $allowedIntervals, true)) {
             $recurringInterval = 'month';
+        }
+
+        if ($isRecurring === 'yes') {
+            $this->validateRecurringRequest($paymentMethod, $template, $supporterEmail);
         }
 
         $form_data['payment_method']      = $paymentMethod;
@@ -178,6 +183,27 @@ class SubmissionHandler
             'payment_total' => max(0, (int) round($unitAmount * 100 * $quantity)),
             'coffee_count'  => $quantity
         ];
+    }
+
+    private function validateRecurringRequest($paymentMethod, $template, $supporterEmail)
+    {
+        if ($paymentMethod !== 'stripe') {
+            wp_send_json_error([
+                'message' => __('Recurring donations are only available with Stripe.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        if (ArrayHelper::get($template, 'allow_recurring', 'no') !== 'yes') {
+            wp_send_json_error([
+                'message' => __('Recurring donations are not enabled.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        if (empty($supporterEmail) || !is_email($supporterEmail)) {
+            wp_send_json_error([
+                'message' => __('A valid email is required for recurring donations.', 'buy-me-coffee')
+            ], 400);
+        }
     }
 
     private function sanitizeFormData($formDataArray)
