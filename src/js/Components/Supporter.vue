@@ -145,22 +145,6 @@
         />
       </div>
 
-      <!-- Message Card -->
-      <div
-        v-if="supporter.supporters_message"
-        class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
-      >
-        <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-3" style="color: var(--text-secondary)">
-          Message
-        </h3>
-        <div
-          class="pl-4 py-2 text-sm leading-relaxed italic"
-          style="border-left: 3px solid var(--color-primary-500); color: var(--text-primary)"
-        >
-          "{{ supporter.supporters_message }}"
-        </div>
-      </div>
-
       <!-- Transaction Details Card -->
       <div
         v-if="supporter.transaction"
@@ -227,47 +211,64 @@
         </div>
       </div>
 
-      <!-- Subscription Info (if this transaction is linked to a subscription) -->
+      <!-- Subscription + Message row (two-column when both present) -->
       <div
-        v-if="supporter.subscription"
-        class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
+        v-if="supporter.subscription || supporter.supporters_message"
+        class="bmc-two-col-row mb-6"
+        :class="{ 'bmc-two-col-row--single': !(supporter.subscription && supporter.supporters_message) }"
       >
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wide m-0" style="color: var(--text-secondary)">
-            Subscription
-          </h3>
-          <router-link
-            :to="{ name: 'SubscriptionDetail', params: { id: supporter.subscription.id } }"
-            class="inline-flex items-center gap-1 text-xs font-medium no-underline hover:underline"
-            style="color: var(--color-primary-600)"
-          >
-            View Subscription <ExternalLink :size="11" />
-          </router-link>
+        <!-- Subscription Info -->
+        <div v-if="supporter.subscription" class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wide m-0" style="color: var(--text-secondary)">
+              Subscription
+            </h3>
+            <router-link
+              :to="{ name: 'SubscriptionDetail', params: { id: supporter.subscription.id } }"
+              class="inline-flex items-center gap-1 text-xs font-medium no-underline hover:underline"
+              style="color: var(--color-primary-600)"
+            >
+              View <ExternalLink :size="11" />
+            </router-link>
+          </div>
+          <div class="grid grid-cols-2 gap-y-4 gap-x-6">
+            <div>
+              <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Status</p>
+              <StatusBadge :status="supporter.subscription.status" />
+            </div>
+            <div>
+              <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Interval</p>
+              <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+                {{ supporter.subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Amount</p>
+              <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+                {{ getFormatedAmount(supporter.subscription.amount, supporter.subscription.currency) }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Next Renewal</p>
+              <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+                {{ supporter.subscription.current_period_end && supporter.subscription.current_period_end !== '0000-00-00 00:00:00'
+                  ? new Date(supporter.subscription.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                  : '--' }}
+              </p>
+            </div>
+          </div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-          <div>
-            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Status</p>
-            <StatusBadge :status="supporter.subscription.status" />
-          </div>
-          <div>
-            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Interval</p>
-            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
-              {{ supporter.subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Amount</p>
-            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
-              {{ getFormatedAmount(supporter.subscription.amount, supporter.subscription.currency) }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Next Renewal</p>
-            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
-              {{ supporter.subscription.current_period_end && supporter.subscription.current_period_end !== '0000-00-00 00:00:00'
-                ? new Date(supporter.subscription.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-                : '--' }}
-            </p>
+
+        <!-- Message Card -->
+        <div v-if="supporter.supporters_message" class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6">
+          <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-3" style="color: var(--text-secondary)">
+            Message
+          </h3>
+          <div
+            class="pl-4 py-2 text-sm leading-relaxed italic"
+            style="border-left: 3px solid var(--color-primary-500); color: var(--text-primary)"
+          >
+            "{{ supporter.supporters_message }}"
           </div>
         </div>
       </div>
@@ -829,6 +830,18 @@ export default {
   font-weight: 700;
   color: #dc2626;
 }
+.bmc-two-col-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.bmc-two-col-row--single {
+  grid-template-columns: 1fr;
+}
+@media (max-width: 768px) {
+  .bmc-two-col-row { grid-template-columns: 1fr; }
+}
+
 .bmc-refund-cancel-sub {
   margin-top: 14px;
   padding: 12px;
