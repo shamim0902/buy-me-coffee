@@ -42,7 +42,9 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_PRODUCTION', 'yes');
     define('BUYMECOFFEE_DB_VERSION', '1.7');
 
-    define('BUYMECOFFEE_DEBUG', true);
+    if (!defined('BUYMECOFFEE_DEBUG')) {
+        define('BUYMECOFFEE_DEBUG', false);
+    }
 
     class BuyMeCoffee
     {

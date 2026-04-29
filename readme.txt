@@ -1,4 +1,4 @@
-=== Buy Me Coffee - Free Donation Plugin with Stripe & PayPal ===
+=== Buy Me Coffee - Free Donation & Subscription Plugin for Stripe & PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
 Tags: donate, donation, stripe, fundraising, paypal
 Requires at least: 5.7

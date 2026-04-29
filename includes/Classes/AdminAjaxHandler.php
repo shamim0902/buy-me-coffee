@@ -167,6 +167,22 @@ class AdminAjaxHandler
     {
         $id = intval($request['id']);
         $status = sanitize_text_field($request['status']);
+        $allowedStatuses = apply_filters('buymecoffee_allowed_payment_statuses', [
+            'pending',
+            'processing',
+            'paid',
+            'paid-initially',
+            'failed',
+            'refunded',
+            'refunding',
+        ]);
+
+        if (!is_array($allowedStatuses) || !in_array($status, $allowedStatuses, true)) {
+            wp_send_json_error([
+                'message' => __('Invalid payment status.', 'buy-me-coffee')
+            ], 400);
+        }
+
         $supporter = (new Supporters())->getQuery()->where('id', $id)->update(['payment_status' => $status]);
         (new Transactions())->getQuery()->where('entry_id', $id)->update(['status' => $status]);
         wp_send_json_success($supporter, 200);
