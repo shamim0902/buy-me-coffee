@@ -1,7 +1,7 @@
 <template>
   <div class="relative min-h-[200px]">
     <CoffeeLoader :loading="loading" />
-    <PageTitle title="Supporters" subtitle="Manage and view all your supporters" />
+    <PageTitle title="Transactions" subtitle="View all donation transactions" />
 
 
     <!-- Status Pills -->
@@ -96,7 +96,7 @@ import CoffeeLoader from './UI/CoffeeLoader.vue';
 import SupportersTable from './SupportersTable.vue';
 
 export default {
-  name: 'Supporters',
+  name: 'RecentTransactions',
   components: {
     Search,
     ChevronLeft,

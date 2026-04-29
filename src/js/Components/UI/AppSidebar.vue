@@ -111,7 +111,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-    LayoutDashboard, Heart, Settings, Palette, Code2,
+    LayoutDashboard, Heart, Users, Receipt, Settings, Palette, Code2,
     CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
     ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
     RefreshCw, ClipboardList, Coffee,
@@ -139,10 +139,11 @@ const fullPageUrl = computed(() => {
 });
 
 const mainItems = [
-    { label: 'Dashboard',     route: '/',             icon: LayoutDashboard, activeNames: ['Dashboard'] },
-    { label: 'Supporters',    route: '/supporters',   icon: Heart,           activeNames: ['Supporters', 'Supporter'] },
-    { label: 'Subscriptions', route: '/subscriptions',  icon: RefreshCw,       activeNames: ['Subscriptions', 'SubscriptionDetail'] },
-    { label: 'Activity Log',  route: '/activity-log',  icon: ClipboardList,   activeNames: ['ActivityLog'] },
+    { label: 'Dashboard',           route: '/',                    icon: LayoutDashboard, activeNames: ['Dashboard'] },
+    { label: 'Transactions',        route: '/recent-transactions', icon: Receipt,         activeNames: ['RecentTransactions'] },
+    { label: 'Subscriptions',       route: '/subscriptions',       icon: RefreshCw,       activeNames: ['Subscriptions', 'SubscriptionDetail'] },
+    { label: 'Supporters',          route: '/supporters',          icon: Users,           activeNames: ['Supporters', 'Supporter'] },
+    { label: 'Activity Log',        route: '/activity-log',        icon: ClipboardList,   activeNames: ['ActivityLog'] },
 ];
 
 const configItems = [

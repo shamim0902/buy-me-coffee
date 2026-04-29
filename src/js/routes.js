@@ -5,7 +5,8 @@ const Stripe = () => import('./Components/Stripe.vue');
 const Gateway = () => import('./Components/Gateway.vue');
 const Supporter = () => import('./Components/Supporter.vue');
 const Onboarding = () => import('./Components/Onboarding.vue');
-const Supporters = () => import('./Components/Supporters.vue');
+const RecentTransactions = () => import('./Components/Supporters.vue');
+const SupportersList = () => import('./Components/SupportersList.vue');
 const Notifications = () => import('./Components/Notifications.vue');
 const Emails = () => import('./Components/Email/Emails.vue');
 const Webhook = () => import('./Components/Webhook.vue');
@@ -26,10 +27,19 @@ export default [
     {
         path: '/supporters',
         name: 'Supporters',
-        component: Supporters,
+        component: SupportersList,
         meta: {
             active: 'supporters',
             breadcrumb: 'Supporters'
+        }
+    },
+    {
+        path: '/recent-transactions',
+        name: 'RecentTransactions',
+        component: RecentTransactions,
+        meta: {
+            active: 'recent-transactions',
+            breadcrumb: 'Transactions'
         }
     },
     {

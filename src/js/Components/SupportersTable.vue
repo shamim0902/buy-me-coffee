@@ -78,8 +78,8 @@
       <template #empty>
         <EmptyState
           v-if="!loading"
-          title="No supporters found"
-          description="Supporters will appear here once someone makes a contribution."
+          title="No transactions found"
+          description="Transactions will appear here once someone makes a donation."
           icon="Heart"
         />
       </template>
@@ -127,7 +127,7 @@ export default {
       this.$router.push({ name: 'Supporter', params: { id } });
     },
     confirmDelete(id) {
-      ElMessageBox.confirm('This supporter record will be permanently removed.', 'Delete supporter?', {
+      ElMessageBox.confirm('This transaction and all related data will be permanently removed.', 'Delete transaction?', {
         confirmButtonText: 'Delete',
         cancelButtonText: 'Cancel',
         type: 'warning',
