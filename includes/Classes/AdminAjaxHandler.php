@@ -666,16 +666,12 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => __('This transaction has already been refunded.', 'buy-me-coffee')], 400);
         }
 
-        if ($transaction->status !== 'paid') {
+        if (!in_array($transaction->status, ['paid', 'refunding'], true)) {
             wp_send_json_error(['message' => __('Only paid transactions can be refunded.', 'buy-me-coffee')], 400);
         }
 
         if (empty($transaction->charge_id)) {
             wp_send_json_error(['message' => __('No charge ID on record — please process the refund directly from the payment gateway dashboard.', 'buy-me-coffee')], 400);
-        }
-
-        if (!$this->acquireRefundLock((int) $transaction->id)) {
-            wp_send_json_error(['message' => __('Refund is already in progress or transaction is not refundable.', 'buy-me-coffee')], 409);
         }
 
         ActivityLogger::logPayment((int) $transaction->id, 'refund_initiated', 'Refund initiated', [
@@ -692,7 +688,6 @@ class AdminAjaxHandler
         $result = apply_filters('buymecoffee_process_refund_' . $transaction->payment_method, null, $transaction);
 
         if ($result === null) {
-            $this->releaseRefundLock((int) $transaction->id);
             wp_send_json_error(['message' => __('Refunds are not supported for this payment method.', 'buy-me-coffee')], 400);
         }
 
@@ -704,12 +699,12 @@ class AdminAjaxHandler
                     'error'          => $result->get_error_message(),
                 ],
             ]);
-            $this->releaseRefundLock((int) $transaction->id);
             wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
 
         if (is_array($result)) {
             $gatewayStatus = strtolower(sanitize_text_field(Arr::get($result, 'status', '')));
+
             if (in_array($gatewayStatus, ['succeeded', 'completed'], true)) {
                 $this->markRefunded($transaction, $result);
             }
@@ -739,15 +734,13 @@ class AdminAjaxHandler
                     'gateway_status' => $gatewayStatus,
                 ],
             ]);
-            $this->releaseRefundLock((int) $transaction->id);
-            wp_send_json_error(['message' => __('Refund could not be finalized. Please check your payment gateway dashboard.', 'buy-me-coffee')], 400);
+            wp_send_json_error(['message' => __('Refund could not be finalized. Gateway returned status: ', 'buy-me-coffee') . $gatewayStatus], 400);
         }
 
         if ($result === true) {
             $this->markRefunded($transaction);
         }
 
-        $this->releaseRefundLock((int) $transaction->id);
         wp_send_json_error(['message' => __('Unexpected refund response received.', 'buy-me-coffee')], 400);
     }
 
@@ -789,32 +782,6 @@ class AdminAjaxHandler
             'refund_id'      => sanitize_text_field(Arr::get($refundMeta, 'refund_id', '')),
             'gateway_status' => sanitize_text_field(Arr::get($refundMeta, 'status', 'succeeded')),
         ], 200);
-    }
-
-    private function acquireRefundLock($transactionId)
-    {
-        $updated = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->where('id', $transactionId)
-            ->where('status', 'paid')
-            ->update([
-                'status' => 'refunding',
-                'updated_at' => current_time('mysql'),
-            ]);
-
-        return (bool) $updated;
-    }
-
-    private function releaseRefundLock($transactionId)
-    {
-        buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->where('id', $transactionId)
-            ->where('status', 'refunding')
-            ->update([
-                'status' => 'paid',
-                'updated_at' => current_time('mysql'),
-            ]);
     }
 
     public function getActivities($request)

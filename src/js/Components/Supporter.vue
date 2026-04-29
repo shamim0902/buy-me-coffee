@@ -553,9 +553,10 @@ export default {
         const data = response?.data || {};
         const status = data.refund_status || 'succeeded';
         const details = {};
+        details['Amount'] = this.getFormatedAmount(this.supporter.transaction.payment_total, this.supporter.transaction.currency);
         if (data.refund_id) details['Refund ID'] = data.refund_id;
         if (data.gateway_status) details['Gateway Status'] = data.gateway_status;
-        details['Amount'] = this.getFormatedAmount(this.supporter.transaction.payment_total, this.supporter.transaction.currency);
+        details['Transaction Status'] = status === 'pending' ? 'Pending' : 'Refunded';
 
         this.refundResult = {
           type: status === 'pending' ? 'warning' : 'success',
