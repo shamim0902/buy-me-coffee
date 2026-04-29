@@ -228,7 +228,12 @@ class BmcFormHandler {
                 return null;
             }
 
-            if (parsed.origin !== window.location.origin) {
+            const allowedExternalHosts = new Set([
+                'www.paypal.com',
+                'www.sandbox.paypal.com'
+            ]);
+
+            if (parsed.origin !== window.location.origin && !allowedExternalHosts.has(parsed.hostname.toLowerCase())) {
                 return null;
             }
 
