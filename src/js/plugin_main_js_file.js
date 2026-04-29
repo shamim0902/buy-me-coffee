@@ -187,7 +187,7 @@ export default class BuyMeCoffee {
         if (!errorMessage) {
             errorMessage = 'Something is wrong!';
         }
-        this.$notify({
+        ElNotification({
             type: 'error',
             title: 'Error',
             message: errorMessage,
