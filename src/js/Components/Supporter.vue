@@ -396,6 +396,20 @@
             <span class="bmc-refund-details__label">Supporter</span>
             <span class="bmc-refund-details__value">{{ supporter.supporters_name || 'Anonymous' }}</span>
           </div>
+
+          <!-- Cancel subscription option for recurring transactions -->
+          <div
+            v-if="supporter.subscription && supporter.subscription.status !== 'cancelled'"
+            class="bmc-refund-cancel-sub"
+          >
+            <el-checkbox v-model="cancelSubscriptionOnRefund">
+              Cancel subscription before refunding
+            </el-checkbox>
+            <p class="bmc-refund-cancel-sub__hint">
+              This will cancel the recurring subscription on {{ supporter.transaction.payment_method }} and then process the refund.
+            </p>
+          </div>
+
           <div class="bmc-refund-warning">
             <RotateCcw :size="14" />
             This will issue a refund through the payment gateway. This action cannot be undone.
@@ -407,7 +421,7 @@
       <template v-if="refunding && !refundResult">
         <div class="bmc-refund-processing">
           <div class="bmc-refund-processing__spinner"></div>
-          <p class="bmc-refund-processing__text">Processing refund with {{ supporter.transaction?.payment_method }}...</p>
+          <p class="bmc-refund-processing__text">Processing with {{ supporter.transaction?.payment_method }}...</p>
           <p class="bmc-refund-processing__hint">Please wait, do not close this window.</p>
         </div>
       </template>
@@ -481,6 +495,7 @@ export default {
       refunding: false,
       refundModal: false,
       refundResult: null,
+      cancelSubscriptionOnRefund: true,
       payment_statuses: [
         { label: 'Paid', value: 'paid' },
         { label: 'Pending', value: 'pending' },
@@ -540,10 +555,49 @@ export default {
     openRefundModal() {
       this.moreOpen = false;
       this.refundResult = null;
+      this.cancelSubscriptionOnRefund = !!(this.supporter.subscription && this.supporter.subscription.status !== 'cancelled');
       this.refundModal = true;
     },
     refundTransaction() {
       this.refunding = true;
+
+      const shouldCancelSub = this.cancelSubscriptionOnRefund
+        && this.supporter.subscription
+        && this.supporter.subscription.status !== 'cancelled';
+
+      const proceed = shouldCancelSub
+        ? this.doCancelSubscription()
+        : Promise.resolve();
+
+      proceed.then(() => {
+        return this.doRefund();
+      }).catch(() => {
+        this.refunding = false;
+      });
+    },
+    doCancelSubscription() {
+      return new Promise((resolve, reject) => {
+        this.$post({
+          action: 'buymecoffee_admin_ajax',
+          route: 'cancel_subscription',
+          data: { id: this.supporter.subscription.id },
+          buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+        }).then(() => {
+          resolve();
+        }).fail((error) => {
+          const msg = error?.responseJSON?.data?.message || 'Failed to cancel subscription.';
+          this.refundResult = {
+            type: 'error',
+            title: 'Subscription Cancellation Failed',
+            message: msg + ' Refund was not processed.',
+            details: null,
+          };
+          this.refunding = false;
+          reject();
+        });
+      });
+    },
+    doRefund() {
       this.$post({
         action: 'buymecoffee_admin_ajax',
         route: 'refund_transaction',
@@ -557,6 +611,9 @@ export default {
         if (data.refund_id) details['Refund ID'] = data.refund_id;
         if (data.gateway_status) details['Gateway Status'] = data.gateway_status;
         details['Transaction Status'] = status === 'pending' ? 'Pending' : 'Refunded';
+        if (this.cancelSubscriptionOnRefund && this.supporter.subscription) {
+          details['Subscription'] = 'Cancelled';
+        }
 
         this.refundResult = {
           type: status === 'pending' ? 'warning' : 'success',
@@ -566,10 +623,11 @@ export default {
         };
       }).fail((error) => {
         const msg = error?.responseJSON?.data?.message || 'Refund failed. Please try again or check your gateway dashboard.';
+        const subCancelled = this.cancelSubscriptionOnRefund && this.supporter.subscription;
         this.refundResult = {
           type: 'error',
           title: 'Refund Failed',
-          message: msg,
+          message: msg + (subCancelled ? ' Note: the subscription was already cancelled.' : ''),
           details: null,
         };
       }).always(() => {
@@ -726,6 +784,20 @@ export default {
   font-weight: 700;
   color: #dc2626;
 }
+.bmc-refund-cancel-sub {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+}
+.bmc-refund-cancel-sub__hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+
 .bmc-refund-warning {
   display: flex;
   align-items: flex-start;
