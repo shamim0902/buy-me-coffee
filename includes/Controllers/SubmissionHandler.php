@@ -232,12 +232,11 @@ class SubmissionHandler
 
     private function getHash()
     {
-        $prefix = 'buymecoffee_' . time();
-        $uid = uniqid($prefix);
-        // now let's make a unique number from 1 to 999
-        $uid .= wp_rand(1, 999);
-        $uid = str_replace(array("'", '/', '?', '#', "\\"), '', $uid);
-        return $uid;
+        try {
+            return 'buymecoffee_' . bin2hex(random_bytes(16));
+        } catch (\Exception $e) {
+            return 'buymecoffee_' . wp_generate_password(32, false, false);
+        }
     }
 
     private function canAllowLegacyPublicRequest($context = 'submission')
