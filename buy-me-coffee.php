@@ -39,8 +39,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
-    define('BUYMECOFFEE_DEVELOPMENT', 'yes');
+    define('BUYMECOFFEE_PRODUCTION', 'yes');
     define('BUYMECOFFEE_DB_VERSION', '1.7');
+
+    define('BUYMECOFFEE_DEBUG', true);
 
     class BuyMeCoffee
     {

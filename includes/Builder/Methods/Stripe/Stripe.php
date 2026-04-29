@@ -246,17 +246,56 @@ class Stripe extends BaseMethods
 
     public function verifyIpn()
     {
+        self::debugLog('--- Webhook handler triggered ---');
+
         $data = (new IPN())->IPNData();
         if (!$data || is_wp_error($data)) {
+            $error = is_wp_error($data) ? $data->get_error_message() : 'empty payload';
+            self::debugLog('Aborting: payload invalid — ' . $error);
             status_header(400);
             exit;
         }
 
         $eventType = isset($data->type) ? sanitize_text_field($data->type) : '';
         if (!$eventType) {
+            self::debugLog('Aborting: event type missing from payload');
             status_header(400);
             exit;
         }
+
+        $acceptedEvents = [
+            'invoice.payment_succeeded',
+            'customer.subscription.deleted',
+            'customer.subscription.updated',
+            'charge.succeeded',
+            'charge.refunded',
+            'checkout.session.completed',
+            'invoice.paid',
+        ];
+
+        if (!in_array($eventType, $acceptedEvents, true)) {
+            self::debugLog('Skipping unhandled event type: ' . $eventType);
+            status_header(200);
+            exit;
+        }
+
+        // Re-fetch the event from Stripe API to verify authenticity.
+        // This confirms the event is genuine without requiring a webhook secret.
+        $eventId = sanitize_text_field($data->id);
+        self::debugLog('Re-fetching event from Stripe API — event_id: ' . $eventId);
+        $event = (new API())->getEvent($eventId);
+
+        if (!$event || is_wp_error($event)) {
+            $error = is_wp_error($event) ? $event->get_error_message() : 'empty response';
+            self::debugLog('Aborting: Stripe API re-fetch failed — ' . $error);
+            status_header(400);
+            exit;
+        }
+
+        self::debugLog('Event verified via Stripe API — type: ' . $eventType);
+
+        // Convert array response to object for consistent downstream handling
+        $event = json_decode(wp_json_encode($event));
 
         // Handle subscription-specific webhook events
         $subscriptionEvents = [
@@ -266,42 +305,42 @@ class Stripe extends BaseMethods
         ];
 
         if (in_array($eventType, $subscriptionEvents, true)) {
-            $eventId = isset($data->id) ? sanitize_text_field($data->id) : '';
-            if (!$eventId || !$this->acquireEventLock($eventId)) {
+            if (!$this->acquireEventLock($eventId)) {
+                self::debugLog('Duplicate event, already processed — event_id: ' . $eventId);
                 status_header(200);
                 exit;
             }
 
+            self::debugLog('Processing subscription event: ' . $eventType);
             $keys    = StripeSettings::getKeys();
             $handler = new StripeSubscriptions();
 
             if ($eventType === 'invoice.payment_succeeded') {
-                $handler->handleRenewalWebhook($data, $keys['secret']);
+                $handler->handleRenewalWebhook($event, $keys['secret']);
             } elseif ($eventType === 'customer.subscription.deleted') {
-                $handler->handleSubscriptionCancelled($data);
+                $handler->handleSubscriptionCancelled($event);
             } elseif ($eventType === 'customer.subscription.updated') {
-                $handler->handleSubscriptionUpdated($data);
+                $handler->handleSubscriptionUpdated($event);
             }
 
+            self::debugLog('Subscription event processed successfully: ' . $eventType);
             status_header(200);
             exit;
         }
 
-        // Existing one-time payment event handling
-        $eventId = isset($data->id) ? sanitize_text_field($data->id) : '';
-        if (!$eventId) {
-            status_header(400);
-            exit;
-        }
-
-        $orderHash = $this->getOrderHash($data);
+        // One-time payment event handling
+        $orderHash = $this->getOrderHash($event);
         if (!$orderHash) {
+            self::debugLog('No order hash (ref_id) found in event metadata — event_type: ' . $eventType);
             status_header(200);
             exit;
         }
 
-        $status = isset($data->data->object->status) ? sanitize_text_field($data->data->object->status) : '';
+        self::debugLog('Order hash extracted: ' . $orderHash);
+
+        $status = isset($event->data->object->status) ? sanitize_text_field($event->data->object->status) : '';
         if (!$status) {
+            self::debugLog('Aborting: no status field on event data.object — event_type: ' . $eventType);
             status_header(400);
             exit;
         }
@@ -310,6 +349,7 @@ class Stripe extends BaseMethods
             $status = 'paid';
         }
 
+        self::debugLog('Updating payment status to "' . $status . '" for order: ' . $orderHash);
         $this->updateStatus($orderHash, $status);
         status_header(200);
         exit;
@@ -320,8 +360,11 @@ class Stripe extends BaseMethods
         $transactions = new Transactions();
         $transaction = $transactions->find($orderHash, 'entry_hash');
         if (!$transaction) {
+            self::debugLog('updateStatus: no transaction found for entry_hash: ' . $orderHash);
             return;
         }
+
+        self::debugLog('updateStatus: transaction #' . $transaction->id . ' — setting status to "' . $status . '"');
 
         $supportersModel = new Supporters();
         $supportersModel->updateData($transaction->entry_id, [
@@ -345,6 +388,7 @@ class Stripe extends BaseMethods
         ]);
 
         do_action('buymecoffee_payment_status_updated', $transaction->id, $status);
+        self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' status updated and action fired');
     }
 
     public static function getOrderHash($event)
@@ -361,9 +405,12 @@ class Stripe extends BaseMethods
         if (in_array($eventType, $metaDataEvents)) {
             $data = $event->data->object;
             $metaData = (array)$data->metadata;
-            return Arr::get($metaData, 'ref_id');
+            $refId = ArrayHelper::get($metaData, 'ref_id');
+            self::debugLog('getOrderHash: event_type=' . $eventType . ', metadata=' . wp_json_encode($metaData) . ', ref_id=' . ($refId ?: '(empty)'));
+            return $refId;
         }
 
+        self::debugLog('getOrderHash: event_type "' . $eventType . '" not in metadata-events list');
         return false;
     }
 
@@ -503,8 +550,15 @@ class Stripe extends BaseMethods
 
     public function isEnabled()
     {
-        // TODO: Implement isEnabled() method.
         $settings = $this->getSettings();
         return $settings['enable'] === 'yes';
+    }
+
+    private static function debugLog($message)
+    {
+        if (defined('BUYMECOFFEE_DEBUG') && BUYMECOFFEE_DEBUG) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging
+            error_log('[BuyMeCoffee][Stripe Webhook] ' . $message);
+        }
     }
 }

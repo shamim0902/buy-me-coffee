@@ -76,6 +76,7 @@ class AdminAjaxHandler
             'get_subscriptions'      => 'getSubscriptions',
             'get_subscription'       => 'getSubscription',
             'cancel_subscription'    => 'cancelSubscription',
+            'fetch_subscription'     => 'fetchSubscription',
             'get_subscription_stats' => 'getSubscriptionStats',
 
             'refund_transaction' => 'refundTransaction',
@@ -506,6 +507,30 @@ class AdminAjaxHandler
         ]);
 
         wp_send_json_success(['message' => __('Subscription cancelled successfully', 'buy-me-coffee')], 200);
+    }
+
+    public function fetchSubscription($request)
+    {
+        $id           = intval(Arr::get($request, 'id'));
+        $subscription = (new Subscriptions())->find($id);
+
+        if (!$subscription) {
+            wp_send_json_error(['message' => __('Subscription not found', 'buy-me-coffee')], 404);
+        }
+
+        if (empty($subscription->stripe_subscription_id)) {
+            wp_send_json_error(['message' => __('This subscription has no remote subscription ID.', 'buy-me-coffee')], 400);
+        }
+
+        $result = (new \BuyMeCoffee\Builder\Methods\Stripe\StripeSubscriptions())->fetchFromRemote($subscription);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()], 400);
+        }
+
+        wp_send_json_success([
+            'message' => __('Subscription fetched successfully from Stripe!', 'buy-me-coffee'),
+        ], 200);
     }
 
     public function getSubscriptionStats()

@@ -52,34 +52,53 @@ class API
         return $sessionData;
     }
 
-
-    public function verifyIPN()
+    /**
+     * Make a GET request that returns a Stripe list object (e.g. invoices, charges).
+     *
+     * Unlike makeRequest(), this does not require an 'id' field in the response,
+     * since list endpoints return {object: "list", data: [...]}.
+     *
+     * @param string $path    API path (e.g. 'invoices')
+     * @param array  $params  Query parameters
+     * @param string $apiKey  Stripe secret key
+     * @return array|\WP_Error
+     */
+    public function getList($path, $params, $apiKey)
     {
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe webhook listener
-        if (!isset($_REQUEST['buymecoffee_stripe_listener'])) {
-            return;
+        $url = $this->apiUrl . $path;
+        if ($params) {
+            $url .= '?' . http_build_query($params);
         }
 
-        $post_data = '';
-        if (ini_get('allow_url_fopen')) {
-            $post_data = file_get_contents('php://input');
-        } else {
-            // If allow_url_fopen is not enabled, then make sure that post_max_size is large enough
-            // phpcs:ignore WordPress.PHP.IniSet.post_max_size_Blacklisted, Squiz.PHP.DiscouragedFunctions.Discouraged -- Required for webhook processing
-            ini_set('post_max_size', '12M');
+        $response = wp_remote_request($url, [
+            'headers' => ['Authorization' => 'Bearer ' . $apiKey],
+            'method'  => 'GET',
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
         }
 
-        $data =  json_decode($post_data);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
 
-        if (!empty($data->id)) {
-            status_header(200);
-            return $data;
+        if (!empty($body['error'])) {
+            $message = Arr::get($body, 'error.message', 'Unknown Stripe API error');
+            return new \WP_Error('stripe_error', $message, $body);
         }
 
-        return new \WP_Error('invalid_payload', __('Invalid Stripe webhook payload', 'buy-me-coffee'));
+        return $body;
     }
 
-    public function getInvoice($eventId)
+    /**
+     * Fetch a Stripe event by ID.
+     *
+     * Used to verify webhook authenticity: re-fetching the event from Stripe
+     * confirms it is genuine and returns untampered data.
+     *
+     * @param string $eventId  Stripe event ID (evt_…)
+     * @return array|\WP_Error
+     */
+    public function getEvent($eventId)
     {
         return $this->makeRequest(
             'events/' . sanitize_text_field($eventId),

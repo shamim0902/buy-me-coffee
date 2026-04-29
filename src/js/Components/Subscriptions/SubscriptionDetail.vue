@@ -71,12 +71,17 @@
             </a>
 
             <!-- Three-dot more menu -->
-            <div v-if="subscription.status !== 'cancelled'" class="bmc-more-menu" ref="moreMenu">
+            <div v-if="subscription.stripe_subscription_id" class="bmc-more-menu" ref="moreMenu">
               <button class="bmc-action-btn bmc-action-btn--icon" @click.stop="moreOpen = !moreOpen">
                 <MoreVertical :size="16" />
               </button>
               <div v-if="moreOpen" class="bmc-more-dropdown">
+                <button class="bmc-more-item" :disabled="fetching" @click="confirmFetchSubscription">
+                  <RefreshCw :size="14" :class="{ 'bmc-spin': fetching }" />
+                  {{ fetching ? 'Fetching...' : 'Fetch Subscription' }}
+                </button>
                 <el-popconfirm
+                  v-if="subscription.status !== 'cancelled'"
                   title="Cancel this subscription? This cannot be undone."
                   confirm-button-text="Yes, cancel"
                   cancel-button-text="No"
@@ -186,22 +191,51 @@
         />
       </div>
     </template>
+
+    <!-- Fetch Subscription Dialog -->
+    <el-dialog
+      v-model="fetchDialogVisible"
+      title="Fetch Subscription"
+      width="460"
+      :close-on-click-modal="!fetching"
+      :close-on-press-escape="!fetching"
+      :show-close="!fetching"
+      append-to-body
+    >
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 mt-0.5" style="color: var(--color-primary-600)">
+          <RefreshCw :size="20" />
+        </div>
+        <p class="m-0 text-sm" style="color: var(--text-secondary); line-height: 1.6">
+          This will fetch the subscription from Stripe and sync all transactions.
+          Any missing renewal payments will be created locally.
+        </p>
+      </div>
+      <template #footer>
+        <el-button :disabled="fetching" @click="fetchDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="fetching" @click="fetchSubscription">
+          {{ fetching ? 'Fetching...' : 'Fetch Now' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical } from 'lucide-vue-next';
+import { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical, RefreshCw } from 'lucide-vue-next';
 import CoffeeLoader from '../UI/CoffeeLoader.vue';
 import EmptyState from '../UI/EmptyState.vue';
 import ActivityTimeline from '../ActivityTimeline.vue';
 
 export default {
   name: 'SubscriptionDetail',
-  components: { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical, CoffeeLoader, EmptyState, ActivityTimeline },
+  components: { ArrowLeft, Mail, XCircle, ExternalLink, MoreVertical, RefreshCw, CoffeeLoader, EmptyState, ActivityTimeline },
   data() {
     return {
       loading: true,
       cancelling: false,
+      fetching: false,
+      fetchDialogVisible: false,
       moreOpen: false,
       subscription: {},
     };
@@ -238,6 +272,27 @@ export default {
         this.$handleError(error);
       }).always(() => {
         this.cancelling = false;
+      });
+    },
+    confirmFetchSubscription() {
+      this.moreOpen = false;
+      this.fetchDialogVisible = true;
+    },
+    fetchSubscription() {
+      this.fetching = true;
+      this.$post({
+        action: 'buymecoffee_admin_ajax',
+        route: 'fetch_subscription',
+        data: { id: this.subscription.id },
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then(() => {
+        this.fetchDialogVisible = false;
+        this.$handleSuccess('Subscription fetched successfully from Stripe');
+        this.getSubscription();
+      }).fail((error) => {
+        this.$handleError(error);
+      }).always(() => {
+        this.fetching = false;
       });
     },
     formatAmount(cents, currency) {
@@ -353,4 +408,7 @@ export default {
 .bmc-more-item:hover { background: var(--bg-secondary); }
 .bmc-more-item--danger { color: #dc2626; }
 .bmc-more-item--danger:hover { background: #fee2e2; }
+
+.bmc-spin { animation: bmc-spin 1s linear infinite; }
+@keyframes bmc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

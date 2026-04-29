@@ -212,7 +212,10 @@ class StripeSubscriptions
         $billingReason = isset($object->billing_reason) ? sanitize_text_field($object->billing_reason) : '';
         $invoiceId     = isset($object->id) ? sanitize_text_field($object->id) : '';
 
+        self::debugLog('handleRenewalWebhook: stripe_sub_id=' . ($stripeSubId ?: '(none)') . ', billing_reason=' . ($billingReason ?: '(none)') . ', invoice_id=' . ($invoiceId ?: '(none)'));
+
         if (!$stripeSubId) {
+            self::debugLog('handleRenewalWebhook: no subscription ID in invoice object, skipping');
             return;
         }
 
@@ -220,12 +223,24 @@ class StripeSubscriptions
         $subscription      = $subscriptionModel->findByStripeId($stripeSubId);
 
         if (!$subscription) {
+            self::debugLog('handleRenewalWebhook: no local subscription found for stripe_sub_id: ' . $stripeSubId);
             return;
         }
 
-        $periodEnd = isset($object->period_end) ? gmdate('Y-m-d H:i:s', (int) $object->period_end) : null;
+        self::debugLog('handleRenewalWebhook: local subscription #' . $subscription->id . ' found, status=' . $subscription->status);
+
+        // Fetch current_period_end from the Stripe subscription object.
+        // The invoice's period_end is just the invoice draft/finalize timestamp,
+        // NOT the subscription billing period end.
+        $periodEnd = null;
+        $stripeSub = (new API())->makeRequest('subscriptions/' . $stripeSubId, [], $apiKey, 'GET');
+        if (!is_wp_error($stripeSub) && isset($stripeSub['current_period_end'])) {
+            $periodEnd = gmdate('Y-m-d H:i:s', (int) $stripeSub['current_period_end']);
+        }
+        self::debugLog('handleRenewalWebhook: fetched current_period_end=' . ($periodEnd ?: '(none)'));
 
         if ($billingReason === 'subscription_create') {
+            self::debugLog('handleRenewalWebhook: first payment — activating subscription #' . $subscription->id);
             // First payment: activate the local subscription record
             $subscriptionModel->updateData($subscription->id, [
                 'status'             => 'active',
@@ -265,6 +280,8 @@ class StripeSubscriptions
             return;
         }
 
+        self::debugLog('handleRenewalWebhook: renewal payment — creating new transaction for subscription #' . $subscription->id);
+
         // Deduplicate webhook retries/replays by invoice id for recurring renewals.
         if ($invoiceId) {
             $duplicate = buyMeCoffeeQuery()
@@ -275,6 +292,7 @@ class StripeSubscriptions
                 ->first();
 
             if ($duplicate) {
+                self::debugLog('handleRenewalWebhook: duplicate invoice_id "' . $invoiceId . '" — skipping');
                 return;
             }
         }
@@ -329,6 +347,8 @@ class StripeSubscriptions
         $object      = isset($event->data->object) ? $event->data->object : null;
         $stripeSubId = isset($object->id) ? sanitize_text_field($object->id) : null;
 
+        self::debugLog('handleSubscriptionCancelled: stripe_sub_id=' . ($stripeSubId ?: '(none)'));
+
         if (!$stripeSubId) {
             return;
         }
@@ -337,8 +357,11 @@ class StripeSubscriptions
         $subscription      = $subscriptionModel->findByStripeId($stripeSubId);
 
         if (!$subscription) {
+            self::debugLog('handleSubscriptionCancelled: no local subscription for stripe_sub_id: ' . $stripeSubId);
             return;
         }
+
+        self::debugLog('handleSubscriptionCancelled: cancelling local subscription #' . $subscription->id);
 
         $subscriptionModel->updateData($subscription->id, [
             'status'       => 'cancelled',
@@ -368,6 +391,8 @@ class StripeSubscriptions
         $object      = isset($event->data->object) ? $event->data->object : null;
         $stripeSubId = isset($object->id) ? sanitize_text_field($object->id) : null;
 
+        self::debugLog('handleSubscriptionUpdated: stripe_sub_id=' . ($stripeSubId ?: '(none)'));
+
         if (!$stripeSubId) {
             return;
         }
@@ -376,10 +401,12 @@ class StripeSubscriptions
         $subscription      = $subscriptionModel->findByStripeId($stripeSubId);
 
         if (!$subscription) {
+            self::debugLog('handleSubscriptionUpdated: no local subscription for stripe_sub_id: ' . $stripeSubId);
             return;
         }
 
         $stripeStatus = isset($object->status) ? sanitize_text_field($object->status) : '';
+        self::debugLog('handleSubscriptionUpdated: subscription #' . $subscription->id . ' current_status=' . $subscription->status . ', stripe_status=' . ($stripeStatus ?: '(none)'));
         $periodEnd    = isset($object->current_period_end) ? gmdate('Y-m-d H:i:s', (int) $object->current_period_end) : null;
 
         $update = ['updated_at' => current_time('mysql')];
@@ -419,6 +446,207 @@ class StripeSubscriptions
                     'stripe_status'   => $stripeStatus,
                 ],
             ]);
+        }
+    }
+
+    /**
+     * Fetch a subscription from Stripe and sync all invoices as local transactions.
+     *
+     * @param object $subscription  Local subscription row from DB
+     * @return object|\WP_Error     Updated subscription or WP_Error on failure
+     */
+    public function fetchFromRemote($subscription)
+    {
+        $stripeSubId = $subscription->stripe_subscription_id;
+        if (!$stripeSubId) {
+            return new \WP_Error('missing_stripe_id', __('This subscription has no Stripe subscription ID.', 'buy-me-coffee'));
+        }
+
+        $keys   = StripeSettings::getKeys();
+        $apiKey = $keys['secret'];
+        $api    = new API();
+
+        // 1. Fetch subscription from Stripe
+        $stripeSub = $api->makeRequest('subscriptions/' . sanitize_text_field($stripeSubId), [], $apiKey, 'GET');
+        if (is_wp_error($stripeSub)) {
+            return $stripeSub;
+        }
+
+        // 2. Map Stripe status to local status
+        $statusMap = [
+            'active'             => 'active',
+            'past_due'           => 'past_due',
+            'unpaid'             => 'past_due',
+            'canceled'           => 'cancelled',
+            'incomplete'         => 'incomplete',
+            'incomplete_expired' => 'cancelled',
+            'trialing'           => 'active',
+            'paused'             => 'past_due',
+        ];
+
+        $stripeStatus = sanitize_text_field($stripeSub['status'] ?? '');
+        $localStatus  = isset($statusMap[$stripeStatus]) ? $statusMap[$stripeStatus] : $stripeStatus;
+        $periodEndTs  = (int) ($stripeSub['current_period_end'] ?? 0);
+        $periodEnd    = $periodEndTs > 0 ? gmdate('Y-m-d H:i:s', $periodEndTs) : null;
+
+        $subscriptionUpdate = [
+            'status'     => $localStatus,
+            'updated_at' => current_time('mysql'),
+        ];
+        if ($periodEnd) {
+            $subscriptionUpdate['current_period_end'] = $periodEnd;
+        }
+        if ($localStatus === 'cancelled' && empty($subscription->cancelled_at)) {
+            $cancelledTs = (int) ($stripeSub['canceled_at'] ?? 0);
+            $subscriptionUpdate['cancelled_at'] = $cancelledTs > 0
+                ? gmdate('Y-m-d H:i:s', $cancelledTs)
+                : current_time('mysql');
+        }
+
+        // 3. Fetch all paid invoices for this subscription
+        $invoicesResponse = $api->getList('invoices', [
+            'subscription' => $stripeSubId,
+            'status'       => 'paid',
+            'limit'        => 100,
+        ], $apiKey);
+
+        $newTransactions = 0;
+
+        if (!is_wp_error($invoicesResponse) && !empty($invoicesResponse['data'])) {
+            $supporter = (new Supporters())->find((int) $subscription->supporter_id);
+            if (!$supporter) {
+                return new \WP_Error('supporter_not_found', __('Supporter not found for this subscription.', 'buy-me-coffee'));
+            }
+
+            foreach ($invoicesResponse['data'] as $invoice) {
+                $invoiceId     = sanitize_text_field($invoice['id'] ?? '');
+                $paymentIntent = sanitize_text_field($invoice['payment_intent'] ?? '');
+                $amountPaid    = (int) ($invoice['amount_paid'] ?? 0);
+                $currency      = sanitize_text_field($invoice['currency'] ?? 'usd');
+
+                if (!$invoiceId) {
+                    continue;
+                }
+
+                // Check if this invoice already has a local transaction
+                $existing = null;
+
+                // Match by charge_id (payment_intent)
+                if ($paymentIntent) {
+                    $existing = buyMeCoffeeQuery()
+                        ->table('buymecoffee_transactions')
+                        ->where('subscription_id', (int) $subscription->id)
+                        ->where('charge_id', $paymentIntent)
+                        ->first();
+                }
+
+                // Match by invoice_id in payment_note
+                if (!$existing && $invoiceId) {
+                    $existing = buyMeCoffeeQuery()
+                        ->table('buymecoffee_transactions')
+                        ->where('subscription_id', (int) $subscription->id)
+                        ->where('payment_method', 'stripe')
+                        ->where('payment_note', 'like', '%"invoice_id":"' . $invoiceId . '"%')
+                        ->first();
+                }
+
+                if ($existing) {
+                    // Update charge_id if missing
+                    $updates = [];
+                    if (empty($existing->charge_id) && $paymentIntent) {
+                        $updates['charge_id'] = $paymentIntent;
+                    }
+                    if ($existing->status !== 'paid') {
+                        $updates['status'] = 'paid';
+                    }
+                    if ($updates) {
+                        $updates['updated_at'] = current_time('mysql');
+                        buyMeCoffeeQuery()
+                            ->table('buymecoffee_transactions')
+                            ->where('id', $existing->id)
+                            ->update($updates);
+                    }
+                    continue;
+                }
+
+                // Also skip if this is the first invoice and we already have
+                // the original transaction from createSubscription()
+                $billingReason = sanitize_text_field($invoice['billing_reason'] ?? '');
+                if ($billingReason === 'subscription_create') {
+                    // Check if the original transaction exists (no invoice_id in payment_note)
+                    $original = buyMeCoffeeQuery()
+                        ->table('buymecoffee_transactions')
+                        ->where('subscription_id', (int) $subscription->id)
+                        ->where('payment_method', 'stripe')
+                        ->orderBy('id', 'ASC')
+                        ->first();
+
+                    if ($original) {
+                        // Backfill charge_id if missing
+                        if (empty($original->charge_id) && $paymentIntent) {
+                            buyMeCoffeeQuery()
+                                ->table('buymecoffee_transactions')
+                                ->where('id', $original->id)
+                                ->update([
+                                    'charge_id'  => $paymentIntent,
+                                    'status'     => 'paid',
+                                    'updated_at' => current_time('mysql'),
+                                ]);
+                        }
+                        continue;
+                    }
+                }
+
+                // Create new transaction for this invoice
+                $chargeId = $paymentIntent;
+                $invoiceCreated = (int) ($invoice['created'] ?? 0);
+
+                buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+                    'entry_id'         => (int) $subscription->supporter_id,
+                    'entry_hash'       => sanitize_text_field($supporter->entry_hash),
+                    'subscription_id'  => (int) $subscription->id,
+                    'transaction_type' => 'recurring',
+                    'payment_method'   => 'stripe',
+                    'charge_id'        => $chargeId,
+                    'payment_total'    => $amountPaid,
+                    'status'           => 'paid',
+                    'currency'         => strtoupper($currency),
+                    'payment_mode'     => sanitize_text_field($subscription->payment_mode),
+                    'payment_note'     => wp_json_encode([
+                        'invoice_id'     => $invoiceId,
+                        'billing_reason' => $billingReason,
+                        'fetched_from'   => 'remote_sync',
+                    ]),
+                    'created_at'       => $invoiceCreated > 0 ? gmdate('Y-m-d H:i:s', $invoiceCreated) : current_time('mysql'),
+                    'updated_at'       => current_time('mysql'),
+                ]);
+
+                $newTransactions++;
+            }
+        }
+
+        // 4. Update local subscription record
+        (new Subscriptions())->updateData($subscription->id, $subscriptionUpdate);
+
+        ActivityLogger::logSubscription((int) $subscription->id, 'subscription_fetched', 'Subscription fetched from Stripe', [
+            'status'  => 'info',
+            'context' => [
+                'subscription_id'   => $subscription->id,
+                'stripe_status'     => $stripeStatus,
+                'local_status'      => $localStatus,
+                'period_end'        => $periodEnd,
+                'new_transactions'  => $newTransactions,
+            ],
+        ]);
+
+        return (new Subscriptions())->find($subscription->id);
+    }
+
+    private static function debugLog($message)
+    {
+        if (defined('BUYMECOFFEE_DEBUG') && BUYMECOFFEE_DEBUG) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging
+            error_log('[BuyMeCoffee][Stripe Webhook] ' . $message);
         }
     }
 }
