@@ -239,16 +239,36 @@ class AdminAjaxHandler
 
     public function editSupporter($request)
     {
-        $id = Arr::get($request, 'id');
-        $supporter = (new Supporters())->find($id);
-        if ($supporter) {
-            $supporter->name = sanitize_text_field(Arr::get($request, 'name', ''));
-            $supporter->email = sanitize_text_field(Arr::get($request, 'email', ''));
-            $supporter->amount = sanitize_text_field(Arr::get($request, 'amount'));
-            $supporter->save();
-            wp_send_json_success($supporter, 200);
+        $id = absint(Arr::get($request, 'id'));
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid supporter ID', 'buy-me-coffee')], 400);
         }
-        wp_send_json_error();
+
+        $supporterModel = new Supporters();
+        $supporter = $supporterModel->getQuery()->where('id', $id)->first();
+        if (!$supporter) {
+            wp_send_json_error(['message' => __('Supporter not found', 'buy-me-coffee')], 404);
+        }
+
+        $updateData = [
+            'updated_at' => current_time('mysql'),
+        ];
+
+        if (isset($request['name'])) {
+            $updateData['supporters_name'] = sanitize_text_field(Arr::get($request, 'name', ''));
+        }
+
+        if (isset($request['email'])) {
+            $updateData['supporters_email'] = sanitize_email(Arr::get($request, 'email', ''));
+        }
+
+        if (isset($request['amount'])) {
+            $updateData['payment_total'] = max(0, absint(Arr::get($request, 'amount')));
+        }
+
+        $supporterModel->updateData($id, $updateData);
+        $updatedSupporter = $supporterModel->getQuery()->where('id', $id)->first();
+        wp_send_json_success($updatedSupporter, 200);
     }
 
     public function deleteSupporter($request)

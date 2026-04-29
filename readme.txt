@@ -164,84 +164,86 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 == Changelog ==
 
 = 1.2.1 April 26, 2026 =
-* Add — Supporter wall shortcode `[buymecoffee_supporters]` with ranked leaderboard
-* Add — Supporters admin hub with metrics, top supporters, and display settings
-* Add — Refund confirmation modal with real-time gateway response
-* Add — Cancel subscription option during refund for recurring payments
-* Add — Subscription info card on transaction detail page
-* Add — Fetch subscription from Stripe to sync missing transactions
-* Add — Debug logging for Stripe webhook flow (BUYMECOFFEE_DEBUG)
-* Add — Subscription management with full Stripe webhook lifecycle
-* Add — Account creation for recurring subscribers
-* Add — Coffee theme and admin UI polish
-* Fix — Stripe webhook verification (re-fetch from API instead of signature-only)
-* Fix — Stripe subscription period_end using invoice timestamp instead of subscription period
-* Fix — Supporters list showing duplicates (LEFT JOIN replaced with subquery)
-* Fix — Dashboard Avg Donation showing $0.00 (wrong field name)
-* Fix — Revenue stats not including renewal transactions
-* Fix — Total coffees counting unpaid entries
-* Fix — Delete supporter not cascading to activity logs and subscriptions
-* Fix — Transactions::delete() ignoring $column parameter
-* Fix — handleError crash (this.$notify not a function)
-* Fix — SQL injection via LIKE wildcards in invoice_id queries
-* Fix — PHPCS WordPress.DB.PreparedSQL warnings
-* Improve — Subscriber account history view
-* Improve — Admin loader experience
-* Redesign — All page styling with design token system
+- Adds Supporter wall shortcode [buymecoffee_supporters] with ranked leaderboard
+- Adds Supporters admin hub with metrics, top supporters, and display settings
+- Adds Refund confirmation modal with real-time gateway response
+- Adds Cancel subscription option during refund for recurring payments
+- Adds Subscription info card on transaction detail page
+- Adds Fetch subscription from Stripe to sync missing transactions
+- Adds Debug logging for Stripe webhook flow (BUYMECOFFEE_DEBUG)
+- Adds Subscription management with full Stripe webhook lifecycle
+- Adds Account creation for recurring subscribers
+- Adds Coffee theme and admin UI polish
+- Fixes Stripe webhook verification (re-fetch from API instead of signature-only)
+- Fixes Stripe subscription period_end using invoice timestamp instead of subscription period
+- Fixes Supporters list showing duplicates (LEFT JOIN replaced with subquery)
+- Fixes Dashboard Avg Donation showing $0.00 (wrong field name)
+- Fixes Revenue stats not including renewal transactions
+- Fixes Total coffees counting unpaid entries
+- Fixes Delete supporter not cascading to activity logs and subscriptions
+- Fixes Transactions::delete() ignoring $column parameter
+- Fixes handleError crash (this.$notify not a function)
+- Fixes SQL injection via LIKE wildcards in invoice_id queries
+- Fixes PHPCS WordPress.DB.PreparedSQL warnings
+- Improves Subscriber account history view
+- Improves Admin loader experience
+- Redesigns All page styling with design token system
 
 = 1.2.0 April 26, 2026 =
-* Add — Stripe recurring subscriptions with monthly or yearly billing
-* Add — Subscription management page with status, billing, renewal date, and cancel option
-* Add — Stripe subscription webhooks for renewals, cancellations, and status updates
-* Add — Refund module for Stripe and PayPal transactions
-* Add — Activity Log for payments, subscriptions, refunds, webhooks, and emails
-* Add — Activity timeline on supporter and subscription pages
-* Add — Global Activity Log page with filters and pagination
-* Add — Gateway logos in payment method selector
-* Fix — Stripe IPN and PayPal API validation issues
-* Fix — Subscription confirmation mismatch on payment return
+- Adds Stripe recurring subscriptions with monthly or yearly billing
+- Adds Subscription management page with status, billing, renewal date, and cancel option
+- Adds Stripe subscription webhooks for renewals, cancellations, and status updates
+- Adds Refund module for Stripe and PayPal transactions
+- Adds Activity Log for payments, subscriptions, refunds, webhooks, and emails
+- Adds Activity timeline on supporter and subscription pages
+- Adds Global Activity Log page with filters and pagination
+- Adds Gateway logos in payment method selector
+- Fixes Stripe IPN and PayPal API validation issues
+- Fixes Subscription confirmation mismatch on payment return
 
 = 1.1.0 April 25, 2026 =
-* Add — Redesigned public donation page with two-column layout, banner, about card, and supporter list
-* Add — Inline page editor for admins (edit cover, profile, name, bio, and accent color on the public page)
-* Add — Banner image upload with drag-and-drop and WP media picker
-* Add — Share button on public page with native share sheet and clipboard fallback
-* Add — Recent supporters list on the public donation page
-* Add — Email notifications with customizable donor and admin templates
-* Add — Dark mode support across the entire admin panel
-* Add — Full-page admin SPA with collapsible sidebar and design token system
-* Add — Settings sub-navigation (General, Appearance, Shortcodes)
-* Fix — Stripe checkout hiding form fields when card element appears
-* Fix — Currency symbol rendering (HTML entities decoded before JSON output)
-* Fix — WordPress admin padding and focus ring bleed into plugin admin
-* Fix — Payment receipt page layout
+- Adds Redesigned public donation page with two-column layout, banner, about card, and supporter list
+- Adds Inline page editor for admins (edit cover, profile, name, bio, and accent color on the public page)
+- Adds Banner image upload with drag-and-drop support and WP media picker
+- Adds Share button on public page with native share sheet and clipboard fallback
+- Adds Recent supporters list on the public donation page
+- Adds Email notifications with customizable donor and admin templates
+- Adds Dark mode support across the entire admin panel
+- Adds Full-page admin SPA with collapsible sidebar navigation and design token system
+- Adds Settings sub-navigation (General, Appearance, Shortcodes) integrated into the sidebar
+- Fixes Stripe checkout hiding form fields when card element appears
+- Fixes Currency symbol rendering (HTML entities now decoded before JSON output)
+- Fixes WordPress admin padding and focus ring bleed into the plugin admin page
+- Fixes Payment receipt page layout and design
 
 = 1.0.6 January 11, 2026 =
-* Add — PayPal settings validation
-* Fix — Translation issue
-* Improve — Security hardening
+- Adds PayPal settings validation
+- Fixes Translation issue
+- Enhanced security
 
 = 1.0.5 April 10, 2025 =
-* Fix — Chart height issue
-* Fix — Styling issues
+- Fixes Chart height issue
+- Fixes Styling issues
 
 = 1.0.4 December 01, 2024 =
-* Add — PayPal Standard on-site payment confirmation
-* Add — Supporter profile page
-* Add — Supporters table filter and search
-* Fix — Styling issues
+- Adds PayPal Standard Payment on site confirmation
+- Adds New Supporters/Donor profile page
+- Adds Supporters table filter and search
+- Fixes Styling issues
 
 = 1.0.3 August 26, 2024 =
-* Fix — Styling, customizer module, and checkout button issues
+- Fixes Styling issue
+- Fixes Customizer module issue
+- Fixes Checkout button issue
 
 = 1.0.2 March 10, 2024 =
-* Add — Realtime theme customizer
+- Adds Realtime theme customizer
 
 = 1.0.1 March 07, 2024 =
-* Add — PayPal Pro payment gateway
+- Adds PayPal Pro Payment Gateway
 
 = 1.0.0 March 03, 2024 =
-* Initial release
+- Initial release
 
 == Upgrade Notice ==
 
