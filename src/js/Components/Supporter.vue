@@ -227,6 +227,51 @@
         </div>
       </div>
 
+      <!-- Subscription Info (if this transaction is linked to a subscription) -->
+      <div
+        v-if="supporter.subscription"
+        class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide m-0" style="color: var(--text-secondary)">
+            Subscription
+          </h3>
+          <router-link
+            :to="{ name: 'SubscriptionDetail', params: { id: supporter.subscription.id } }"
+            class="inline-flex items-center gap-1 text-xs font-medium no-underline hover:underline"
+            style="color: var(--color-primary-600)"
+          >
+            View Subscription <ExternalLink :size="11" />
+          </router-link>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+          <div>
+            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Status</p>
+            <StatusBadge :status="supporter.subscription.status" />
+          </div>
+          <div>
+            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Interval</p>
+            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+              {{ supporter.subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Amount</p>
+            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+              {{ getFormatedAmount(supporter.subscription.amount, supporter.subscription.currency) }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Next Renewal</p>
+            <p class="text-sm font-medium m-0" style="color: var(--text-primary)">
+              {{ supporter.subscription.current_period_end && supporter.subscription.current_period_end !== '0000-00-00 00:00:00'
+                ? new Date(supporter.subscription.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                : '--' }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Payment History (all transactions including renewals) -->
       <div
         v-if="supporter.transactions && supporter.transactions.length > 1"
