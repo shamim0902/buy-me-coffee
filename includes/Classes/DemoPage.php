@@ -217,7 +217,7 @@ class DemoPage
 
         // Shortcode attributes override saved settings
         if ($atts['limit'] !== '') {
-            $settings['max_supporters'] = absint($atts['limit']);
+            $settings['max_supporters'] = max(1, min(100, absint($atts['limit'])));
         }
         if ($atts['show_amount'] !== '') {
             $settings['show_amount'] = $atts['show_amount'] === 'yes' ? 'yes' : 'no';
