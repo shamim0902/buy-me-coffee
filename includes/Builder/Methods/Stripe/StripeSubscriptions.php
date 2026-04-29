@@ -288,7 +288,7 @@ class StripeSubscriptions
                 ->table('buymecoffee_transactions')
                 ->where('subscription_id', (int) $subscription->id)
                 ->where('payment_method', 'stripe')
-                ->where('payment_note', 'like', '%"invoice_id":"' . $invoiceId . '"%')
+                ->where('payment_note', 'like', '%"invoice_id":"' . addcslashes($invoiceId, '%_') . '"%')
                 ->first();
 
             if ($duplicate) {
@@ -546,7 +546,7 @@ class StripeSubscriptions
                         ->table('buymecoffee_transactions')
                         ->where('subscription_id', (int) $subscription->id)
                         ->where('payment_method', 'stripe')
-                        ->where('payment_note', 'like', '%"invoice_id":"' . $invoiceId . '"%')
+                        ->where('payment_note', 'like', '%"invoice_id":"' . addcslashes($invoiceId, '%_') . '"%')
                         ->first();
                 }
 

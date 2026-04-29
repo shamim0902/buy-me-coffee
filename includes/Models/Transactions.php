@@ -17,9 +17,9 @@ class Transactions extends Model
         return $this->getQuery()->where($column, $id)->first();
     }
 
-    public function delete($id, $column='id')
+    public function delete($id, $column = 'id')
     {
-        return $this->getQuery()->where('entry_id', $id)->delete();
+        return $this->getQuery()->where($column, $id)->delete();
     }
 
     public function getByPaymentId($chargeId, $method = 'paypal')
