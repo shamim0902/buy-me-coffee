@@ -91,7 +91,7 @@ export default class BuyMeCoffee {
     }
 
     $adminGet(options) {
-        options.action = 'buy-me-coffee_admin_ajax';
+        options.action = 'buymecoffee_admin_ajax';
         return window.jQuery.get(window.BuyMeCoffeeAdmin.ajaxurl, options);
     }
 
@@ -100,7 +100,7 @@ export default class BuyMeCoffee {
     }
 
     $adminPost(options) {
-        options.action = 'buy-me-coffee_admin_ajax';
+        options.action = 'buymecoffee_admin_ajax';
         return window.jQuery.post(window.BuyMeCoffeeAdmin.ajaxurl, options);
     }
 
