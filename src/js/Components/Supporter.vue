@@ -367,49 +367,83 @@
     <!-- Refund Confirmation Dialog -->
     <el-dialog
       v-model="refundModal"
-      title="Refund Transaction"
+      :title="refundResult ? 'Refund Result' : 'Refund Transaction'"
       width="460px"
       :close-on-click-modal="!refunding"
       :close-on-press-escape="!refunding"
       :show-close="!refunding"
       append-to-body
+      @closed="onRefundModalClosed"
     >
-      <div v-if="supporter.transaction" class="bmc-refund-details">
-        <div class="bmc-refund-details__row">
-          <span class="bmc-refund-details__label">Transaction ID</span>
-          <span class="bmc-refund-details__value font-mono text-xs">{{ supporter.transaction.charge_id }}</span>
+      <!-- Confirmation view (before refund) -->
+      <template v-if="!refundResult && !refunding">
+        <div v-if="supporter.transaction" class="bmc-refund-details">
+          <div class="bmc-refund-details__row">
+            <span class="bmc-refund-details__label">Transaction ID</span>
+            <span class="bmc-refund-details__value font-mono text-xs">{{ supporter.transaction.charge_id }}</span>
+          </div>
+          <div class="bmc-refund-details__row">
+            <span class="bmc-refund-details__label">Amount</span>
+            <span class="bmc-refund-details__value bmc-refund-details__amount">
+              {{ getFormatedAmount(supporter.transaction.payment_total, supporter.transaction.currency) }}
+            </span>
+          </div>
+          <div class="bmc-refund-details__row">
+            <span class="bmc-refund-details__label">Payment Method</span>
+            <span class="bmc-refund-details__value" style="text-transform: capitalize">{{ supporter.transaction.payment_method }}</span>
+          </div>
+          <div class="bmc-refund-details__row">
+            <span class="bmc-refund-details__label">Supporter</span>
+            <span class="bmc-refund-details__value">{{ supporter.supporters_name || 'Anonymous' }}</span>
+          </div>
+          <div class="bmc-refund-warning">
+            <RotateCcw :size="14" />
+            This will issue a refund through the payment gateway. This action cannot be undone.
+          </div>
         </div>
-        <div class="bmc-refund-details__row">
-          <span class="bmc-refund-details__label">Amount</span>
-          <span class="bmc-refund-details__value bmc-refund-details__amount">
-            {{ getFormatedAmount(supporter.transaction.payment_total, supporter.transaction.currency) }}
-          </span>
+      </template>
+
+      <!-- Processing view -->
+      <template v-if="refunding && !refundResult">
+        <div class="bmc-refund-processing">
+          <div class="bmc-refund-processing__spinner"></div>
+          <p class="bmc-refund-processing__text">Processing refund with {{ supporter.transaction?.payment_method }}...</p>
+          <p class="bmc-refund-processing__hint">Please wait, do not close this window.</p>
         </div>
-        <div class="bmc-refund-details__row">
-          <span class="bmc-refund-details__label">Payment Method</span>
-          <span class="bmc-refund-details__value" style="text-transform: capitalize">{{ supporter.transaction.payment_method }}</span>
+      </template>
+
+      <!-- Result view (after gateway responds) -->
+      <template v-if="refundResult">
+        <div class="bmc-refund-result">
+          <div class="bmc-refund-result__icon" :class="'bmc-refund-result__icon--' + refundResult.type">
+            <component :is="refundResult.type === 'error' ? XCircle : CheckCircle" :size="40" />
+          </div>
+          <h3 class="bmc-refund-result__title">{{ refundResult.title }}</h3>
+          <p class="bmc-refund-result__message">{{ refundResult.message }}</p>
+          <div v-if="refundResult.details" class="bmc-refund-result__details">
+            <div v-for="(val, label) in refundResult.details" :key="label" class="bmc-refund-details__row">
+              <span class="bmc-refund-details__label">{{ label }}</span>
+              <span class="bmc-refund-details__value">{{ val }}</span>
+            </div>
+          </div>
         </div>
-        <div class="bmc-refund-details__row">
-          <span class="bmc-refund-details__label">Supporter</span>
-          <span class="bmc-refund-details__value">{{ supporter.supporters_name || 'Anonymous' }}</span>
-        </div>
-        <div class="bmc-refund-warning">
-          <RotateCcw :size="14" />
-          This will issue a refund through the payment gateway. This action cannot be undone.
-        </div>
-      </div>
+      </template>
+
       <template #footer>
-        <el-button :disabled="refunding" @click="refundModal = false">Cancel</el-button>
-        <el-button type="danger" :loading="refunding" @click="refundTransaction">
-          {{ refunding ? 'Refunding...' : 'Confirm Refund' }}
-        </el-button>
+        <template v-if="!refundResult && !refunding">
+          <el-button @click="refundModal = false">Cancel</el-button>
+          <el-button type="danger" @click="refundTransaction">Confirm Refund</el-button>
+        </template>
+        <template v-if="refundResult">
+          <el-button type="primary" @click="closeRefundAndReload">Done</el-button>
+        </template>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, DollarSign, Clock, MoreVertical, RotateCcw } from 'lucide-vue-next';
+import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, DollarSign, Clock, MoreVertical, RotateCcw, CheckCircle, XCircle } from 'lucide-vue-next';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import PageTitle from './UI/PageTitle.vue';
 import StatusBadge from './UI/StatusBadge.vue';
@@ -429,6 +463,8 @@ export default {
     Clock,
     MoreVertical,
     RotateCcw,
+    CheckCircle,
+    XCircle,
     PageTitle,
     StatusBadge,
     MetricCard,
@@ -444,6 +480,7 @@ export default {
       moreOpen: false,
       refunding: false,
       refundModal: false,
+      refundResult: null,
       payment_statuses: [
         { label: 'Paid', value: 'paid' },
         { label: 'Pending', value: 'pending' },
@@ -502,6 +539,7 @@ export default {
     },
     openRefundModal() {
       this.moreOpen = false;
+      this.refundResult = null;
       this.refundModal = true;
     },
     refundTransaction() {
@@ -511,15 +549,41 @@ export default {
         route: 'refund_transaction',
         data: { id: this.supporter.transaction.id },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
-      }).then(() => {
-        this.refundModal = false;
-        this.$handleSuccess('Transaction refunded successfully');
-        this.getSupporter();
+      }).then((response) => {
+        const data = response?.data || {};
+        const status = data.refund_status || 'succeeded';
+        const details = {};
+        if (data.refund_id) details['Refund ID'] = data.refund_id;
+        if (data.gateway_status) details['Gateway Status'] = data.gateway_status;
+        details['Amount'] = this.getFormatedAmount(this.supporter.transaction.payment_total, this.supporter.transaction.currency);
+
+        this.refundResult = {
+          type: status === 'pending' ? 'warning' : 'success',
+          title: status === 'pending' ? 'Refund Pending' : 'Refund Successful',
+          message: data.message || 'The refund has been processed.',
+          details,
+        };
       }).fail((error) => {
-        this.$handleError(error);
+        const msg = error?.responseJSON?.data?.message || 'Refund failed. Please try again or check your gateway dashboard.';
+        this.refundResult = {
+          type: 'error',
+          title: 'Refund Failed',
+          message: msg,
+          details: null,
+        };
       }).always(() => {
         this.refunding = false;
       });
+    },
+    closeRefundAndReload() {
+      this.refundModal = false;
+      this.getSupporter();
+    },
+    onRefundModalClosed() {
+      if (this.refundResult) {
+        this.refundResult = null;
+        this.getSupporter();
+      }
     },
     onClickOutside(e) {
       if (this.$refs.moreMenu && !this.$refs.moreMenu.contains(e.target)) {
@@ -672,5 +736,53 @@ export default {
   line-height: 1.5;
   background: #fef2f2;
   color: #991b1b;
+}
+
+.bmc-refund-processing {
+  text-align: center;
+  padding: 24px 0;
+}
+.bmc-refund-processing__spinner {
+  width: 40px; height: 40px; margin: 0 auto 16px;
+  border: 3px solid var(--border-secondary);
+  border-top-color: var(--color-primary-600);
+  border-radius: 50%;
+  animation: bmc-spin 0.8s linear infinite;
+}
+@keyframes bmc-spin { to { transform: rotate(360deg); } }
+.bmc-refund-processing__text {
+  font-size: 14px; font-weight: 500; color: var(--text-primary); margin: 0;
+}
+.bmc-refund-processing__hint {
+  font-size: 12px; color: var(--text-tertiary); margin: 6px 0 0;
+}
+
+.bmc-refund-result {
+  text-align: center;
+  padding: 12px 0;
+}
+.bmc-refund-result__icon {
+  margin: 0 auto 12px;
+  width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.bmc-refund-result__icon--success { color: #16a34a; background: #dcfce7; }
+.bmc-refund-result__icon--warning { color: #d97706; background: #fef3c7; }
+.bmc-refund-result__icon--error   { color: #dc2626; background: #fee2e2; }
+.bmc-refund-result__title {
+  font-size: 16px; font-weight: 600; margin: 0 0 6px; color: var(--text-primary);
+}
+.bmc-refund-result__message {
+  font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; line-height: 1.5;
+}
+.bmc-refund-result__details {
+  text-align: left;
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bmc-refund-result__details .bmc-refund-details__row {
+  padding: 10px 14px;
 }
 </style>

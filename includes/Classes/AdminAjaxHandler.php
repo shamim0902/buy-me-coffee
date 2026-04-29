@@ -725,7 +725,10 @@ class AdminAjaxHandler
                 ]);
 
                 wp_send_json_success([
-                    'message' => __('Refund request submitted and is pending confirmation.', 'buy-me-coffee')
+                    'message'        => __('Refund request submitted and is pending confirmation from the gateway.', 'buy-me-coffee'),
+                    'refund_status'  => 'pending',
+                    'refund_id'      => sanitize_text_field(Arr::get($result, 'refund_id', '')),
+                    'gateway_status' => $gatewayStatus,
                 ], 202);
             }
 
@@ -780,7 +783,12 @@ class AdminAjaxHandler
         ]);
 
         do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
-        wp_send_json_success(['message' => __('Transaction refunded successfully.', 'buy-me-coffee')], 200);
+        wp_send_json_success([
+            'message'        => __('Transaction refunded successfully.', 'buy-me-coffee'),
+            'refund_status'  => 'succeeded',
+            'refund_id'      => sanitize_text_field(Arr::get($refundMeta, 'refund_id', '')),
+            'gateway_status' => sanitize_text_field(Arr::get($refundMeta, 'status', 'succeeded')),
+        ], 200);
     }
 
     private function acquireRefundLock($transactionId)
