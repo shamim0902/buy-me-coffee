@@ -90,21 +90,15 @@
                 <MoreVertical :size="15" />
               </button>
               <div v-if="moreOpen" class="bmc-more-dropdown">
-                <el-popconfirm
+                <button
                   v-if="supporter.transaction && supporter.transaction.status === 'paid' && supporter.transaction.charge_id"
-                  title="Refund this transaction? This cannot be undone."
-                  confirm-button-text="Yes, refund"
-                  cancel-button-text="Cancel"
-                  :width="260"
-                  @confirm="refundTransaction"
+                  class="bmc-more-item bmc-more-item--danger"
+                  :disabled="refunding"
+                  @click="openRefundModal"
                 >
-                  <template #reference>
-                    <button class="bmc-more-item bmc-more-item--danger" :disabled="refunding">
-                      <RotateCcw :size="14" />
-                      {{ refunding ? 'Refunding...' : 'Refund Transaction' }}
-                    </button>
-                  </template>
-                </el-popconfirm>
+                  <RotateCcw :size="14" />
+                  {{ refunding ? 'Refunding...' : 'Refund Transaction' }}
+                </button>
                 <span
                   v-else
                   class="bmc-more-item bmc-more-item--disabled"
@@ -233,9 +227,55 @@
         </div>
       </div>
 
-      <!-- Donation History -->
+      <!-- Payment History (all transactions including renewals) -->
       <div
-        v-if="supporter.other_donations && supporter.other_donations.length"
+        v-if="supporter.transactions && supporter.transactions.length > 1"
+        class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
+      >
+        <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-4" style="color: var(--text-secondary)">
+          Payment History
+        </h3>
+        <el-table :data="supporter.transactions" class="w-full">
+          <el-table-column label="Date" min-width="150">
+            <template #default="{ row }">
+              <span class="text-sm" style="color: var(--text-primary)">{{ row.created_at }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Amount" min-width="120">
+            <template #default="{ row }">
+              <span class="text-sm font-medium" style="color: var(--text-primary)">
+                {{ getFormatedAmount(row.payment_total, row.currency) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Status" min-width="110">
+            <template #default="{ row }">
+              <StatusBadge :status="row.status" />
+            </template>
+          </el-table-column>
+          <el-table-column label="Transaction ID" min-width="200">
+            <template #default="{ row }">
+              <a
+                v-if="row.charge_id && row.transaction_url"
+                :href="row.transaction_url"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1 font-mono no-underline hover:underline"
+                style="color: var(--color-primary-600); font-size: 12px"
+              >
+                {{ row.charge_id }}
+                <ExternalLink :size="11" />
+              </a>
+              <span v-else-if="row.charge_id" class="font-mono text-xs" style="color: var(--text-primary)">{{ row.charge_id }}</span>
+              <span v-else style="color: var(--text-tertiary)">--</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- Donation History (other form submissions from the same email) -->
+      <div
+        v-if="supporter.other_donations && supporter.other_donations.length > 1"
         class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6"
       >
         <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-4" style="color: var(--text-secondary)">
@@ -323,6 +363,48 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- Refund Confirmation Dialog -->
+    <el-dialog
+      v-model="refundModal"
+      title="Refund Transaction"
+      width="460px"
+      :close-on-click-modal="!refunding"
+      :close-on-press-escape="!refunding"
+      :show-close="!refunding"
+      append-to-body
+    >
+      <div v-if="supporter.transaction" class="bmc-refund-details">
+        <div class="bmc-refund-details__row">
+          <span class="bmc-refund-details__label">Transaction ID</span>
+          <span class="bmc-refund-details__value font-mono text-xs">{{ supporter.transaction.charge_id }}</span>
+        </div>
+        <div class="bmc-refund-details__row">
+          <span class="bmc-refund-details__label">Amount</span>
+          <span class="bmc-refund-details__value bmc-refund-details__amount">
+            {{ getFormatedAmount(supporter.transaction.payment_total, supporter.transaction.currency) }}
+          </span>
+        </div>
+        <div class="bmc-refund-details__row">
+          <span class="bmc-refund-details__label">Payment Method</span>
+          <span class="bmc-refund-details__value" style="text-transform: capitalize">{{ supporter.transaction.payment_method }}</span>
+        </div>
+        <div class="bmc-refund-details__row">
+          <span class="bmc-refund-details__label">Supporter</span>
+          <span class="bmc-refund-details__value">{{ supporter.supporters_name || 'Anonymous' }}</span>
+        </div>
+        <div class="bmc-refund-warning">
+          <RotateCcw :size="14" />
+          This will issue a refund through the payment gateway. This action cannot be undone.
+        </div>
+      </div>
+      <template #footer>
+        <el-button :disabled="refunding" @click="refundModal = false">Cancel</el-button>
+        <el-button type="danger" :loading="refunding" @click="refundTransaction">
+          {{ refunding ? 'Refunding...' : 'Confirm Refund' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -361,6 +443,7 @@ export default {
       statusModal: false,
       moreOpen: false,
       refunding: false,
+      refundModal: false,
       payment_statuses: [
         { label: 'Paid', value: 'paid' },
         { label: 'Pending', value: 'pending' },
@@ -417,8 +500,11 @@ export default {
           });
         });
     },
-    refundTransaction() {
+    openRefundModal() {
       this.moreOpen = false;
+      this.refundModal = true;
+    },
+    refundTransaction() {
       this.refunding = true;
       this.$post({
         action: 'buymecoffee_admin_ajax',
@@ -426,6 +512,7 @@ export default {
         data: { id: this.supporter.transaction.id },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
       }).then(() => {
+        this.refundModal = false;
         this.$handleSuccess('Transaction refunded successfully');
         this.getSupporter();
       }).fail((error) => {
@@ -545,5 +632,45 @@ export default {
   color: var(--text-tertiary);
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.bmc-refund-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.bmc-refund-details__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.bmc-refund-details__row:last-of-type { border-bottom: none; }
+.bmc-refund-details__label {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.bmc-refund-details__value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.bmc-refund-details__amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #dc2626;
+}
+.bmc-refund-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #fef2f2;
+  color: #991b1b;
 }
 </style>
