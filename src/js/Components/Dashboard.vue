@@ -482,7 +482,7 @@ export default {
     },
     setStore() {
       this.guidedTour = true;
-      if (window.localStorage) localStorage.setItem('buymecoffee_guided_tour', false);
+      this.$saveData('buymecoffee_guided_tour', 'done');
     },
     getSupporters() {
       this.fetching = true;
@@ -571,7 +571,7 @@ export default {
     this.getWeeklyRevenue();
     this.getSubscriptionStats();
     if (window.localStorage) {
-      this.guidedTour = !!window.localStorage.getItem('buymecoffee_guided_tour');
+      this.guidedTour = !!this.$getData('buymecoffee_guided_tour');
     }
   }
 };

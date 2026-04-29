@@ -53,6 +53,7 @@ class AdminAjaxHandler
         $validRoutes = array(
             'get_data' => 'getPaymentSettings',
             'save_payment_settings' => 'savePaymentSettings',
+            'validate_stripe_keys' => 'validateStripeKeys',
             'save_form_design' => 'saveFormDesign',
             'gateways' => 'getAllMethods',
 
@@ -480,6 +481,33 @@ class AdminAjaxHandler
         $settings = Arr::get($data, 'settings');
         $method = Arr::get($data, 'method');
         (new PaymentHandler())->saveSettings($method, $settings);
+    }
+
+    public function validateStripeKeys($data)
+    {
+        $secretKey = sanitize_text_field(Arr::get($data, 'secret_key', ''));
+        if (empty($secretKey)) {
+            wp_send_json_error(['message' => __('Secret key is required.', 'buy-me-coffee')], 400);
+        }
+
+        $response = wp_remote_get('https://api.stripe.com/v1/balance', [
+            'headers' => ['Authorization' => 'Bearer ' . $secretKey],
+            'timeout' => 15,
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 400);
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code !== 200) {
+            $errorMessage = isset($body['error']['message']) ? $body['error']['message'] : __('Invalid API key.', 'buy-me-coffee');
+            wp_send_json_error(['message' => $errorMessage], 400);
+        }
+
+        wp_send_json_success(['message' => __('Stripe API key is valid.', 'buy-me-coffee')], 200);
     }
 
     public function getEmailNotifications()
