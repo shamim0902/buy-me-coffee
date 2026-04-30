@@ -91,17 +91,44 @@ Activate network-wide on WordPress Multisite — each site gets its own isolated
 
 = Compare: Buy Me Coffee vs. Alternatives =
 
-| Feature | Buy Me Coffee | Official BMC Plugin | GiveWP Free | Ko-fi Plugin |
-| --- | --- | --- | --- | --- |
-| Commission | 0% | 5% | 0% | 0% (Ko-fi takes 5%) |
-| Direct Payments | Yes | No (via platform) | Yes | No (via platform) |
-| Recurring Subscriptions | Free | Paid | Paid addon | Via Ko-fi |
-| Admin Refunds | Yes | No | No | No |
-| Activity Logging | Yes | No | No | No |
-| Supporter Wall | Yes | No | Addon | No |
-| Modern Admin UI | Vue SPA + Dark Mode | Basic widget | Traditional WP | N/A |
-| Self-Hosted Data | Yes | No (external) | Yes | No (external) |
-| Price | Free forever | Free + fees | Free + paid addons | Free + fees |
+**Buy Me Coffee (this plugin)**
+
+* 0% commission — you keep every cent
+* Direct payments to your own Stripe or PayPal account
+* Recurring subscriptions included free
+* Admin refunds from WordPress
+* Activity logging for every event
+* Supporter wall shortcode built in
+* Modern Vue SPA admin with dark mode
+* Self-hosted data — nothing stored externally
+* Free forever, no paid addons
+
+**Official Buy Me a Coffee Plugin**
+
+* 5% commission on every donation
+* Payments routed through their platform
+* Recurring subscriptions require a paid plan
+* No admin refunds, no activity logging
+* Basic widget — no full admin UI
+* Data stored on external servers
+
+**GiveWP Free**
+
+* 0% commission, direct payments
+* Recurring subscriptions require a paid addon
+* Supporter wall requires an addon
+* Traditional WordPress admin UI
+* Self-hosted data
+* Free core + paid addons for advanced features
+
+**Ko-fi Plugin**
+
+* Ko-fi takes 0% but the platform takes 5% on some features
+* Payments routed through Ko-fi platform
+* Recurring support via Ko-fi only
+* No admin refunds or activity logging
+* No WordPress admin UI — redirects to Ko-fi
+* Data stored on external servers
 
 = Get Started in 2 Minutes =
 
