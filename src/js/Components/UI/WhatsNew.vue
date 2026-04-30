@@ -21,7 +21,7 @@
         <div class="wn-header">
           <div class="wn-version-badge">Version {{ version }}</div>
           <h2 id="wn-title" class="wn-title">What's New</h2>
-          <p class="wn-subtitle">Concise release notes for the 1.2.x series.</p>
+          <p class="wn-subtitle">Here's what's new and improved.</p>
         </div>
 
         <!-- Changelog -->
@@ -31,13 +31,15 @@
               <span class="wn-release__version">What's New in 1.2.x</span>
             </div>
             <ul class="wn-release__list">
-              <li>Adds subscription management with recurring billing support.</li>
-              <li>Adds Design Update v2, coffee theme polish, and full page styling refresh.</li>
-              <li>Adds account creation email details for new subscriber accounts.</li>
-              <li>Adds active subscription helper with synced user meta for content gating.</li>
-              <li>Improves subscriber account history view and fixes subscription query issues.</li>
-              <li>Adds refunds, activity logging/timeline, and improves payment flow reliability.</li>
-              <li>Improves admin loader experience and release pipeline stability.</li>
+              <li>Redesigned 5-step onboarding wizard with Stripe and PayPal setup.</li>
+              <li>Stripe recurring subscriptions with full webhook lifecycle management.</li>
+              <li>Supporters hub with metrics, top supporter rankings, and public wall shortcode.</li>
+              <li>One-click refunds with real-time gateway response and cancel subscription option.</li>
+              <li>Activity logging with per-supporter and per-subscription timelines.</li>
+              <li>Email notifications with customizable templates and dynamic placeholders.</li>
+              <li>Subscriber accounts with subscription dashboard and auto user creation.</li>
+              <li>Dark mode, full-page admin SPA, and modern design system.</li>
+              <li>Add many more improvements and fixes, visit the changelog for more details.</li>
             </ul>
           </section>
         </div>
@@ -45,7 +47,7 @@
         <!-- Footer CTA -->
         <div class="wn-footer">
           <button class="wn-btn-primary" @click="dismiss">Got it — let's go!</button>
-          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">See 1.2.0 full release notes →</a>
+          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">View full changelog →</a>
         </div>
 
       </div>
@@ -255,6 +257,7 @@ function dismiss() {
   font-size: 13px;
   color: #6b7280;
   text-decoration: none;
+  outline: none;
   transition: color 0.15s;
 }
 .wn-more-link:hover {
