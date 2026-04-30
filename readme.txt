@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: donate, donation, stripe, fundraising, paypal
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -163,6 +163,23 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 
 == Changelog ==
 
+= 1.2.2 April 30, 2026 =
+- Adds Redesigned 5-step onboarding wizard (Welcome, Profile, Form, Payment, Launch)
+- Adds Stripe API key verification ("Verify Connection") with backend validation
+- Adds Supporters admin hub with metric cards, top supporters ranking, and display settings
+- Adds Supporter wall shortcode [buymecoffee_supporters] with ranked leaderboard and top-3 badges
+- Adds Public wall display settings (name, avatar, amount, message toggles) and privacy controls
+- Adds Refund confirmation modal with real-time gateway response and transaction details
+- Adds Cancel subscription option during refund for recurring payments
+- Adds Transactions page (renamed from Supporters) for browsing all donation records
+- Fixes Stripe webhook verification (re-fetch event from API instead of signature-only)
+- Fixes Stripe subscription period_end using wrong field (invoice timestamp vs subscription period)
+- Fixes Revenue stats not including renewal transaction amounts
+- Fixes Delete supporter not cascading to activity logs, subscriptions, and transactions
+- Improves Subscriber account history view
+- Improves Admin loader and onboarding progress bar experience
+- Fixes All modules security audits and improvements
+
 = 1.2.1 April 26, 2026 =
 - Adds Supporter wall shortcode [buymecoffee_supporters] with ranked leaderboard
 - Adds Supporters admin hub with metrics, top supporters, and display settings
@@ -247,8 +264,11 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 
 == Upgrade Notice ==
 
+= 1.2.2 =
+Redesigned onboarding wizard with PayPal setup, Stripe key verification, form configuration. New Supporters hub, public supporter wall, refund modal, and 15+ bug fixes. Recommended for all users.
+
 = 1.2.1 =
-Major update: Supporter wall shortcode, admin supporters hub with metrics and rankings, refund modal with gateway response, webhook fixes, and multiple bug fixes. Recommended for all users.
+Supporter wall shortcode, admin supporters hub with metrics and rankings, refund modal with gateway response, webhook fixes, and multiple bug fixes.
 
 # Development Docs
 

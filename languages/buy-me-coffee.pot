@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Buy me coffee widgets - fundraise into own account\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-26 12:46+0000\n"
+"POT-Creation-Date: 2026-04-30 03:47+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: \n"
@@ -15,6 +15,13 @@ msgstr ""
 "X-Generator: Loco https://localise.biz/\n"
 "X-Loco-Version: 2.6.6; wp-6.5-beta3\n"
 "X-Domain: buy-me-coffee"
+
+#. %d: number of payments
+#: includes/views/templates/SupportersWall.php:42
+msgid "%d payment"
+msgid_plural "%d payments"
+msgstr[0] ""
+msgstr[1] ""
 
 #. %s: creator name
 #: includes/views/templates/FormTemplate.php:92
@@ -43,12 +50,17 @@ msgstr ""
 msgid "An account will be created to manage your subscription"
 msgstr ""
 
+#: includes/Models/Supporters.php:550
 #: includes/views/templates/FormTemplate.php:111
 msgid "Anonymous"
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/API.php:53
 msgid "API path is required"
+msgstr ""
+
+#: includes/views/templates/SupportersWall.php:6
+msgid "Be the first to show your support!"
 msgstr ""
 
 #: includes/views/templates/FormTemplate.php:122
@@ -74,7 +86,7 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/Stripe.php:434
+#: includes/Builder/Methods/Stripe/Stripe.php:494
 msgid "Card"
 msgstr ""
 
@@ -105,11 +117,11 @@ msgstr ""
 msgid "Date"
 msgstr ""
 
-#: buy-me-coffee.php:222
+#: buy-me-coffee.php:228
 msgid "Demo"
 msgstr ""
 
-#: buy-me-coffee.php:221
+#: buy-me-coffee.php:227
 msgid "Docs"
 msgstr ""
 
@@ -131,7 +143,7 @@ msgstr ""
 msgid "Email or Username"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:361
+#: includes/Classes/AdminAjaxHandler.php:537
 msgid "Failed to save notification"
 msgstr ""
 
@@ -165,6 +177,10 @@ msgstr ""
 msgid "Interval"
 msgstr ""
 
+#: includes/Classes/AdminAjaxHandler.php:506
+msgid "Invalid API key."
+msgstr ""
+
 #: includes/Classes/AdminAjaxHandler.php:41
 msgid "Invalid buymecoffee_nonce"
 msgstr ""
@@ -177,16 +193,20 @@ msgstr ""
 msgid "Invalid nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:347
+#: includes/Classes/AdminAjaxHandler.php:523
 msgid "Invalid notification ID"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:665
+#: includes/Classes/AdminAjaxHandler.php:868
 msgid "Invalid object type."
 msgstr ""
 
 #: includes/Controllers/SubmissionHandler.php:51
 msgid "Invalid or disabled payment method."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:183
+msgid "Invalid payment status."
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/PayPal.php:162
@@ -200,20 +220,19 @@ msgstr ""
 msgid "Invalid request nonce"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:101
+#: includes/Classes/AdminAjaxHandler.php:108
 msgid "Invalid route requested."
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/API.php:79
-#: includes/Builder/Methods/Stripe/IPN.php:26
+#: includes/Builder/Methods/Stripe/IPN.php:33
 msgid "Invalid Stripe webhook payload"
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/IPN.php:42
-msgid "Invalid Stripe webhook signature"
+#: includes/Classes/AdminAjaxHandler.php:261
+msgid "Invalid supporter ID"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:493
+#: includes/Classes/AdminAjaxHandler.php:721
 msgid "Invalid transaction ID."
 msgstr ""
 
@@ -231,10 +250,6 @@ msgstr ""
 
 #: includes/views/templates/SubscriberAccount.php:86
 msgid "Method"
-msgstr ""
-
-#: includes/Builder/Methods/Stripe/IPN.php:38
-msgid "Missing Stripe webhook signature header"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:15
@@ -266,7 +281,7 @@ msgstr ""
 msgid "No bio yet."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:510
+#: includes/Classes/AdminAjaxHandler.php:738
 msgid ""
 "No charge ID on record — please process the refund directly from the payment "
 "gateway dashboard."
@@ -280,15 +295,15 @@ msgstr ""
 msgid "No Subscription Found"
 msgstr ""
 
-#: includes/Models/Supporters.php:138
+#: includes/Models/Supporters.php:147
 msgid "No supporters found!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:372
+#: includes/Classes/AdminAjaxHandler.php:548
 msgid "Notification not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:359
+#: includes/Classes/AdminAjaxHandler.php:535
 msgid "Notification saved"
 msgstr ""
 
@@ -297,7 +312,7 @@ msgstr ""
 msgid "One-time"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:506
+#: includes/Classes/AdminAjaxHandler.php:734
 msgid "Only paid transactions can be refunded."
 msgstr ""
 
@@ -334,7 +349,7 @@ msgid "Payment Method"
 msgstr ""
 
 #: includes/Builder/Methods/PayPal/PayPal.php:203
-#: includes/Builder/Methods/Stripe/Stripe.php:180
+#: includes/Builder/Methods/Stripe/Stripe.php:203
 msgid "Payment Modal is opening, Please complete the payment"
 msgstr ""
 
@@ -404,7 +419,7 @@ msgstr ""
 msgid "Powered by"
 msgstr ""
 
-#: buy-me-coffee.php:220
+#: buy-me-coffee.php:226
 msgid "Preview"
 msgstr ""
 
@@ -423,32 +438,39 @@ msgstr ""
 
 #: includes/views/templates/Confirmation.php:36
 #: includes/Builder/Methods/Stripe/StripeSubscriptions.php:61
-#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:183
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:187
 msgid "Recurring Donation"
+msgstr ""
+
+#: includes/Controllers/SubmissionHandler.php:188
+msgid "Recurring donations are not enabled."
+msgstr ""
+
+#: includes/Controllers/SubmissionHandler.php:182
+msgid "Recurring donations are only available with Stripe."
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:59
 msgid "Reference"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:576
-msgid ""
-"Refund could not be finalized. Please check your payment gateway dashboard."
+#: includes/Classes/AdminAjaxHandler.php:801
+msgid "Refund could not be finalized. Gateway returned status: "
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:514
-msgid "Refund is already in progress or transaction is not refundable."
+#: includes/Classes/AdminAjaxHandler.php:787
+msgid "Refund request submitted and is pending confirmation from the gateway."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:564
-msgid "Refund request submitted and is pending confirmation."
-msgstr ""
-
-#: includes/Classes/AdminAjaxHandler.php:532
+#: includes/Classes/AdminAjaxHandler.php:755
 msgid "Refunds are not supported for this payment method."
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:154
+#: includes/Classes/AdminAjaxHandler.php:490
+msgid "Secret key is required."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:158
 msgid "Setting up your recurring donation, please complete the payment below."
 msgstr ""
 
@@ -456,8 +478,12 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:227
-#: includes/Classes/AdminAjaxHandler.php:240
+#: includes/Classes/AdminAjaxHandler.php:254
+msgid "Settings saved successfully"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:376
+#: includes/Classes/AdminAjaxHandler.php:389
 msgid "Settings successfully updated"
 msgstr ""
 
@@ -473,7 +499,7 @@ msgstr ""
 msgid "Sorry, you are not allowed to perform this action."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:89
+#: includes/Classes/AdminAjaxHandler.php:96
 msgid "Sorry, you do not have permission for this action."
 msgstr ""
 
@@ -487,31 +513,31 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:458
+#: includes/Classes/AdminAjaxHandler.php:510
+msgid "Stripe API key is valid."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:662
 msgid "Stripe cancellation was not confirmed. Please try again."
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/IPN.php:21
+#: includes/Builder/Methods/Stripe/IPN.php:27
 msgid "Stripe payload is empty"
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/Stripe.php:472
+#: includes/Builder/Methods/Stripe/Stripe.php:532
 msgid "Stripe refund failed. Please check your Stripe dashboard."
 msgstr ""
 
-#: includes/Builder/Methods/Stripe/Stripe.php:468
+#: includes/Builder/Methods/Stripe/Stripe.php:528
 msgid "Stripe refund response is invalid."
-msgstr ""
-
-#: includes/Builder/Methods/Stripe/IPN.php:34
-msgid "Stripe webhook secret is not configured"
 msgstr ""
 
 #: includes/views/templates/Confirmation.php:27
 msgid "Subscription Active!"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:480
+#: includes/Classes/AdminAjaxHandler.php:684
 msgid "Subscription cancelled successfully"
 msgstr ""
 
@@ -519,12 +545,17 @@ msgstr ""
 msgid "Subscription confirmation mismatch. Please refresh and try again."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:438
+#: includes/Classes/AdminAjaxHandler.php:707
+msgid "Subscription fetched successfully from Stripe!"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:642
 msgid "Subscription is already cancelled"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:405
-#: includes/Classes/AdminAjaxHandler.php:434
+#: includes/Classes/AdminAjaxHandler.php:581
+#: includes/Classes/AdminAjaxHandler.php:638
+#: includes/Classes/AdminAjaxHandler.php:693
 msgid "Subscription not found"
 msgstr ""
 
@@ -538,7 +569,20 @@ msgstr ""
 msgid "Supporter Account"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:391
+#: includes/Classes/AdminAjaxHandler.php:359
+msgid "Supporter and all related data deleted"
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:267
+#: includes/Classes/AdminAjaxHandler.php:298
+msgid "Supporter not found"
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:518
+msgid "Supporter not found for this subscription."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:567
 msgid "Test email sent to "
 msgstr ""
 
@@ -554,11 +598,19 @@ msgstr ""
 msgid "Thank You!"
 msgstr ""
 
-#: includes/Controllers/SubmissionHandler.php:146
+#: includes/Controllers/SubmissionHandler.php:141
 msgid "Thanks for your support! <3"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:502
+#: includes/Classes/AdminAjaxHandler.php:697
+msgid "This subscription has no remote subscription ID."
+msgstr ""
+
+#: includes/Builder/Methods/Stripe/StripeSubscriptions.php:462
+msgid "This subscription has no Stripe subscription ID."
+msgstr ""
+
+#: includes/Classes/AdminAjaxHandler.php:730
 msgid "This transaction has already been refunded."
 msgstr ""
 
@@ -570,15 +622,15 @@ msgstr ""
 msgid "Transaction not found"
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:498
+#: includes/Classes/AdminAjaxHandler.php:726
 msgid "Transaction not found."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:619
+#: includes/Classes/AdminAjaxHandler.php:844
 msgid "Transaction refunded successfully."
 msgstr ""
 
-#: includes/Classes/AdminAjaxHandler.php:584
+#: includes/Classes/AdminAjaxHandler.php:808
 msgid "Unexpected refund response received."
 msgstr ""
 
@@ -586,7 +638,7 @@ msgstr ""
 msgid "UNKNOWN"
 msgstr ""
 
-#: buy-me-coffee.php:221
+#: buy-me-coffee.php:227
 msgid "View Documentation"
 msgstr ""
 
