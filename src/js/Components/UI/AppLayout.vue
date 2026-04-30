@@ -9,6 +9,7 @@
             </router-view>
         </main>
         <WhatsNew />
+        <ReviewPrompt />
     </div>
 </template>
 
@@ -16,6 +17,7 @@
 import { ref } from 'vue';
 import AppSidebar from './AppSidebar.vue';
 import WhatsNew from './WhatsNew.vue';
+import ReviewPrompt from './ReviewPrompt.vue';
 
 const sidebarCollapsed = ref(false);
 </script>

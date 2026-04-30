@@ -89,6 +89,8 @@ class AdminAjaxHandler
 
             'get_activities'    => 'getActivities',
             'dismiss_whats_new' => 'dismissWhatsNew',
+            'get_review_prompt' => 'getReviewPrompt',
+            'review_prompt_action' => 'reviewPromptAction',
         );
 
         if (!$this->canAccessRoute($route)) {
@@ -878,6 +880,117 @@ class AdminAjaxHandler
         wp_send_json_success([], 200);
     }
 
+    public function getReviewPrompt($request = [])
+    {
+        $routeName = sanitize_text_field(Arr::get($request, 'route_name', ''));
+        $eligibleRoutes = ['Dashboard', 'RecentTransactions', 'Subscriptions'];
+
+        if (!in_array($routeName, $eligibleRoutes, true)) {
+            wp_send_json_success(['visible' => false], 200);
+        }
+
+        $signals = $this->getReviewPromptSignals();
+        $mood = $this->buildReviewPromptMood($routeName, $signals);
+
+        if (!$mood['eligible']) {
+            wp_send_json_success(['visible' => false], 200);
+        }
+
+        $userId = get_current_user_id();
+        $state = get_user_meta($userId, 'buymecoffee_review_prompt_state', true);
+        if (!is_array($state)) {
+            $state = [];
+        }
+
+        $now = current_time('timestamp');
+        $status = sanitize_text_field($state['status'] ?? 'pending');
+        if (in_array($status, ['reviewed', 'dismissed'], true)) {
+            wp_send_json_success(['visible' => false], 200);
+        }
+
+        $snoozedUntil = absint($state['snoozed_until'] ?? 0);
+        if ($snoozedUntil > $now) {
+            wp_send_json_success(['visible' => false], 200);
+        }
+
+        if (empty($state['initialized_at'])) {
+            $state['initialized_at'] = $now;
+            $state['visit_count'] = 0;
+            $state['visit_target'] = random_int(1, 3);
+            $state['status'] = 'pending';
+        }
+
+        $lastTrackedRoute = sanitize_text_field($state['last_tracked_route'] ?? '');
+        $lastTrackedAt = absint($state['last_tracked_at'] ?? 0);
+        $shouldCountVisit = $lastTrackedRoute !== $routeName || ($now - $lastTrackedAt) > MINUTE_IN_SECONDS;
+
+        if ($shouldCountVisit) {
+            $state['visit_count'] = absint($state['visit_count'] ?? 0) + 1;
+            $state['last_tracked_route'] = $routeName;
+            $state['last_tracked_at'] = $now;
+        }
+
+        update_user_meta($userId, 'buymecoffee_review_prompt_state', $state);
+
+        if (absint($state['visit_count'] ?? 0) < absint($state['visit_target'] ?? 1)) {
+            wp_send_json_success(['visible' => false], 200);
+        }
+
+        if (empty($state['shown_at'])) {
+            $state['shown_at'] = $now;
+            update_user_meta($userId, 'buymecoffee_review_prompt_state', $state);
+        }
+
+        wp_send_json_success([
+            'visible' => true,
+            'review_url' => 'https://wordpress.org/support/plugin/buy-me-coffee/reviews/#new-post',
+            'paid_count' => $signals['paid_count'],
+            'supporter_label' => $signals['paid_count'] === 1
+                ? __('donation', 'buy-me-coffee')
+                : __('donations', 'buy-me-coffee'),
+            'mood_score' => $mood['score'],
+            'mood_reason' => $mood['reason'],
+            'mood_question' => $mood['question'],
+            'review_title' => $mood['review_title'],
+            'review_message' => $mood['review_message'],
+            'stat_label' => $mood['stat_label'],
+            'stat_value' => $mood['stat_value'],
+        ], 200);
+    }
+
+    public function reviewPromptAction($request = [])
+    {
+        $action = sanitize_text_field(Arr::get($request, 'review_action', ''));
+        $allowedActions = ['snooze', 'reviewed', 'dismiss'];
+
+        if (!in_array($action, $allowedActions, true)) {
+            wp_send_json_error(['message' => __('Invalid review prompt action.', 'buy-me-coffee')], 400);
+        }
+
+        $userId = get_current_user_id();
+        $state = get_user_meta($userId, 'buymecoffee_review_prompt_state', true);
+        if (!is_array($state)) {
+            $state = [];
+        }
+
+        $now = current_time('timestamp');
+
+        if ($action === 'snooze') {
+            $state['status'] = 'pending';
+            $state['snoozed_until'] = $now + (14 * DAY_IN_SECONDS);
+        } elseif ($action === 'dismiss') {
+            $state['status'] = 'dismissed';
+            $state['dismissed_at'] = $now;
+        } else {
+            $state['status'] = 'reviewed';
+            $state['reviewed_at'] = $now;
+        }
+
+        update_user_meta($userId, 'buymecoffee_review_prompt_state', $state);
+
+        wp_send_json_success([], 200);
+    }
+
     private function calculateSupporterPaymentStatus($entryId)
     {
         $transactions = buyMeCoffeeQuery()
@@ -926,12 +1039,128 @@ class AdminAjaxHandler
             'get_supporter_stats',
             'get_supporter_settings',
             'get_activities',
+            'get_review_prompt',
+        ];
+
+        $topLevelWriteRoutes = [
+            'dismiss_whats_new',
+            'review_prompt_action',
         ];
 
         if (in_array($route, $readOnlyRoutes, true)) {
             return AccessControl::hasTopLevelMenuPermission();
         }
 
+        if (in_array($route, $topLevelWriteRoutes, true)) {
+            return AccessControl::hasTopLevelMenuPermission();
+        }
+
         return AccessControl::hasFinancialPermission();
+    }
+
+    private function getReviewPromptSignals()
+    {
+        $paidStatuses = ['paid', 'paid-initially'];
+
+        $paidCount = (int) buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->whereIn('status', $paidStatuses)
+            ->count();
+
+        $paidTotalRow = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->whereIn('status', $paidStatuses)
+            ->select(buyMeCoffeeQuery()->raw('SUM(payment_total) as total'))
+            ->first();
+
+        $activeSubscriptions = (int) buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->where('status', 'active')
+            ->count();
+
+        return [
+            'paid_count' => $paidCount,
+            'paid_total' => $paidTotalRow ? (int) $paidTotalRow->total : 0,
+            'active_subscriptions' => $activeSubscriptions,
+        ];
+    }
+
+    private function buildReviewPromptMood($routeName, $signals)
+    {
+        $paidCount = (int) $signals['paid_count'];
+        $paidTotal = (int) $signals['paid_total'];
+        $activeSubscriptions = (int) $signals['active_subscriptions'];
+
+        $baseMood = [
+            'eligible' => false,
+            'score' => 0,
+            'reason' => '',
+            'question' => __('Is Buy Me Coffee feeling helpful right now?', 'buy-me-coffee'),
+            'review_title' => __('You just turned support into something real.', 'buy-me-coffee'),
+            'review_message' => __('If this plugin helped create that moment, a kind review would genuinely mean a lot to us.', 'buy-me-coffee'),
+            'stat_label' => __('Successful donations', 'buy-me-coffee'),
+            'stat_value' => (string) $paidCount,
+        ];
+
+        if ($routeName === 'Subscriptions') {
+            if ($activeSubscriptions < 1) {
+                return $baseMood;
+            }
+
+            return array_merge($baseMood, [
+                'eligible' => true,
+                'score' => 90,
+                'reason' => __('You have active recurring support.', 'buy-me-coffee'),
+                'question' => __('Your recurring support is running. Does that feel like a win today?', 'buy-me-coffee'),
+                'review_title' => __('Recurring support is a big milestone.', 'buy-me-coffee'),
+                'review_message' => __('If Buy Me Coffee helped you earn steady support, your review can help another creator find the same path.', 'buy-me-coffee'),
+                'stat_label' => __('Active subscriptions', 'buy-me-coffee'),
+                'stat_value' => (string) $activeSubscriptions,
+            ]);
+        }
+
+        if ($routeName === 'RecentTransactions') {
+            if ($paidCount < 1 || $paidTotal < 1) {
+                return $baseMood;
+            }
+
+            return array_merge($baseMood, [
+                'eligible' => true,
+                'score' => $paidCount > 2 ? 88 : 78,
+                'reason' => __('You are reviewing successful transactions.', 'buy-me-coffee'),
+                'question' => __('You are looking at successful donations. Feeling good about how Buy Me Coffee is working?', 'buy-me-coffee'),
+                'review_title' => __('Those successful donations matter.', 'buy-me-coffee'),
+                'review_message' => __('If Buy Me Coffee helped make these payments simple, a short review would help us keep improving it.', 'buy-me-coffee'),
+                'stat_label' => __('Successful donations', 'buy-me-coffee'),
+                'stat_value' => (string) $paidCount,
+            ]);
+        }
+
+        if ($routeName === 'Dashboard') {
+            if (($paidCount < 1 || $paidTotal < 1) && $activeSubscriptions < 1) {
+                return $baseMood;
+            }
+
+            $hasRecurringWin = $activeSubscriptions > 0;
+
+            return array_merge($baseMood, [
+                'eligible' => true,
+                'score' => $hasRecurringWin ? 92 : 82,
+                'reason' => $hasRecurringWin
+                    ? __('Your dashboard has active recurring support.', 'buy-me-coffee')
+                    : __('Your dashboard has successful donations.', 'buy-me-coffee'),
+                'question' => $hasRecurringWin
+                    ? __('You have recurring support coming in. Does Buy Me Coffee feel useful today?', 'buy-me-coffee')
+                    : __('You have successful support showing here. Is Buy Me Coffee helping you right now?', 'buy-me-coffee'),
+                'review_title' => $hasRecurringWin
+                    ? __('That recurring support is worth celebrating.', 'buy-me-coffee')
+                    : __('You just turned support into something real.', 'buy-me-coffee'),
+                'review_message' => __('If this plugin helped create that moment, a kind review would genuinely mean a lot to us.', 'buy-me-coffee'),
+                'stat_label' => $hasRecurringWin ? __('Active subscriptions', 'buy-me-coffee') : __('Successful donations', 'buy-me-coffee'),
+                'stat_value' => (string) ($hasRecurringWin ? $activeSubscriptions : $paidCount),
+            ]);
+        }
+
+        return $baseMood;
     }
 }
