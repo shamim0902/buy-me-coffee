@@ -83,6 +83,9 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             $ajaxHandler = new \BuyMeCoffee\Classes\AdminAjaxHandler();
             $ajaxHandler->registerEndpoints();
 
+            // Deactivation feedback popup
+            require BUYMECOFFEE_DIR . 'includes/Classes/DeactivationFeedback.php';
+            (new \BuyMeCoffee\Classes\DeactivationFeedback())->register();
         }
 
         public function registerShortcode()
