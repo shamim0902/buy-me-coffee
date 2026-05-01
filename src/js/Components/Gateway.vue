@@ -137,8 +137,7 @@ export default {
             });
         },
         formatTotal(cents) {
-            if (!cents) return '$0.00';
-            return '$' + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return this.$formatAmount(cents, window.BuyMeCoffeeAdmin?.default_currency || 'USD');
         }
     },
     mounted() {

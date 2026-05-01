@@ -384,6 +384,23 @@ class AdminAjaxHandler
     public function saveSettings($data)
     {
         $data = $data ?: array();
+        $allowedSeparators = ['dot', 'comma'];
+        $allowedCurrencyPositions = [
+            'before',
+            'after',
+            'iso_before',
+            'iso_after',
+            'symbool_before_iso',
+            'symbool_after_iso',
+            'symbool_and_iso',
+        ];
+
+        $data['decimal_separator'] = in_array(Arr::get($data, 'decimal_separator', 'dot'), $allowedSeparators, true)
+            ? Arr::get($data, 'decimal_separator', 'dot')
+            : 'dot';
+        $data['currency_position'] = in_array(Arr::get($data, 'currency_position', 'before'), $allowedCurrencyPositions, true)
+            ? Arr::get($data, 'currency_position', 'before')
+            : 'before';
 
         update_option('buymecoffee_payment_setting', $data, false);
         do_action('buymecoffee_after_save_template', $data);

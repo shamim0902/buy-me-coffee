@@ -96,7 +96,7 @@ class EmailNotifications
     public static function buildVars($transaction, $supporter)
     {
         $currency    = strtoupper($transaction->currency ?? 'USD');
-        $amount      = number_format($transaction->payment_total / 100, 2) . ' ' . $currency;
+        $amount      = \BuyMeCoffee\Helpers\PaymentHelper::getFormattedAmount((int) $transaction->payment_total, $currency);
         $isRecurring = ($transaction->transaction_type ?? '') === 'recurring';
 
         $paymentType    = $isRecurring ? __('Recurring', 'buy-me-coffee') : __('One-time', 'buy-me-coffee');

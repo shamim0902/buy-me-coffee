@@ -229,9 +229,7 @@ export default {
       });
     },
     formatAmount(cents, currency) {
-      if (!cents) return '--';
-      const symbol = currency ? currency.toUpperCase() : 'USD';
-      return (cents / 100).toFixed(2) + ' ' + symbol;
+      return this.$formatAmount(cents, currency, { empty: '--' });
     },
     formatDate(dateStr) {
       if (!dateStr || dateStr === '0000-00-00 00:00:00') return '--';

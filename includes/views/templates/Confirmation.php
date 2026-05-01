@@ -5,8 +5,7 @@ use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\PaymentHelper;
 
 if ($paymentData):
-    $amount = floatval($paymentData->payment_total ? $paymentData->payment_total / 100 : 0);
-    $currencySymbol = html_entity_decode(PaymentHelper::currencySymbol($paymentData->currency ?? 'USD'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $amount = PaymentHelper::getFormattedAmount((int) ($paymentData->payment_total ?? 0), $paymentData->currency ?? 'USD');
     $isRecurring = isset($paymentData->transaction) && ($paymentData->transaction->transaction_type ?? '') === 'recurring';
     $recurringInterval = '';
     if ($isRecurring && isset($paymentData->subscription)) {
@@ -43,7 +42,7 @@ if ($paymentData):
         <span class="bmc-receipt__amount-label">
             <?php echo $isRecurring ? esc_html__('Amount per Cycle', 'buy-me-coffee') : esc_html__('Amount Paid', 'buy-me-coffee'); ?>
         </span>
-        <span class="bmc-receipt__amount-value"><?php echo esc_html($currencySymbol . number_format($amount, 2)); ?></span>
+        <span class="bmc-receipt__amount-value"><?php echo esc_html($amount); ?></span>
         <span class="bmc-receipt__amount-coffees">
             <?php echo esc_html($paymentData->coffee_count ?? 1); ?>
             <?php echo ($paymentData->coffee_count ?? 1) > 1 ? esc_html__('coffees', 'buy-me-coffee') : esc_html__('coffee', 'buy-me-coffee'); ?>

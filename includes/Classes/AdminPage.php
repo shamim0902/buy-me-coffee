@@ -83,7 +83,7 @@ class AdminPage
         $seenVersion  = get_user_meta(get_current_user_id(), 'buymecoffee_whats_new_seen', true);
         $showWhatsNew = version_compare((string) $seenVersion, BUYMECOFFEE_VERSION, '<');
 
-        $adminVars = apply_filters('buymecoffee_admin_app_vars', array(
+        $adminVars = apply_filters('buymecoffee_admin_app_vars', array_merge(array(
             'assets_url'        => Vite::staticPath(),
             'ajaxurl'           => admin_url('admin-ajax.php'),
             'preview_url'       => site_url('?share_coffee'),
@@ -93,7 +93,7 @@ class AdminPage
             'user_name'         => wp_get_current_user()->display_name,
             'show_whats_new'    => $showWhatsNew,
             'plugin_version'    => BUYMECOFFEE_VERSION,
-        ));
+        ), \BuyMeCoffee\Helpers\PaymentHelper::getFrontendFormattingConfig()));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);
     }

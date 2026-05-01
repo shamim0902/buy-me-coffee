@@ -142,6 +142,18 @@
                 <span class="bmc-detail-label">Payment Mode</span>
                 <span class="bmc-detail-value bmc-text-capitalize">{{ subscription.payment_mode || '--' }}</span>
               </div>
+              <div class="bmc-detail-item" v-if="subscription.stripe_subscription_id">
+                <span class="bmc-detail-label">Subscription ID</span>
+                <a
+                  :href="stripeSubUrl()"
+                  target="_blank"
+                  rel="noopener"
+                  class="bmc-charge-link bmc-subscription-id-link"
+                >
+                  {{ subscription.stripe_subscription_id }}
+                  <ExternalLink :size="12" />
+                </a>
+              </div>
               <div class="bmc-detail-item" v-if="subscription.cancelled_at">
                 <span class="bmc-detail-label">Cancelled At</span>
                 <span class="bmc-detail-value">{{ formatDate(subscription.cancelled_at) }}</span>
@@ -316,8 +328,7 @@ export default {
       });
     },
     formatAmount(cents, currency) {
-      if (!cents) return '--';
-      return (cents / 100).toFixed(2) + ' ' + (currency || 'USD').toUpperCase();
+      return this.$formatAmount(cents, currency, { empty: '--' });
     },
     formatDate(dateStr) {
       if (!dateStr || dateStr === '0000-00-00 00:00:00') return '--';
@@ -606,6 +617,11 @@ export default {
   text-decoration: none; font-family: monospace;
 }
 .bmc-charge-link:hover { text-decoration: underline; }
+.bmc-subscription-id-link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
 
 .bmc-action-btn {
   display: inline-flex; align-items: center; gap: 6px;

@@ -390,7 +390,7 @@ export default {
     },
     mrrFormatted() {
       const mrr = this.subscriptionStats.mrr || 0;
-      return '$' + (mrr / 100).toFixed(2);
+      return this.$formatAmount(mrr, window.BuyMeCoffeeAdmin?.default_currency || 'USD');
     },
     avgDonation() {
       const total = this.reportData.currency_total?.[0]?.total_amount || 0;

@@ -21,6 +21,8 @@ class Buttons
             "custom_coffee" => 5,
             "openMode" => 'page',
             "currency" => 'USD',
+            "decimal_separator" => 'dot',
+            "currency_position" => 'before',
             "allow_recurring" => 'no',
             "recurring_interval" => 'month',
             "enable_account" => 'no',

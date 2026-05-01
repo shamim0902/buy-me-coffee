@@ -108,7 +108,7 @@ class Subscriptions extends Model
 
         $recent = [];
         foreach ($recent_rows as $row) {
-            $amountFormatted = '$' . number_format((int) $row->amount / 100, 2);
+            $amountFormatted = \BuyMeCoffee\Helpers\PaymentHelper::getFormattedAmount((int) $row->amount, $row->currency ?: 'USD');
             $interval = ($row->interval_type === 'year') ? '/yr' : '/mo';
             $recent[] = [
                 'id'     => $row->id,

@@ -1,4 +1,5 @@
 import BmcCoffeeLoader from './utils/coffeeLoader.js';
+import { formatAmount } from './utils/formatAmount.js';
 
 class BmcFormHandler {
     constructor(form, config) {
@@ -213,7 +214,8 @@ class BmcFormHandler {
         this.form.find('input[name="buymecoffee_amount"]').val(amount);
         this.form.find('input[name="buymecoffee_quantity"]').val(quantity);
 
-        const displayTotal = Number.isFinite(amount) ? (amount * quantity).toFixed(2).replace(/\.00$/, '') : '0';
+        const currency = this.form.data('wpm_currency') || window.buymecoffee_general?.default_currency || 'USD';
+        const displayTotal = Number.isFinite(amount) ? formatAmount(amountCents, currency) : formatAmount(0, currency);
         this.form.find('.wpm_submit_button .wpm_payment_total_amount').text(displayTotal);
     }
 

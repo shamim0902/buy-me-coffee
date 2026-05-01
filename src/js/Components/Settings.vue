@@ -87,7 +87,7 @@
               </div>
 
               <!-- Price + Currency -->
-              <div class="bmc-sr bmc-sr--field bmc-sr--2col bmc-sr--last">
+              <div class="bmc-sr bmc-sr--field bmc-sr--2col">
                 <div>
                   <label class="bmc-label">Default coffee price</label>
                   <el-input-number
@@ -114,6 +114,31 @@
                     />
                   </el-select>
                 </div>
+              </div>
+
+              <div class="bmc-sr bmc-sr--field">
+                <label class="bmc-label">Number format</label>
+                <el-radio-group v-model="template.decimal_separator" class="bmc-format-radio-group">
+                  <el-radio label="dot">Comma &amp; Dot (eg 10,000.00)</el-radio>
+                  <el-radio label="comma">Dot &amp; Comma (eg 10.000,00)</el-radio>
+                </el-radio-group>
+              </div>
+
+              <div class="bmc-sr bmc-sr--field bmc-sr--last">
+                <label class="bmc-label">Currency format</label>
+                <el-select
+                  v-model="template.currency_position"
+                  placeholder="Select currency format"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="option in currencyPositionOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <p class="bmc-hint">Preview: {{ currencyFormatPreview }}</p>
               </div>
             </div>
 
@@ -571,6 +596,8 @@ export default {
         enableEmail: 'no',
         defaultAmount: 5,
         currency: 'USD',
+        decimal_separator: 'dot',
+        currency_position: 'before',
         allow_recurring: 'no',
         recurring_interval: 'month',
         enable_account: 'no',
@@ -585,6 +612,15 @@ export default {
           quote: '',
         },
       },
+      currencyPositionOptions: [
+        { value: 'before', label: 'Symbol before (eg: $100)' },
+        { value: 'after', label: 'Symbol after (eg: 100$)' },
+        { value: 'iso_before', label: 'ISO before (eg: USD 100)' },
+        { value: 'iso_after', label: 'ISO after (eg: 100 USD)' },
+        { value: 'symbool_before_iso', label: 'Symbol & ISO (eg: $100 USD)' },
+        { value: 'symbool_after_iso', label: 'ISO & Symbol (eg: USD 100$)' },
+        { value: 'symbool_and_iso', label: 'ISO-Symbol (eg: USD $100)' },
+      ],
     };
   },
 
@@ -602,6 +638,12 @@ export default {
         color: this.template.advanced.color,
         borderRadius: (this.template.advanced.radius || 0) + 'px',
       };
+    },
+    currencyFormatPreview() {
+      return this.$formatMajorAmount(10000, this.template.currency || 'USD', {
+        decimalSeparator: this.template.decimal_separator,
+        currencyPosition: this.template.currency_position,
+      });
     },
   },
 
@@ -631,6 +673,8 @@ export default {
         // account_page_id may come back from PHP as a string — normalize to number
         if (this.template) {
           this.template.account_page_id = parseInt(this.template.account_page_id) || 0;
+          this.template.decimal_separator = this.template.decimal_separator || 'dot';
+          this.template.currency_position = this.template.currency_position || 'before';
         }
       }).fail((error) => {
         this.$message.error(error?.responseJSON?.data?.message || 'Failed to load settings');
@@ -646,6 +690,12 @@ export default {
         data: this.template,
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
       }).then((response) => {
+        window.BuyMeCoffeeAdmin.formatting_settings = {
+          decimal_separator: this.template.decimal_separator || 'dot',
+          currency_position: this.template.currency_position || 'before',
+          currency: this.template.currency || 'USD',
+        };
+        window.BuyMeCoffeeAdmin.default_currency = this.template.currency || 'USD';
         this.$handleSuccess(response.data.message);
       }).fail((error) => {
         this.$message.error(error?.responseJSON?.data?.message || 'Failed to save settings');
@@ -820,6 +870,18 @@ export default {
 /* ─── Hint teal variant ──────────────────── */
 .bmc-hint--teal {
   color: var(--color-accent-teal);
+}
+
+.bmc-format-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+}
+
+.bmc-format-radio-group :deep(.el-radio) {
+  height: auto;
+  margin-right: 0;
+  white-space: normal;
 }
 
 /* ─── Danger zone ────────────────────────── */

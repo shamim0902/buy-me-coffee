@@ -127,9 +127,76 @@ class PaymentHelper
 
     public static function getFormattedAmount($amount, $currency)
     {
+        $settings = self::getFormattingSettings();
         $amount = floatval($amount / 100);
-        $sign   = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        return $sign . ' ' . $amount;
+        $currency = strtoupper($currency ?: self::getCurrency());
+        $sign = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $sign = str_replace("\xc2\xa0", ' ', $sign);
+
+        $decimalSeparator = $settings['decimal_separator'] === 'comma' ? ',' : '.';
+        $thousandSeparator = $decimalSeparator === ',' ? '.' : ',';
+        $formattedAmount = number_format($amount, 2, $decimalSeparator, $thousandSeparator);
+
+        switch ($settings['currency_position']) {
+            case 'after':
+                return $formattedAmount . $sign;
+            case 'iso_before':
+                return $currency . ' ' . $formattedAmount;
+            case 'iso_after':
+                return $formattedAmount . ' ' . $currency;
+            case 'symbool_before_iso':
+                return $sign . $formattedAmount . ' ' . $currency;
+            case 'symbool_after_iso':
+                return $currency . ' ' . $formattedAmount . $sign;
+            case 'symbool_and_iso':
+                return $currency . ' ' . $sign . $formattedAmount;
+            case 'before':
+            default:
+                return $sign . $formattedAmount;
+        }
+    }
+
+    public static function getFormattingSettings()
+    {
+        $settings = (new Buttons())->getButton();
+        $decimalSeparator = Arr::get($settings, 'decimal_separator', 'dot');
+        $currencyPosition = Arr::get($settings, 'currency_position', 'before');
+
+        $allowedSeparators = ['dot', 'comma'];
+        $allowedPositions = [
+            'before',
+            'after',
+            'iso_before',
+            'iso_after',
+            'symbool_before_iso',
+            'symbool_after_iso',
+            'symbool_and_iso',
+        ];
+
+        return [
+            'decimal_separator' => in_array($decimalSeparator, $allowedSeparators, true) ? $decimalSeparator : 'dot',
+            'currency_position' => in_array($currencyPosition, $allowedPositions, true) ? $currencyPosition : 'before',
+            'currency'          => strtoupper(Arr::get($settings, 'currency', 'USD')),
+        ];
+    }
+
+    public static function getFrontendFormattingConfig()
+    {
+        return [
+            'formatting_settings' => self::getFormattingSettings(),
+            'currency_symbols'    => self::getDecodedCurrencySymbols(),
+            'default_currency'    => self::getCurrency() ?: 'USD',
+        ];
+    }
+
+    public static function getDecodedCurrencySymbols()
+    {
+        $symbols = [];
+        foreach (array_keys(Currencies::all()) as $currency) {
+            $symbols[$currency] = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $symbols;
     }
 
     public static function getCurrency()

@@ -1,4 +1,5 @@
 import BmcCoffeeLoader from '../utils/coffeeLoader.js';
+import { formatAmount } from '../utils/formatAmount.js';
 
 class StripeCheckout {
     constructor ($form, $response) {
@@ -77,8 +78,8 @@ class StripeCheckout {
     }
 
     generatePayButton() {
-        let amounPrefix = this.form.find('.wpm_payment_total_amount_prefix').text();
-        let buttonText = "Pay " + amounPrefix + (parseInt(this.intent.amount) / 100) + " Now";
+        const currency = this.form.data('wpm_currency') || window.buymecoffee_general?.default_currency || 'USD';
+        let buttonText = "Pay " + formatAmount(this.intent.amount, currency) + " Now";
         return jQuery("<button type='submit' class='buymecoffee_pay_now'></button>").text(buttonText);
     }
 

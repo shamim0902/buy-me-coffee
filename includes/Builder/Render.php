@@ -130,7 +130,8 @@ class Render
         $customCoffeeDefault = intval(Arr::get($template, 'custom_coffee', '5'));
 
         $currency = Arr::get($template, 'currency', 'USD');
-        $symbool = PaymentHelper::currencySymbol();
+        $symbool = PaymentHelper::currencySymbol($currency);
+        $formattedDefaultAmount = PaymentHelper::getFormattedAmount($defaultAmount * 100, $currency);
         $formDynamicClass = BuilderHelper::getFormDynamicClass();
 
         $isCustomPay = false;
@@ -269,8 +270,8 @@ class Render
                                                       to="360 20 20" dur="0.5s" repeatCount="indefinite"/>
                                 </path></svg>
                         </div>
-                            <span class="wpm_payment_total_amount_prefix"><?php echo esc_html($symbool); ?></span>
-                            <span class="wpm_payment_total_amount"><?php echo esc_html($defaultAmount); ?></span>
+                            <span class="wpm_payment_total_amount_prefix" style="display:none;"></span>
+                            <span class="wpm_payment_total_amount"><?php echo esc_html($formattedDefaultAmount); ?></span>
                     </button>
                 </div>
             </div>
@@ -305,11 +306,11 @@ class Render
         $accountPageId    = $accountEnabled && !empty($bmcSettings['account_page_id']) ? (int) $bmcSettings['account_page_id'] : 0;
         $accountPageUrl   = $accountPageId ? (string) get_permalink($accountPageId) : '';
 
-        wp_localize_script('buymecoffee_public_js', 'buymecoffee_general', array(
+        wp_localize_script('buymecoffee_public_js', 'buymecoffee_general', array_merge(array(
             'ajax_url'         => admin_url('admin-ajax.php'),
             'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
             'account_page_url' => $accountPageUrl,
-        ));
+        ), PaymentHelper::getFrontendFormattingConfig()));
     }
 
     public static function builtAttributes($attributes)

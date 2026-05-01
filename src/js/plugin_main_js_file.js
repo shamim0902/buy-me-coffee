@@ -1,4 +1,5 @@
 import app from './elements.js';
+import { formatAmount, formatMajorAmount, getCurrencySymbol } from './utils/formatAmount.js';
 
 import {
     applyFilters,
@@ -40,6 +41,9 @@ export default class BuyMeCoffee {
                 // $patch: self.$patch,
                 $handleSuccess: self.handleSuccess,
                 $handleError: self.handleError,
+                $formatAmount: formatAmount,
+                $formatMajorAmount: formatMajorAmount,
+                $currencySymbol: getCurrencySymbol,
                 $saveData: self.saveData,
                 $getData: self.getData,
                 convertToText: self.convertToText,

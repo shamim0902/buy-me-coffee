@@ -542,13 +542,7 @@ export default {
       });
     },
     getFormatedAmount(amount, currency) {
-      const value = parseInt(amount) / 100;
-      const symbols = {
-        USD: '$', EUR: '\u20AC', GBP: '\u00A3', JPY: '\u00A5',
-        AUD: 'A$', CAD: 'C$', INR: '\u20B9', BDT: '\u09F3',
-      };
-      const symbol = symbols[currency] || (currency ? currency + ' ' : '$');
-      return symbol + value;
+      return this.$formatAmount(amount, currency, { empty: '--' });
     },
     updateStatus() {
       ElMessageBox.confirm(
