@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: donate, donation, stripe, fundraising, paypal
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -189,6 +189,12 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 8. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.4 May 01, 2026 =
+- Adds Deactivation feedback modal with WPMiners feedback collection
+- Improves Quick Setup visibility so it hides after setup is complete
+- Improves Buy Me Coffee admin page by suppressing stray WordPress notices
+- Fixes release compatibility issue for translated placeholder text
 
 = 1.2.3 May 01, 2026 =
 - Adds Currency and number formatting

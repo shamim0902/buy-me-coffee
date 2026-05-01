@@ -28,11 +28,14 @@
         <div class="wn-changelog">
           <section class="wn-release">
             <div class="wn-release__head">
-              <span class="wn-release__version">What's New in 1.2.3</span>
+              <span class="wn-release__version">What's New in 1.2.4</span>
             </div>
             <ul class="wn-release__list">
               <li>Adds currency and number formatting.</li>
               <li>Adds safe “Delete all test data” in one click.</li>
+              <li>Improves Quick Setup visibility after setup is complete.</li>
+              <li>Improves the admin page by suppressing stray WordPress notices.</li>
+              <li>Fixes translated placeholder compatibility for release checks.</li>
             </ul>
           </section>
         </div>
