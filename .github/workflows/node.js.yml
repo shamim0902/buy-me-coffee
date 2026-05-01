@@ -1,59 +1,63 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
-name: Node.js CI
+name: Release
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     name: Create Release
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    # Only run when the commit message starts with "Release: ", or when triggered manually
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'Release: ')
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.2'
-    - run: npm ci
-    - run: npm audit --omit=dev --audit-level=high
-    - name: Lint PHP
-      run: php -r '$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator(getcwd())); $err=0; foreach($it as $f){ if($f->isFile() && strtolower($f->getExtension())==="php"){ $p=$f->getPathname(); $out=[]; $code=0; exec("php -l ".escapeshellarg($p)." 2>&1",$out,$code); if($code!==0){ echo $p."\n".implode("\n",$out)."\n"; $err=1; } } } exit($err);'
-    - run: npm run build --if-present
-    - run: npm run package --if-present
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/v')
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-      with:
-        files: |
-          builds/buy-me-coffee.zip
-        tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
-        body: |
-          Automated release package generated from CI.
-        draft: false
-        prerelease: false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
 
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
 
+      - name: Install dependencies
+        run: npm ci
 
+      - name: Lint PHP
+        run: php -r '$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator(getcwd())); $err=0; foreach($it as $f){ if($f->isFile() && strtolower($f->getExtension())==="php"){ $p=$f->getPathname(); $out=[]; $code=0; exec("php -l ".escapeshellarg($p)." 2>&1",$out,$code); if($code!==0){ echo $p."\n".implode("\n",$out)."\n"; $err=1; } } } exit($err);'
+
+      - name: Build and package
+        run: npm run package
+
+      - name: Extract version from package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.version.outputs.version }}"
+          name: "Release v${{ steps.version.outputs.version }}"
+          files: builds/buy-me-coffee.zip
+          body: Automated release package generated from CI.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
