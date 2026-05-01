@@ -203,13 +203,19 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
     });
 
-    // disabled admin-notice on dashboard
-    add_action('admin_init', function () {
+    // Disable WP admin notices on the Buy Me Coffee app page.
+    $removeBuyMeCoffeeAdminNotices = function () {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin page check only
         if (isset($_GET['page']) && sanitize_text_field(wp_unslash($_GET['page'])) === 'buy-me-coffee.php') {
             remove_all_actions('admin_notices');
+            remove_all_actions('all_admin_notices');
+            remove_all_actions('network_admin_notices');
+            remove_all_actions('user_admin_notices');
         }
-    });
+    };
+
+    add_action('admin_init', $removeBuyMeCoffeeAdminNotices, PHP_INT_MAX);
+    add_action('in_admin_header', $removeBuyMeCoffeeAdminNotices, 0);
 
     // Handle Exterior Pages
     add_action('wp', function () {

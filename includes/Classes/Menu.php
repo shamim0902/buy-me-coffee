@@ -77,6 +77,9 @@ class Menu
                 margin: 0 !important;
                 padding: 0 !important;
             }
+            body.bmc-admin-page #wpbody-content > .error {
+                display: none !important;
+            }
         ');
 
         do_action('buymecoffee_render_admin_app');
@@ -95,6 +98,27 @@ class Menu
             BUYMECOFFEE_VERSION,
             true
         );
+
+        wp_add_inline_script('buy-me-coffee_boot', "
+            (function () {
+                var app = document.getElementById('buy-me-coffee_app');
+                var wpBodyContent = document.getElementById('wpbody-content');
+
+                if (!app || !wpBodyContent || !wpBodyContent.contains(app)) {
+                    return;
+                }
+
+                Array.prototype.slice.call(wpBodyContent.children).forEach(function (child) {
+                    if (child === app || child.contains(app)) {
+                        return;
+                    }
+
+                    if (child.classList && child.classList.contains('error')) {
+                        child.remove();
+                    }
+                });
+            })();
+        ", 'before');
 
         do_action('buymecoffee_booting_admin_app');
 
