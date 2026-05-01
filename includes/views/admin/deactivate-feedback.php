@@ -4,9 +4,12 @@
     <div class="bmc-deactivate-overlay"></div>
     <div class="bmc-deactivate-dialog">
         <div class="bmc-deactivate-header">
+            <button class="bmc-deactivate-close" id="bmc-cancel-deactivate" aria-label="<?php esc_attr_e('Close', 'buy-me-coffee'); ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
             <img src="<?php echo esc_url($logo); ?>" alt="Buy Me Coffee" class="bmc-deactivate-logo" />
             <h3><?php esc_html_e('Quick Feedback', 'buy-me-coffee'); ?></h3>
-            <p><?php esc_html_e('If you have a moment, please let us know why you are deactivating:', 'buy-me-coffee'); ?></p>
+            <p><?php esc_html_e('If you have a moment, please let us know why you are deactivating. This data is only used to update our product and services.', 'buy-me-coffee'); ?></p>
         </div>
 
         <div class="bmc-deactivate-body">
@@ -55,10 +58,7 @@
                 <?php esc_html_e('Skip & Deactivate', 'buy-me-coffee'); ?>
             </button>
             <button class="button button-primary bmc-btn-submit" id="bmc-submit-deactivate">
-                <?php esc_html_e('Submit & Deactivate', 'buy-me-coffee'); ?>
-            </button>
-            <button class="button bmc-btn-cancel" id="bmc-cancel-deactivate">
-                <?php esc_html_e('Cancel', 'buy-me-coffee'); ?>
+                <?php esc_html_e('Deactivate & Submit', 'buy-me-coffee'); ?>
             </button>
         </div>
     </div>

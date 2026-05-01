@@ -49,7 +49,6 @@ class DeactivationFeedback
             'plugin_basename' => plugin_basename(BUYMECOFFEE_MAIN_FILE),
             'version'         => BUYMECOFFEE_VERSION,
             'wp_version'      => get_bloginfo('version'),
-            'site_url'        => site_url(),
         ]);
     }
 
@@ -86,6 +85,8 @@ class DeactivationFeedback
             wp_send_json_error(['message' => __('Please select at least one reason.', 'buy-me-coffee')], 400);
         }
 
+        // Keep the feedback payload limited to product context and selected reasons.
+        // Do not include visitor/admin IP addresses or forwarding headers here.
         $body = [
             'plugin'          => 'buy-me-coffee',
             'reasons'         => array_values(array_unique($reasons)),
@@ -93,14 +94,17 @@ class DeactivationFeedback
             'other_details'   => isset($_POST['other_details']) ? sanitize_textarea_field(wp_unslash($_POST['other_details'])) : '',
             'plugin_version'  => BUYMECOFFEE_VERSION,
             'wp_version'      => get_bloginfo('version'),
-            'site_url'        => site_url(),
         ];
 
         $response = wp_safe_remote_post(
             'https://wpminers.com/?buymecoffee_deactivation_feedback=1',
             [
-                'timeout' => 5,
-                'body'    => $body,
+                'timeout'    => 5,
+                'body'       => $body,
+                'user-agent' => 'Buy-Me-Coffee/' . BUYMECOFFEE_VERSION,
+                'headers'    => [
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                ],
             ]
         );
 

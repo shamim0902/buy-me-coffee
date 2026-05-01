@@ -28,10 +28,34 @@
     }
 
     .bmc-deactivate-header {
+        position: relative;
         padding: 22px 28px 18px;
         text-align: center;
         border-bottom: 1px solid #e5e7eb;
         background: #f8fafc;
+    }
+
+    .bmc-deactivate-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        color: #9ca3af;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+
+        &:hover {
+            background: #f1f5f9;
+            color: #374151;
+        }
     }
 
     .bmc-deactivate-logo {
@@ -118,6 +142,30 @@
 
     .button {
         min-height: 36px;
+    }
+
+    .bmc-btn-skip {
+        background: none;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        min-height: unset;
+        font-size: 13px;
+        color: #6b7280;
+        text-decoration: underline;
+        cursor: pointer;
+        outline: none;
+
+        &:hover {
+            color: #374151;
+            background: none;
+            border: none;
+            box-shadow: none;
+        }
+
+        &:focus {
+            box-shadow: none;
+        }
     }
 }
 
