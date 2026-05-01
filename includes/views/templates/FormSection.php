@@ -2,9 +2,17 @@
 <?php
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
+use BuyMeCoffee\Helpers\SanitizeHelper;
+
+$bmcAccentColor  = SanitizeHelper::cssColor(Arr::get($template, 'advanced.button_style', ''), 'rgb(13, 148, 136)');
+$bmcAccentBg     = SanitizeHelper::cssColor(Arr::get($template, 'advanced.bg_style', ''), 'rgba(13, 148, 136, 5%)');
+$bmcAccentBorder = SanitizeHelper::cssColor(Arr::get($template, 'advanced.border_style', ''), 'rgba(13, 148, 136, 25%)');
+$bmcAccentSubtle = SanitizeHelper::rgbToRgba($bmcAccentColor, '2%');
+$bmcAccentRing   = SanitizeHelper::rgbToRgba($bmcAccentColor, '10%');
+$bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' . $bmcAccentBg . '; --bmc-accent-subtle: ' . $bmcAccentSubtle . '; --bmc-accent-border: ' . $bmcAccentBorder . '; --bmc-accent-ring: ' . $bmcAccentRing . ';';
 ?>
 
-<div class="bmc-form-card <?php echo sanitize_text_field(Arr::get($template, 'advanced.formShadow')) == 'yes' ? 'bmc-form-card--shadow' : ''; ?>">
+<div class="bmc-form-card <?php echo sanitize_text_field(Arr::get($template, 'advanced.formShadow')) == 'yes' ? 'bmc-form-card--shadow' : ''; ?>" style="<?php echo esc_attr($bmcAccentVars); ?>">
     <?php
     if (isset($template['formTitle']) && sanitize_text_field($template['formTitle']) === 'yes'): ?>
     <h3 class="bmc-form-card__title">

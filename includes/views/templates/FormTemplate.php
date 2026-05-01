@@ -3,6 +3,7 @@
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
 use BuyMeCoffee\Classes\Vite;
+use BuyMeCoffee\Helpers\SanitizeHelper;
 $isAdmin = current_user_can('manage_options');
 
 // Subscriber account nav link — always visible for logged-in subscribers on share page.
@@ -27,9 +28,16 @@ if (class_exists('\BuyMeCoffee\Models\Supporters')) {
     $supportersModel = new \BuyMeCoffee\Models\Supporters();
     $recentSupporters = $supportersModel->getLatest(5);
 }
+
+$bmcAccentColor  = SanitizeHelper::cssColor(Arr::get($template, 'advanced.button_style', ''), 'rgb(13, 148, 136)');
+$bmcAccentBg     = SanitizeHelper::cssColor(Arr::get($template, 'advanced.bg_style', ''), 'rgba(13, 148, 136, 5%)');
+$bmcAccentBorder = SanitizeHelper::cssColor(Arr::get($template, 'advanced.border_style', ''), 'rgba(13, 148, 136, 25%)');
+$bmcAccentSubtle = SanitizeHelper::rgbToRgba($bmcAccentColor, '2%');
+$bmcAccentRing   = SanitizeHelper::rgbToRgba($bmcAccentColor, '10%');
+$bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' . $bmcAccentBg . '; --bmc-accent-subtle: ' . $bmcAccentSubtle . '; --bmc-accent-border: ' . $bmcAccentBorder . '; --bmc-accent-ring: ' . $bmcAccentRing . ';';
 ?>
 
-<div id="bmc-page-wrapper" class="bmc-page-wrapper">
+<div id="bmc-page-wrapper" class="bmc-page-wrapper" style="<?php echo esc_attr($bmcAccentVars); ?>">
 
     <!-- ── Top Nav ── -->
     <nav class="bmc-nav">

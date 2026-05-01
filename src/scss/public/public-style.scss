@@ -3,7 +3,10 @@
 // ============================================================
 
 $bmc-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-$bmc-accent: #0d9488;
+$bmc-accent: var(--bmc-accent, #0d9488);
+$bmc-accent-soft: var(--bmc-accent-soft, rgba(13, 148, 136, 0.04));
+$bmc-accent-subtle: var(--bmc-accent-subtle, rgba(13, 148, 136, 0.02));
+$bmc-accent-border: var(--bmc-accent-border, rgba(13, 148, 136, 0.25));
 
 // ── Form submission states ─────────────────────
 form.wpm_submitting_form {
@@ -91,13 +94,13 @@ form.wpm_submitting_form {
 
     &:hover {
       border-color: $bmc-accent;
-      background: rgba($bmc-accent, 0.02);
+      background: $bmc-accent-subtle;
     }
   }
 
   .wpm_payment_active {
     border-color: $bmc-accent;
-    background: rgba($bmc-accent, 0.04);
+    background: $bmc-accent-soft;
 
     img {
       opacity: 1;
@@ -274,11 +277,11 @@ button.buymecoffee_pay_now {
   margin-top: 16px;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 1px 3px rgba(13, 148, 136, 0.2);
+  box-shadow: 0 1px 3px $bmc-accent-border;
   font-family: $bmc-font;
 
   &:hover {
-    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+    box-shadow: 0 4px 14px $bmc-accent-border;
     transform: translateY(-1px);
   }
 }

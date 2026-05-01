@@ -491,9 +491,9 @@ class AdminAjaxHandler
         }
 
         if (!empty($data['button_style']) && !empty($data['bg_style']) && !empty($data['border_style'])) {
-            $settings['advanced']['button_style'] = $data['button_style'];
-            $settings['advanced']['bg_style'] = $data['bg_style'];
-            $settings['advanced']['border_style'] = $data['border_style'];
+            $settings['advanced']['button_style'] = SanitizeHelper::cssColor($data['button_style'], $settings['advanced']['button_style'] ?? 'rgb(13, 148, 136)');
+            $settings['advanced']['bg_style'] = SanitizeHelper::cssColor($data['bg_style'], $settings['advanced']['bg_style'] ?? 'rgba(13, 148, 136, 5%)');
+            $settings['advanced']['border_style'] = SanitizeHelper::cssColor($data['border_style'], $settings['advanced']['border_style'] ?? 'rgba(13, 148, 136, 25%)');
         }
 
         if (isset($data['quote'])) {

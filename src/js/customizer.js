@@ -216,6 +216,13 @@ jQuery(document).ready(function ($) {
         state.border_style = rgbToRgba(color, '25%');
         state.bg_style = rgbToRgba(color, '5%');
 
+        $('#bmc-page-wrapper, .bmc-form-card').css({
+            '--bmc-accent': state.button_style,
+            '--bmc-accent-soft': state.bg_style,
+            '--bmc-accent-subtle': rgbToRgba(color, '2%'),
+            '--bmc-accent-border': state.border_style,
+            '--bmc-accent-ring': rgbToRgba(color, '10%'),
+        });
         $('.buymecoffee_payment_input_content').css({
             'background-color': state.bg_style,
             'border-color': state.border_style,
