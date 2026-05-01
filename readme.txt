@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: donate, donation, stripe, fundraising, paypal
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.2
+Stable tag: 1.2.3
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -189,6 +189,10 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 8. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.3 May 01, 2026 =
+- Adds Currency and number formatting
+- Adds Safe “Delete all test data” in one click
 
 = 1.2.2 April 30, 2026 =
 - Adds Redesigned 5-step onboarding wizard (Welcome, Profile, Form, Payment, Launch)

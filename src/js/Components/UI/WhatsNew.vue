@@ -28,18 +28,11 @@
         <div class="wn-changelog">
           <section class="wn-release">
             <div class="wn-release__head">
-              <span class="wn-release__version">What's New in 1.2.x</span>
+              <span class="wn-release__version">What's New in 1.2.3</span>
             </div>
             <ul class="wn-release__list">
-              <li>Redesigned 5-step onboarding wizard with Stripe and PayPal setup.</li>
-              <li>Stripe recurring subscriptions with full webhook lifecycle management.</li>
-              <li>Supporters hub with metrics, top supporter rankings, and public wall shortcode.</li>
-              <li>One-click refunds with real-time gateway response and cancel subscription option.</li>
-              <li>Activity logging with per-supporter and per-subscription timelines.</li>
-              <li>Email notifications with customizable templates and dynamic placeholders.</li>
-              <li>Subscriber accounts with subscription dashboard and auto user creation.</li>
-              <li>Dark mode, full-page admin SPA, and modern design system.</li>
-              <li>Add many more improvements and fixes, visit the changelog for more details.</li>
+              <li>Adds currency and number formatting.</li>
+              <li>Adds safe “Delete all test data” in one click.</li>
             </ul>
           </section>
         </div>
@@ -47,7 +40,7 @@
         <!-- Footer CTA -->
         <div class="wn-footer">
           <button class="wn-btn-primary" @click="dismiss">Got it — let's go!</button>
-          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">View full changelog →</a>
+          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">View full changelog 1.2.x→</a>
         </div>
 
       </div>
