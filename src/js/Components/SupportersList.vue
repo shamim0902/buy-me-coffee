@@ -90,7 +90,7 @@
 
               <div class="bmc-supporter-row__metric">
                 <span class="bmc-supporter-row__metric-label">Lifetime</span>
-                <span class="bmc-supporter-row__metric-value" v-html="supporter.total_formatted"></span>
+                <span class="bmc-supporter-row__metric-value">{{ supporter.total_formatted }}</span>
               </div>
 
               <div class="bmc-supporter-row__metric">
@@ -156,7 +156,7 @@
               <span class="bmc-top-item__name">{{ supporter.supporters_name || 'Anonymous' }}</span>
               <span class="bmc-top-item__meta">{{ supporter.donation_count }} payment{{ supporter.donation_count !== 1 ? 's' : '' }}</span>
             </div>
-            <span class="bmc-top-item__amount" v-html="supporter.total_formatted"></span>
+            <span class="bmc-top-item__amount">{{ supporter.total_formatted }}</span>
           </div>
         </div>
         <EmptyState

@@ -130,7 +130,7 @@ class PaymentHelper
         $settings = self::getFormattingSettings();
         $amount = floatval($amount / 100);
         $currency = strtoupper($currency ?: self::getCurrency());
-        $sign = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $sign = wp_strip_all_tags(html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $sign = str_replace("\xc2\xa0", ' ', $sign);
 
         $decimalSeparator = $settings['decimal_separator'] === 'comma' ? ',' : '.';
@@ -193,7 +193,7 @@ class PaymentHelper
     {
         $symbols = [];
         foreach (array_keys(Currencies::all()) as $currency) {
-            $symbols[$currency] = html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $symbols[$currency] = wp_strip_all_tags(html_entity_decode(self::currencySymbol($currency), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         }
 
         return $symbols;
