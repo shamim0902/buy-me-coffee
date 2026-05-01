@@ -124,6 +124,9 @@ export default class BuyMeCoffee {
         existingData[key] = data;
 
         window.localStorage.setItem('__buymecoffee_data', JSON.stringify(existingData));
+        window.dispatchEvent(new CustomEvent('buymecoffee:data-saved', {
+            detail: { key, data }
+        }));
     }
 
     getData(key, defaultValue = false) {

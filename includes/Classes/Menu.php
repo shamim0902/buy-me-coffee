@@ -151,9 +151,32 @@ class Menu
             'show_whats_new'    => $showWhatsNew,
             'plugin_version'    => BUYMECOFFEE_VERSION,
             'user_name'         => wp_get_current_user()->display_name,
+            'setup_completed'   => $this->isSetupCompleted(),
         ), \BuyMeCoffee\Helpers\PaymentHelper::getFrontendFormattingConfig()));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);
+    }
+
+    private function isSetupCompleted()
+    {
+        $templateSettings = get_option('buymecoffee_payment_setting', []);
+        if (is_array($templateSettings) && !empty($templateSettings)) {
+            return true;
+        }
+
+        $stripe = get_option('buymecoffee_payment_settings_stripe', []);
+        if (is_array($stripe) && ($stripe['enable'] ?? '') === 'yes') {
+            return !empty($stripe['test_secret_key']) || !empty($stripe['live_secret_key']);
+        }
+
+        $paypal = get_option('buymecoffee_payment_settings_paypal', []);
+        if (is_array($paypal) && ($paypal['enable'] ?? '') === 'yes') {
+            return !empty($paypal['paypal_email'])
+                || !empty($paypal['test_secret_key'])
+                || !empty($paypal['live_secret_key']);
+        }
+
+        return false;
     }
 
     public function render()

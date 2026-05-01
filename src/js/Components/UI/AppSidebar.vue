@@ -70,7 +70,7 @@
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Preview Page</span>
                         </a>
                     </li>
-                    <li>
+                    <li v-if="showQuickSetup">
                         <router-link to="/quick-setup" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive({ activeNames: ['Onboarding'] }) }">
                             <Sparkles :size="14" class="bmc-sidebar__icon bmc-sidebar__icon--sparkle" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Quick Setup</span>
@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
     LayoutDashboard, Heart, Users, Receipt, Settings, Palette, Code2,
@@ -126,6 +126,7 @@ const emit = defineEmits(['update:collapsed']);
 
 const route = useRoute();
 const isCollapsed = ref(props.collapsed);
+const quickSetupDismissed = ref(false);
 const { isDark, toggleTheme } = useTheme();
 
 watch(isCollapsed, (val) => emit('update:collapsed', val));
@@ -133,6 +134,7 @@ watch(isCollapsed, (val) => emit('update:collapsed', val));
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
 const wpAdminUrl = computed(() => (window.BuyMeCoffeeAdmin?.wp_admin_url || '/wp-admin/') + 'admin.php?page=buy-me-coffee.php');
 const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
+const showQuickSetup = computed(() => !window.BuyMeCoffeeAdmin?.setup_completed && !quickSetupDismissed.value);
 const fullPageUrl = computed(() => {
     const base = window.location.origin;
     return base + '/?buymecoffee_admin';
@@ -176,9 +178,30 @@ function toggleCollapse() {
     localStorage.setItem(COLLAPSE_KEY, String(isCollapsed.value));
 }
 
+function hasQuickSetupDismissed() {
+    try {
+        const stored = JSON.parse(localStorage.getItem('__buymecoffee_data') || '{}');
+        return !!stored.buymecoffee_guided_tour;
+    } catch (error) {
+        return false;
+    }
+}
+
+function syncQuickSetupState(event) {
+    if (!event || event.detail?.key === 'buymecoffee_guided_tour') {
+        quickSetupDismissed.value = hasQuickSetupDismissed();
+    }
+}
+
 onMounted(() => {
     const stored = localStorage.getItem(COLLAPSE_KEY);
     if (stored !== null) isCollapsed.value = stored === 'true';
+    quickSetupDismissed.value = hasQuickSetupDismissed();
+    window.addEventListener('buymecoffee:data-saved', syncQuickSetupState);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('buymecoffee:data-saved', syncQuickSetupState);
 });
 </script>
 
