@@ -1,5 +1,5 @@
 <template>
-  <div class="relative min-h-[200px]">
+  <div class="bmc-supporters-page relative min-h-[200px]">
     <CoffeeLoader :loading="loading" />
     <PageTitle title="Supporters" subtitle="All the people who have supported you" />
 
@@ -28,10 +28,10 @@
 
       <!-- Tab 1: All Supporters -->
       <div v-show="activeTab === 'all'">
-        <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-4 mb-5">
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="relative">
-              <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-tertiary)" />
+        <div class="bmc-supporters-panel">
+          <div class="bmc-supporters-toolbar">
+            <div class="bmc-supporters-search">
+              <Search :size="16" class="bmc-supporters-search__icon" />
               <input
                 v-model="search"
                 type="text"
@@ -40,7 +40,7 @@
                 @keyup.enter="current = 0; getSupporters()"
               />
             </div>
-            <div class="flex gap-2">
+            <div class="bmc-filter-group">
               <button
                 v-for="f in filters"
                 :key="f.value"
@@ -51,76 +51,81 @@
                 {{ f.label }}
               </button>
             </div>
-            <span class="ml-auto text-sm" style="color: var(--text-tertiary)">
+            <span class="bmc-supporters-count">
               {{ total }} supporter{{ total !== 1 ? 's' : '' }}
             </span>
           </div>
-        </div>
 
-        <div v-if="supporters.length" class="bmc-supporters-grid">
-          <div
-            v-for="supporter in supporters"
-            :key="supporter.supporters_email || supporter.latest_entry_id"
-            class="bmc-supporter-card"
-            @click="viewSupporter(supporter)"
-          >
-            <div class="bmc-supporter-card__top">
-              <img v-if="supporter.avatar" :src="supporter.avatar" class="bmc-supporter-card__avatar" />
-              <div v-else class="bmc-supporter-card__avatar-placeholder">
-                {{ getInitials(supporter.supporters_name) }}
-              </div>
-              <div class="bmc-supporter-card__info">
-                <h3 class="bmc-supporter-card__name">{{ supporter.supporters_name || 'Anonymous' }}</h3>
-                <p v-if="supporter.supporters_email" class="bmc-supporter-card__email">{{ supporter.supporters_email }}</p>
-              </div>
-              <span v-if="supporter.has_subscription" class="bmc-supporter-card__sub-badge" title="Active subscriber">
-                <RefreshCw :size="11" />
-              </span>
+          <div v-if="supporters.length" class="bmc-supporters-list">
+            <div class="bmc-supporters-list__head">
+              <span>Supporter</span>
+              <span>Lifetime</span>
+              <span>Payments</span>
+              <span>Last support</span>
+              <span></span>
             </div>
-            <div class="bmc-supporter-card__stats">
-              <div class="bmc-supporter-card__stat">
-                <span class="bmc-supporter-card__stat-value" v-html="supporter.total_formatted"></span>
-                <span class="bmc-supporter-card__stat-label">Lifetime</span>
+
+            <div
+              v-for="supporter in supporters"
+              :key="supporter.supporters_email || supporter.latest_entry_id"
+              class="bmc-supporter-row"
+              @click="viewSupporter(supporter)"
+            >
+              <div class="bmc-supporter-row__person">
+                <img v-if="supporter.avatar" :src="supporter.avatar" class="bmc-supporter-row__avatar" />
+                <div v-else class="bmc-supporter-row__avatar bmc-supporter-row__avatar--placeholder">
+                  {{ getInitials(supporter.supporters_name) }}
+                </div>
+                <div class="bmc-supporter-row__identity">
+                  <div class="bmc-supporter-row__name-wrap">
+                    <h3 class="bmc-supporter-row__name">{{ supporter.supporters_name || 'Anonymous' }}</h3>
+                    <span v-if="supporter.has_subscription" class="bmc-supporter-row__sub-badge" title="Active subscriber">
+                      <RefreshCw :size="11" />
+                      Subscriber
+                    </span>
+                  </div>
+                  <p v-if="supporter.supporters_email" class="bmc-supporter-row__email">{{ supporter.supporters_email }}</p>
+                </div>
               </div>
-              <div class="bmc-supporter-card__stat">
-                <span class="bmc-supporter-card__stat-value">{{ supporter.donation_count }}</span>
-                <span class="bmc-supporter-card__stat-label">Payments</span>
+
+              <div class="bmc-supporter-row__metric">
+                <span class="bmc-supporter-row__metric-label">Lifetime</span>
+                <span class="bmc-supporter-row__metric-value" v-html="supporter.total_formatted"></span>
               </div>
-              <div class="bmc-supporter-card__stat">
-                <span class="bmc-supporter-card__stat-value">{{ formatDate(supporter.last_donation_date) }}</span>
-                <span class="bmc-supporter-card__stat-label">Last</span>
+
+              <div class="bmc-supporter-row__metric">
+                <span class="bmc-supporter-row__metric-label">Payments</span>
+                <span class="bmc-supporter-row__metric-value">{{ supporter.donation_count }}</span>
               </div>
-            </div>
-            <div class="bmc-supporter-card__actions">
-              <button class="bmc-supporter-card__action" title="View details" @click.stop="viewSupporter(supporter)">
-                <Eye :size="14" /> View
-              </button>
-              <a
-                v-if="supporter.supporters_email"
-                :href="'mailto:' + supporter.supporters_email"
-                class="bmc-supporter-card__action"
-                title="Send email"
-                @click.stop
-              >
-                <Mail :size="14" /> Email
-              </a>
+
+              <div class="bmc-supporter-row__metric">
+                <span class="bmc-supporter-row__metric-label">Last support</span>
+                <span class="bmc-supporter-row__metric-value">{{ formatDate(supporter.last_donation_date) }}</span>
+              </div>
+
+              <div class="bmc-supporter-row__actions">
+                <button class="bmc-supporter-row__action" title="View details" @click.stop="viewSupporter(supporter)">
+                  <Eye :size="14" />
+                  View
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <EmptyState
-          v-if="!supporters.length"
-          title="No supporters yet"
-          description="Supporters will appear here once someone makes a contribution."
-          icon="Heart"
-        />
+          <EmptyState
+            v-if="!supporters.length"
+            title="No supporters yet"
+            description="Supporters will appear here once someone makes a contribution."
+            icon="Heart"
+          />
+        </div>
 
         <div v-if="lastPage > 1" class="flex items-center justify-center gap-2 mt-6">
           <button class="bmc-page-btn" :disabled="current <= 0" @click="current--; getSupporters()">
             <ChevronLeft :size="16" />
           </button>
           <button
-            v-for="page in lastPage"
+            v-for="page in visiblePages"
             :key="page"
             class="bmc-page-btn"
             :class="{ 'bmc-page-btn--active': current === page - 1 }"
@@ -245,7 +250,7 @@
 
 <script>
 import {
-  Search, ChevronLeft, ChevronRight, RefreshCw, Eye, Mail,
+  Search, ChevronLeft, ChevronRight, RefreshCw, Eye,
   Users, Trophy, Settings2, Code2, Copy, Shield,
 } from 'lucide-vue-next';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
@@ -256,7 +261,7 @@ import EmptyState from './UI/EmptyState.vue';
 export default {
   name: 'Supporters',
   components: {
-    Search, ChevronLeft, ChevronRight, RefreshCw, Eye, Mail,
+    Search, ChevronLeft, ChevronRight, RefreshCw, Eye,
     Users, Trophy, Settings2, Code2, Copy, Shield,
     CoffeeLoader, PageTitle, MetricCard, EmptyState,
   },
@@ -313,6 +318,25 @@ export default {
         { code: '[buymecoffee_account]', label: 'Subscriber Account', description: 'Dashboard for logged-in subscribers to view their subscriptions and payment history.' },
       ],
     };
+  },
+  computed: {
+    visiblePages() {
+      const total = Math.max(1, Number(this.lastPage) || 1);
+      const current = Number(this.current) + 1;
+      const pages = [];
+      let start = Math.max(1, current - 2);
+      let end = Math.min(total, start + 4);
+
+      if (end - start < 4) {
+        start = Math.max(1, end - 4);
+      }
+
+      for (let page = start; page <= end; page++) {
+        pages.push(page);
+      }
+
+      return pages;
+    },
   },
   methods: {
     ajax(route, data = {}) {
@@ -380,6 +404,10 @@ export default {
 </script>
 
 <style scoped>
+.bmc-supporters-page {
+  max-width: 1440px;
+}
+
 /* ── Metrics grid ── */
 .bmc-metrics-grid {
   display: grid;
@@ -417,6 +445,51 @@ export default {
   border-bottom-color: var(--color-primary-600);
 }
 
+/* ── Directory panel ── */
+.bmc-supporters-panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bmc-supporters-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bmc-supporters-search {
+  position: relative;
+  min-width: 260px;
+}
+
+.bmc-supporters-search__icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.bmc-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bmc-supporters-count {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 /* ── Search + Filter ── */
 .bmc-search-input {
   padding: 8px 12px 8px 36px;
@@ -449,75 +522,168 @@ export default {
   color: #fff;
 }
 
-/* ── Supporter Cards Grid ── */
-.bmc-supporters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-  gap: 14px;
-}
-
-.bmc-supporter-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 14px;
-  padding: 18px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+/* ── Supporter directory ── */
+.bmc-supporters-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-.bmc-supporter-card:hover {
-  border-color: var(--color-primary-300);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
 }
 
-.bmc-supporter-card__top { display: flex; align-items: center; gap: 12px; }
-.bmc-supporter-card__avatar {
-  width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
-  border: 2px solid var(--border-secondary); flex-shrink: 0;
+.bmc-supporters-list__head,
+.bmc-supporter-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.7fr) minmax(120px, 0.7fr) minmax(100px, 0.55fr) minmax(120px, 0.65fr) minmax(150px, auto);
+  align-items: center;
+  column-gap: 18px;
 }
-.bmc-supporter-card__avatar-placeholder {
-  width: 42px; height: 42px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 700; text-transform: uppercase; flex-shrink: 0;
-  background: var(--color-primary-50); color: var(--color-primary-600);
+
+.bmc-supporters-list__head {
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-secondary);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bmc-supporter-row {
+  min-height: 76px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.bmc-supporter-row:last-child {
+  border-bottom: none;
+}
+
+.bmc-supporter-row:hover {
+  background: var(--bg-secondary);
+}
+
+.bmc-supporter-row__person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bmc-supporter-row__avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  object-fit: cover;
   border: 2px solid var(--border-secondary);
-}
-.bmc-supporter-card__info { min-width: 0; flex: 1; }
-.bmc-supporter-card__name {
-  font-size: 14px; font-weight: 600; margin: 0; color: var(--text-primary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.bmc-supporter-card__email {
-  font-size: 11px; margin: 2px 0 0; color: var(--text-tertiary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.bmc-supporter-card__sub-badge {
-  display: flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 50%;
-  background: #dcfce7; color: #166534; flex-shrink: 0;
+  flex-shrink: 0;
 }
 
-.bmc-supporter-card__stats {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-  padding-top: 12px; border-top: 1px solid var(--border-secondary);
+.bmc-supporter-row__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--color-primary-50); color: var(--color-primary-600);
 }
-.bmc-supporter-card__stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.bmc-supporter-card__stat-value { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.bmc-supporter-card__stat-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
 
-.bmc-supporter-card__actions {
-  display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-secondary);
+.bmc-supporter-row__identity {
+  min-width: 0;
 }
-.bmc-supporter-card__action {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 10px; font-size: 12px; font-weight: 500;
-  border: 1px solid var(--border-primary); border-radius: 6px;
-  background: var(--bg-primary); color: var(--text-secondary);
-  cursor: pointer; text-decoration: none; transition: all 0.15s;
+
+.bmc-supporter-row__name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
-.bmc-supporter-card__action:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+.bmc-supporter-row__name {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bmc-supporter-row__email {
+  margin: 2px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bmc-supporter-row__sub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bmc-supporter-row__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bmc-supporter-row__metric-label {
+  display: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bmc-supporter-row__metric-value {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bmc-supporter-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.bmc-supporter-row__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bmc-supporter-row__action:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
 
 /* ── Top Supporters ── */
 .bmc-top-list { display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
@@ -620,4 +786,85 @@ export default {
 }
 .bmc-save-btn:hover:not(:disabled) { background: var(--color-primary-700); }
 .bmc-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 1180px) {
+  .bmc-supporters-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .bmc-supporters-search {
+    width: 100%;
+  }
+
+  .bmc-search-input {
+    width: 100%;
+  }
+
+  .bmc-supporters-count {
+    margin-left: 0;
+  }
+
+  .bmc-supporters-list__head {
+    display: none;
+  }
+
+  .bmc-supporter-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 12px;
+  }
+
+  .bmc-supporter-row__person {
+    grid-column: 1 / -1;
+  }
+
+  .bmc-supporter-row__metric {
+    min-width: 90px;
+  }
+
+  .bmc-supporter-row__metric-label {
+    display: block;
+  }
+
+  .bmc-supporter-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .bmc-tabs {
+    overflow-x: auto;
+  }
+
+  .bmc-tab {
+    white-space: nowrap;
+  }
+
+  .bmc-supporter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .bmc-supporter-row__metric {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .bmc-supporter-row__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bmc-shortcode-item,
+  .bmc-sr {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .bmc-shortcode-item__code {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
 </style>

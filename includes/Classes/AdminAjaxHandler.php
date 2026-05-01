@@ -60,6 +60,7 @@ class AdminAjaxHandler
             'save_settings' => 'saveSettings',
             'get_settings' => 'getSettings',
             'reset_template_settings' => 'resetDefaultSettings',
+            'delete_test_data' => 'deleteTestData',
 
             'get_weekly_revenue' => 'getWeeklyRevenue',
             'get_supporters' => 'getSupporters',
@@ -390,6 +391,78 @@ class AdminAjaxHandler
         wp_send_json_success(array(
             'message' => __("Settings successfully updated", 'buy-me-coffee')
         ), 200);
+    }
+
+    public function deleteTestData($request)
+    {
+        $confirmation = sanitize_text_field(Arr::get($request, 'confirmation', ''));
+        if ($confirmation !== 'DELETE TEST DATA') {
+            wp_send_json_error([
+                'message' => __('Type DELETE TEST DATA to confirm this action.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        global $wpdb;
+
+        $supportersTable    = $wpdb->prefix . 'buymecoffee_supporters';
+        $transactionsTable  = $wpdb->prefix . 'buymecoffee_transactions';
+        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $activitiesTable    = $wpdb->prefix . 'buymecoffee_activities';
+
+        $testTransactionIds = $this->normalizeIds($wpdb->get_col(
+            $wpdb->prepare("SELECT id FROM {$transactionsTable} WHERE payment_mode = %s", 'test')
+        ));
+
+        $testSubscriptionIds = $this->normalizeIds($wpdb->get_col(
+            $wpdb->prepare("SELECT id FROM {$subscriptionsTable} WHERE payment_mode = %s", 'test')
+        ));
+
+        $candidateSupporterIds = $this->normalizeIds(array_merge(
+            (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$supportersTable} WHERE payment_mode = %s", 'test')),
+            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT entry_id FROM {$transactionsTable} WHERE payment_mode = %s AND entry_id > 0", 'test')),
+            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT supporter_id FROM {$subscriptionsTable} WHERE payment_mode = %s AND supporter_id > 0", 'test'))
+        ));
+
+        $liveSupporterIds = $this->normalizeIds(array_merge(
+            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT entry_id FROM {$transactionsTable} WHERE entry_id > 0 AND (payment_mode IS NULL OR payment_mode <> %s)", 'test')),
+            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT supporter_id FROM {$subscriptionsTable} WHERE supporter_id > 0 AND (payment_mode IS NULL OR payment_mode <> %s)", 'test')),
+            (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$supportersTable} WHERE payment_mode IS NOT NULL AND payment_mode <> '' AND payment_mode <> %s", 'test'))
+        ));
+
+        $supporterIdsToDelete = array_values(array_diff($candidateSupporterIds, $liveSupporterIds));
+
+        $deletedActivities = 0;
+        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'payment', $testTransactionIds);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'subscription', $testSubscriptionIds);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'submission', $supporterIdsToDelete);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'email', $supporterIdsToDelete);
+
+        $deletedTransactions = $this->deleteRowsByIds($transactionsTable, 'id', $testTransactionIds);
+        $deletedSubscriptions = $this->deleteRowsByIds($subscriptionsTable, 'id', $testSubscriptionIds);
+        $deletedSupporters = $this->deleteRowsByIds($supportersTable, 'id', $supporterIdsToDelete);
+
+        do_action('buymecoffee_test_data_deleted', [
+            'transactions'  => $deletedTransactions,
+            'subscriptions' => $deletedSubscriptions,
+            'supporters'    => $deletedSupporters,
+            'activities'    => $deletedActivities,
+        ]);
+
+        wp_send_json_success([
+            'message' => sprintf(
+                __('Deleted %1$d test transactions, %2$d test subscriptions, %3$d test supporters/customers, and %4$d activity logs.', 'buy-me-coffee'),
+                $deletedTransactions,
+                $deletedSubscriptions,
+                $deletedSupporters,
+                $deletedActivities
+            ),
+            'deleted' => [
+                'transactions'  => $deletedTransactions,
+                'subscriptions' => $deletedSubscriptions,
+                'supporters'    => $deletedSupporters,
+                'activities'    => $deletedActivities,
+            ],
+        ], 200);
     }
 
     public function saveFormDesign($data)
@@ -1056,6 +1129,47 @@ class AdminAjaxHandler
         }
 
         return AccessControl::hasFinancialPermission();
+    }
+
+    private function normalizeIds($ids)
+    {
+        $normalized = array_map('absint', (array) $ids);
+        $normalized = array_filter($normalized);
+        return array_values(array_unique($normalized));
+    }
+
+    private function deleteRowsByIds($table, $column, $ids)
+    {
+        global $wpdb;
+
+        $ids = $this->normalizeIds($ids);
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql = "DELETE FROM {$table} WHERE {$column} IN ({$placeholders})";
+        $prepared = call_user_func_array([$wpdb, 'prepare'], array_merge([$sql], $ids));
+        $result = $wpdb->query($prepared);
+
+        return $result === false ? 0 : (int) $result;
+    }
+
+    private function deleteActivityRowsByObjectIds($table, $objectType, $ids)
+    {
+        global $wpdb;
+
+        $ids = $this->normalizeIds($ids);
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql = "DELETE FROM {$table} WHERE object_type = %s AND object_id IN ({$placeholders})";
+        $prepared = call_user_func_array([$wpdb, 'prepare'], array_merge([$sql, $objectType], $ids));
+        $result = $wpdb->query($prepared);
+
+        return $result === false ? 0 : (int) $result;
     }
 
     private function getReviewPromptSignals()

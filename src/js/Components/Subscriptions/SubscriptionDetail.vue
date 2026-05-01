@@ -1,5 +1,5 @@
 <template>
-  <div class="relative min-h-[200px]">
+  <div class="bmc-subscription-page relative min-h-[200px]">
     <CoffeeLoader :loading="loading" />
 
     <!-- Back Button -->
@@ -9,127 +9,145 @@
     </button>
 
     <template v-if="!loading && subscription.id">
-      <!-- Profile + Subscription Overview Card -->
-      <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <!-- Left: Avatar + Info -->
-          <div class="flex items-start gap-4">
+      <div class="bmc-subscription-layout">
+        <aside class="bmc-subscription-sidebar">
+          <div class="bmc-subscription-profile-card">
             <img
               v-if="subscription.supporters_image"
               :src="subscription.supporters_image"
               :alt="subscription.supporters_name"
-              class="w-16 h-16 rounded-full border-2 border-neutral-200 object-cover flex-shrink-0"
+              class="bmc-subscription-avatar"
             />
             <div
               v-else
-              class="w-16 h-16 rounded-full border-2 border-neutral-200 flex items-center justify-center flex-shrink-0"
-              style="background: var(--color-primary-50); color: var(--color-primary-600)"
+              class="bmc-subscription-avatar bmc-subscription-avatar--placeholder"
             >
-              <span class="text-xl font-bold uppercase">{{ getInitials(subscription.supporters_name) }}</span>
+              <span>{{ getInitials(subscription.supporters_name) }}</span>
             </div>
 
-            <div>
-              <h2 class="text-xl font-bold m-0" style="color: var(--text-primary)">
-                {{ subscription.supporters_name || 'Anonymous' }}
-              </h2>
-              <p v-if="subscription.supporters_email" class="text-sm mt-0.5 mb-0" style="color: var(--text-secondary)">
-                {{ subscription.supporters_email }}
-              </p>
-              <div class="flex flex-wrap items-center gap-2 mt-2">
+            <h2 class="bmc-subscription-name">
+              {{ subscription.supporters_name || 'Anonymous' }}
+            </h2>
+            <p v-if="subscription.supporters_email" class="bmc-subscription-email">
+              {{ subscription.supporters_email }}
+            </p>
+
+            <div class="bmc-subscription-badges">
+              <span class="bmc-status-badge" :class="'bmc-status-badge--' + subscription.status">
+                {{ statusLabel(subscription.status) }}
+              </span>
+              <span class="bmc-subscription-pill">
+                {{ subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}
+              </span>
+            </div>
+
+            <p class="bmc-subscription-created">Since {{ formatDate(subscription.created_at) }}</p>
+
+            <div class="bmc-subscription-actions">
+              <a
+                v-if="subscription.supporters_email"
+                :href="'mailto:' + subscription.supporters_email"
+                class="bmc-subscription-action"
+              >
+                <Mail :size="14" />
+                Send Email
+              </a>
+              <a
+                v-if="subscription.stripe_subscription_id"
+                :href="stripeSubUrl()"
+                target="_blank"
+                rel="noopener"
+                class="bmc-subscription-action"
+              >
+                <ExternalLink :size="14" />
+                View on Stripe
+              </a>
+            </div>
+          </div>
+
+          <div class="bmc-subscription-sidebar-card">
+            <h3 class="bmc-sidebar-section-title">Subscription Summary</h3>
+            <div class="bmc-subscription-stat-list">
+              <div class="bmc-subscription-stat">
+                <span class="bmc-subscription-stat__label">Amount</span>
+                <span class="bmc-subscription-stat__value">{{ formatAmount(subscription.amount, subscription.currency) }}</span>
+              </div>
+              <div class="bmc-subscription-stat">
+                <span class="bmc-subscription-stat__label">Next Renewal</span>
+                <span class="bmc-subscription-stat__value">{{ formatDate(subscription.current_period_end) }}</span>
+              </div>
+              <div class="bmc-subscription-stat">
+                <span class="bmc-subscription-stat__label">Payment Mode</span>
+                <span class="bmc-subscription-stat__value bmc-text-capitalize">{{ subscription.payment_mode || '--' }}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section class="bmc-subscription-main">
+          <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6">
+            <div class="bmc-card-header-actions">
+              <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-0" style="color: var(--text-secondary)">
+                Subscription Details
+              </h3>
+
+              <div v-if="subscription.stripe_subscription_id" class="bmc-more-menu" ref="moreMenu">
+                <button class="bmc-card-more-btn" title="Subscription actions" @click.stop="moreOpen = !moreOpen">
+                  <MoreVertical :size="16" />
+                </button>
+                <div v-if="moreOpen" class="bmc-more-dropdown">
+                  <button class="bmc-more-item" :disabled="fetching" @click="confirmFetchSubscription">
+                    <RefreshCw :size="14" :class="{ 'bmc-spin': fetching }" />
+                    {{ fetching ? 'Fetching...' : 'Fetch Subscription' }}
+                  </button>
+                  <el-popconfirm
+                    v-if="subscription.status !== 'cancelled'"
+                    title="Cancel this subscription? This cannot be undone."
+                    confirm-button-text="Yes, cancel"
+                    cancel-button-text="No"
+                    :width="260"
+                    @confirm="cancelSubscription"
+                  >
+                    <template #reference>
+                      <button class="bmc-more-item bmc-more-item--danger" :disabled="cancelling">
+                        <XCircle :size="14" />
+                        {{ cancelling ? 'Cancelling...' : 'Cancel Subscription' }}
+                      </button>
+                    </template>
+                  </el-popconfirm>
+                </div>
+              </div>
+            </div>
+
+            <div class="bmc-detail-grid">
+              <div class="bmc-detail-item">
+                <span class="bmc-detail-label">Amount</span>
+                <span class="bmc-detail-value">{{ formatAmount(subscription.amount, subscription.currency) }}</span>
+              </div>
+              <div class="bmc-detail-item">
+                <span class="bmc-detail-label">Interval</span>
+                <span class="bmc-detail-value">{{ subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}</span>
+              </div>
+              <div class="bmc-detail-item">
+                <span class="bmc-detail-label">Status</span>
                 <span class="bmc-status-badge" :class="'bmc-status-badge--' + subscription.status">
                   {{ statusLabel(subscription.status) }}
                 </span>
-                <span class="text-xs px-2 py-0.5 rounded-full border border-neutral-200" style="color: var(--text-secondary)">
-                  {{ subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}
-                </span>
-                <span class="text-xs" style="color: var(--text-tertiary)">
-                  Since {{ formatDate(subscription.created_at) }}
-                </span>
+              </div>
+              <div class="bmc-detail-item">
+                <span class="bmc-detail-label">Next Renewal</span>
+                <span class="bmc-detail-value">{{ formatDate(subscription.current_period_end) }}</span>
+              </div>
+              <div class="bmc-detail-item">
+                <span class="bmc-detail-label">Payment Mode</span>
+                <span class="bmc-detail-value bmc-text-capitalize">{{ subscription.payment_mode || '--' }}</span>
+              </div>
+              <div class="bmc-detail-item" v-if="subscription.cancelled_at">
+                <span class="bmc-detail-label">Cancelled At</span>
+                <span class="bmc-detail-value">{{ formatDate(subscription.cancelled_at) }}</span>
               </div>
             </div>
           </div>
-
-          <!-- Right: Actions -->
-          <div class="flex flex-wrap items-center gap-2">
-            <a
-              v-if="subscription.supporters_email"
-              :href="'mailto:' + subscription.supporters_email"
-              class="bmc-action-btn no-underline"
-            >
-              <Mail :size="14" />
-              Send Email
-            </a>
-            <a
-              v-if="subscription.stripe_subscription_id"
-              :href="stripeSubUrl()"
-              target="_blank"
-              rel="noopener"
-              class="bmc-action-btn no-underline"
-            >
-              <ExternalLink :size="14" />
-              View on Stripe
-            </a>
-
-            <!-- Three-dot more menu -->
-            <div v-if="subscription.stripe_subscription_id" class="bmc-more-menu" ref="moreMenu">
-              <button class="bmc-action-btn bmc-action-btn--icon" @click.stop="moreOpen = !moreOpen">
-                <MoreVertical :size="16" />
-              </button>
-              <div v-if="moreOpen" class="bmc-more-dropdown">
-                <button class="bmc-more-item" :disabled="fetching" @click="confirmFetchSubscription">
-                  <RefreshCw :size="14" :class="{ 'bmc-spin': fetching }" />
-                  {{ fetching ? 'Fetching...' : 'Fetch Subscription' }}
-                </button>
-                <el-popconfirm
-                  v-if="subscription.status !== 'cancelled'"
-                  title="Cancel this subscription? This cannot be undone."
-                  confirm-button-text="Yes, cancel"
-                  cancel-button-text="No"
-                  :width="260"
-                  @confirm="cancelSubscription"
-                >
-                  <template #reference>
-                    <button class="bmc-more-item bmc-more-item--danger" :disabled="cancelling">
-                      <XCircle :size="14" />
-                      {{ cancelling ? 'Cancelling...' : 'Cancel Subscription' }}
-                    </button>
-                  </template>
-                </el-popconfirm>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Subscription Details Grid -->
-        <div class="bmc-detail-grid mt-6 pt-6 border-t border-neutral-200">
-          <div class="bmc-detail-item">
-            <span class="bmc-detail-label">Amount</span>
-            <span class="bmc-detail-value">{{ formatAmount(subscription.amount, subscription.currency) }}</span>
-          </div>
-          <div class="bmc-detail-item">
-            <span class="bmc-detail-label">Interval</span>
-            <span class="bmc-detail-value">{{ subscription.interval_type === 'year' ? 'Yearly' : 'Monthly' }}</span>
-          </div>
-          <div class="bmc-detail-item">
-            <span class="bmc-detail-label">Status</span>
-            <span class="bmc-status-badge" :class="'bmc-status-badge--' + subscription.status">
-              {{ statusLabel(subscription.status) }}
-            </span>
-          </div>
-          <div class="bmc-detail-item">
-            <span class="bmc-detail-label">Next Renewal</span>
-            <span class="bmc-detail-value">{{ formatDate(subscription.current_period_end) }}</span>
-          </div>
-          <div class="bmc-detail-item">
-            <span class="bmc-detail-label">Payment Mode</span>
-            <span class="bmc-detail-value" style="text-transform: capitalize">{{ subscription.payment_mode || '--' }}</span>
-          </div>
-          <div class="bmc-detail-item" v-if="subscription.cancelled_at">
-            <span class="bmc-detail-label">Cancelled At</span>
-            <span class="bmc-detail-value">{{ formatDate(subscription.cancelled_at) }}</span>
-          </div>
-        </div>
-      </div>
 
       <!-- Payment History -->
       <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6">
@@ -189,6 +207,8 @@
           object-type="subscription"
           :object-id="Number(subscription.id)"
         />
+      </div>
+        </section>
       </div>
     </template>
 
@@ -336,6 +356,212 @@ export default {
 </script>
 
 <style scoped>
+.bmc-subscription-page {
+  max-width: 1440px;
+}
+
+.bmc-subscription-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.bmc-subscription-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+}
+
+.bmc-subscription-profile-card,
+.bmc-subscription-sidebar-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bmc-subscription-profile-card {
+  padding: 20px;
+}
+
+.bmc-subscription-sidebar-card {
+  padding: 16px;
+}
+
+.bmc-subscription-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  border: 2px solid var(--border-secondary);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bmc-subscription-avatar--placeholder {
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+
+.bmc-subscription-avatar--placeholder span {
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.bmc-subscription-name {
+  margin: 14px 0 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.bmc-subscription-email {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.bmc-subscription-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bmc-subscription-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bmc-subscription-created {
+  margin: 10px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.bmc-subscription-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.bmc-subscription-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bmc-subscription-action:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bmc-sidebar-section-title {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bmc-subscription-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bmc-subscription-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bmc-subscription-stat:last-child {
+  border-bottom: none;
+}
+
+.bmc-subscription-stat__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.bmc-subscription-stat__value {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.bmc-subscription-main {
+  min-width: 0;
+}
+
+.bmc-card-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bmc-card-more-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bmc-card-more-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bmc-text-capitalize {
+  text-transform: capitalize;
+}
+
 .bmc-back-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; margin-bottom: 16px;
@@ -411,4 +637,46 @@ export default {
 
 .bmc-spin { animation: bmc-spin 1s linear infinite; }
 @keyframes bmc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+@media (max-width: 1180px) {
+  .bmc-subscription-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .bmc-subscription-sidebar {
+    position: static;
+  }
+
+  .bmc-subscription-profile-card {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  .bmc-subscription-name,
+  .bmc-subscription-email,
+  .bmc-subscription-badges,
+  .bmc-subscription-created {
+    grid-column: 2;
+  }
+
+  .bmc-subscription-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .bmc-subscription-profile-card {
+    display: block;
+  }
+
+  .bmc-subscription-layout {
+    gap: 16px;
+  }
+
+  .bmc-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

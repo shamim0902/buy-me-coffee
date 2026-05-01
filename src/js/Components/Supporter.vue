@@ -1,5 +1,5 @@
 <template>
-  <div class="relative min-h-[200px]">
+  <div class="bmc-supporter-page relative min-h-[200px]">
     <CoffeeLoader :loading="loading" />
     <!-- Back Button -->
     <button
@@ -11,51 +11,51 @@
     </button>
 
     <template v-if="!loading && supporter.id">
-      <!-- Profile Header Card -->
-      <div class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <!-- Left: Avatar + Info -->
-          <div class="flex items-start gap-4">
+      <div class="bmc-supporter-layout">
+        <aside class="bmc-supporter-sidebar">
+          <div class="bmc-supporter-profile-card">
             <img
               v-if="supporter.supporters_image"
               :src="supporter.supporters_image"
               :alt="supporter.supporters_name"
-              class="w-16 h-16 rounded-full border-2 border-neutral-200 object-cover flex-shrink-0"
+              class="bmc-supporter-avatar"
             />
             <div
               v-else
-              class="w-16 h-16 rounded-full border-2 border-neutral-200 flex items-center justify-center flex-shrink-0"
-              style="background: var(--color-primary-50); color: var(--color-primary-600)"
+              class="bmc-supporter-avatar bmc-supporter-avatar--placeholder"
             >
-              <span class="text-xl font-bold uppercase">{{ (supporter.supporters_name || 'A').charAt(0) }}</span>
+              <span>{{ (supporter.supporters_name || 'A').charAt(0) }}</span>
             </div>
 
-            <div>
-              <h2 class="text-xl font-bold m-0" style="color: var(--text-primary)">
-                {{ supporter.supporters_name || 'Anonymous' }}
-              </h2>
-              <p v-if="supporter.supporters_email" class="text-sm mt-0.5 mb-0" style="color: var(--text-secondary)">
-                {{ supporter.supporters_email }}
-              </p>
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <StatusBadge :status="supporter.payment_status" />
-                <span v-if="supporter.payment_method" class="text-xs px-2 py-0.5 rounded-full border border-neutral-200" style="color: var(--text-secondary)">
-                  {{ supporter.payment_method }}
-                </span>
-                <span class="text-xs" style="color: var(--text-tertiary)">
-                  {{ supporter.created_at }}
-                </span>
-              </div>
-            </div>
-          </div>
+            <h2 class="bmc-supporter-name">
+              {{ supporter.supporters_name || 'Anonymous' }}
+            </h2>
+            <p v-if="supporter.supporters_email" class="bmc-supporter-email">
+              {{ supporter.supporters_email }}
+            </p>
 
-          <!-- Right: Action Buttons -->
-          <div class="flex flex-wrap items-center gap-2">
+            <div class="bmc-supporter-badges">
+              <StatusBadge :status="supporter.payment_status" />
+              <span v-if="supporter.payment_method" class="bmc-supporter-method">
+                {{ supporter.payment_method }}
+              </span>
+            </div>
+
+            <p class="bmc-supporter-created">{{ supporter.created_at }}</p>
+
+            <div
+              v-if="supporter.payment_status === 'paid-initially'"
+              class="bmc-supporter-warning"
+            >
+              <Clock :size="14" />
+              <span>Please verify this transaction before marking as paid.</span>
+            </div>
+
+            <div class="bmc-supporter-actions">
             <a
               v-if="supporter.supporters_email"
               :href="'mailto:' + supporter.supporters_email"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 no-underline transition-colors"
-              style="color: var(--text-primary); background: var(--bg-primary)"
+              class="bmc-supporter-action"
             >
               <Mail :size="14" />
               Send Email
@@ -65,94 +65,81 @@
               :href="supporter.transaction.transaction_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 no-underline transition-colors"
-              style="color: var(--text-primary); background: var(--bg-primary)"
+              class="bmc-supporter-action"
             >
               <ExternalLink :size="14" />
               View on {{ supporter.payment_method }}
             </a>
             <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
-              style="background: var(--color-primary-50); color: var(--color-primary-700)"
+              class="bmc-supporter-action bmc-supporter-action--primary"
               @click="statusModal = true"
             >
               <Edit3 :size="14" />
               Change Status
             </button>
 
-            <!-- Three-dot more menu -->
-            <div class="bmc-more-menu" ref="moreMenu">
-              <button
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-neutral-200 cursor-pointer transition-colors"
-                style="background: var(--bg-primary); color: var(--text-secondary)"
-                @click.stop="moreOpen = !moreOpen"
-              >
-                <MoreVertical :size="15" />
-              </button>
-              <div v-if="moreOpen" class="bmc-more-dropdown">
-                <button
-                  v-if="supporter.transaction && supporter.transaction.status === 'paid' && supporter.transaction.charge_id"
-                  class="bmc-more-item bmc-more-item--danger"
-                  :disabled="refunding"
-                  @click="openRefundModal"
-                >
-                  <RotateCcw :size="14" />
-                  {{ refunding ? 'Refunding...' : 'Refund Transaction' }}
-                </button>
-                <span
-                  v-else
-                  class="bmc-more-item bmc-more-item--disabled"
-                  :title="supporter.transaction && supporter.transaction.status === 'refunded' ? 'Already refunded' : 'Not refundable'"
-                >
-                  <RotateCcw :size="14" />
-                  Refund Transaction
-                </span>
-              </div>
-            </div>
           </div>
         </div>
 
-        <!-- Warning for paid-initially -->
-        <div
-          v-if="supporter.payment_status === 'paid-initially'"
-          class="mt-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg border"
-          style="background: var(--color-warning-50); border-color: var(--color-warning-300); color: var(--color-warning-700)"
-        >
-          <Clock :size="14" />
-          Please verify this transaction before marking as paid.
-        </div>
-      </div>
+          <div class="bmc-supporter-sidebar-card">
+            <h3 class="bmc-sidebar-section-title">Lifetime Summary</h3>
+            <div class="bmc-supporter-stat-list">
+              <div class="bmc-supporter-stat">
+                <span class="bmc-supporter-stat__label">All-time Paid</span>
+                <span class="bmc-supporter-stat__value">{{ supporter.all_time_total_paid || '$0' }}</span>
+              </div>
+              <div class="bmc-supporter-stat">
+                <span class="bmc-supporter-stat__label">All-time Pending</span>
+                <span class="bmc-supporter-stat__value">{{ supporter.all_time_total_pending || '$0' }}</span>
+              </div>
+              <div class="bmc-supporter-stat">
+                <span class="bmc-supporter-stat__label">Total Coffees</span>
+                <span class="bmc-supporter-stat__value">{{ supporter.all_time_total_coffee || '0' }}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
 
-      <!-- Stat Boxes -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <MetricCard
-          label="All-time Paid"
-          :value="supporter.all_time_total_paid || '$0'"
-          icon="DollarSign"
-          color="primary"
-        />
-        <MetricCard
-          label="All-time Pending"
-          :value="supporter.all_time_total_pending || '$0'"
-          icon="Clock"
-          color="amber"
-        />
-        <MetricCard
-          label="Total Coffees"
-          :value="supporter.all_time_total_coffee || '0'"
-          icon="Coffee"
-          color="violet"
-        />
-      </div>
+        <section class="bmc-supporter-main">
 
       <!-- Transaction Details Card -->
       <div
         v-if="supporter.transaction"
         class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
       >
-        <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-4" style="color: var(--text-secondary)">
-          Transaction Details
-        </h3>
+        <div class="bmc-card-header-actions">
+          <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-0" style="color: var(--text-secondary)">
+            Transaction Details
+          </h3>
+          <div class="bmc-more-menu" ref="moreMenu">
+            <button
+              class="bmc-card-more-btn"
+              title="Transaction actions"
+              @click.stop="moreOpen = !moreOpen"
+            >
+              <MoreVertical :size="16" />
+            </button>
+            <div v-if="moreOpen" class="bmc-more-dropdown">
+              <button
+                v-if="supporter.transaction && supporter.transaction.status === 'paid' && supporter.transaction.charge_id"
+                class="bmc-more-item bmc-more-item--danger"
+                :disabled="refunding"
+                @click="openRefundModal"
+              >
+                <RotateCcw :size="14" />
+                {{ refunding ? 'Refunding...' : 'Refund Transaction' }}
+              </button>
+              <span
+                v-else
+                class="bmc-more-item bmc-more-item--disabled"
+                :title="supporter.transaction && supporter.transaction.status === 'refunded' ? 'Already refunded' : 'Not refundable'"
+              >
+                <RotateCcw :size="14" />
+                Refund Transaction
+              </span>
+            </div>
+          </div>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
           <div v-if="supporter.transaction.charge_id">
             <p class="text-xs mb-1 m-0" style="color: var(--text-tertiary)">Transaction ID</p>
@@ -368,6 +355,8 @@
           :show-module="true"
         />
       </div>
+        </section>
+      </div>
     </template>
 
     <!-- Status Change Dialog -->
@@ -503,12 +492,10 @@
 </template>
 
 <script>
-import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, DollarSign, Clock, MoreVertical, RotateCcw, CheckCircle, XCircle } from 'lucide-vue-next';
+import { ArrowLeft, Mail, ExternalLink, Edit3, Coffee, Clock, MoreVertical, RotateCcw, CheckCircle, XCircle } from 'lucide-vue-next';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import PageTitle from './UI/PageTitle.vue';
 import StatusBadge from './UI/StatusBadge.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
-import MetricCard from './UI/MetricCard.vue';
 import ActivityTimeline from './ActivityTimeline.vue';
 
 export default {
@@ -519,15 +506,12 @@ export default {
     ExternalLink,
     Edit3,
     Coffee,
-    DollarSign,
     Clock,
     MoreVertical,
     RotateCcw,
     CheckCircle,
     XCircle,
-    PageTitle,
     StatusBadge,
-    MetricCard,
     CoffeeLoader,
     ActivityTimeline,
   },
@@ -727,6 +711,238 @@ export default {
 </script>
 
 <style scoped>
+.bmc-supporter-page {
+  max-width: 1440px;
+}
+
+.bmc-supporter-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.bmc-supporter-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+}
+
+.bmc-supporter-profile-card,
+.bmc-supporter-sidebar-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bmc-supporter-profile-card {
+  padding: 20px;
+}
+
+.bmc-supporter-sidebar-card {
+  padding: 16px;
+}
+
+.bmc-supporter-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  border: 2px solid var(--border-secondary);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bmc-supporter-avatar--placeholder {
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+
+.bmc-supporter-avatar--placeholder span {
+  font-size: 22px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.bmc-supporter-name {
+  margin: 14px 0 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.bmc-supporter-email {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.bmc-supporter-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bmc-supporter-method {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.bmc-supporter-created {
+  margin: 10px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.bmc-supporter-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-warning-300);
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.bmc-supporter-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.bmc-supporter-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bmc-supporter-action:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bmc-supporter-action--primary {
+  border-color: transparent;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.bmc-supporter-action--primary:hover {
+  background: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.bmc-supporter-action--icon {
+  width: 100%;
+}
+
+.bmc-sidebar-section-title {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bmc-supporter-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bmc-supporter-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bmc-supporter-stat:last-child {
+  border-bottom: none;
+}
+
+.bmc-supporter-stat__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.bmc-supporter-stat__value {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.bmc-supporter-main {
+  min-width: 0;
+}
+
+.bmc-card-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bmc-card-more-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bmc-card-more-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .bmc-back-btn {
   display: inline-flex;
   align-items: center;
@@ -840,6 +1056,45 @@ export default {
 }
 @media (max-width: 768px) {
   .bmc-two-col-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1180px) {
+  .bmc-supporter-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .bmc-supporter-sidebar {
+    position: static;
+  }
+
+  .bmc-supporter-profile-card {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  .bmc-supporter-name,
+  .bmc-supporter-email,
+  .bmc-supporter-badges,
+  .bmc-supporter-created {
+    grid-column: 2;
+  }
+
+  .bmc-supporter-warning,
+  .bmc-supporter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .bmc-supporter-profile-card {
+    display: block;
+  }
+
+  .bmc-supporter-layout {
+    gap: 16px;
+  }
 }
 
 .bmc-refund-cancel-sub {

@@ -11,9 +11,9 @@
         <div class="bmc-settings-content">
 
           <!-- General -->
-          <section v-show="active === 'general'">
+          <section v-show="active === 'general'" class="bmc-general-settings">
 
-            <!-- Form Configuration + Subscriber Account: 2-col row -->
+            <!-- Form Configuration + Pricing: 2-col row -->
             <div class="bmc-sc-2col">
 
             <!-- Form Configuration Card -->
@@ -74,19 +74,85 @@
               </div>
             </div>
 
-            <!-- Subscriber Account Card -->
+            <!-- Pricing & Payment Card -->
+            <div class="bmc-sc">
+              <div class="bmc-sc__hd">
+                <div class="bmc-sc__icon bmc-sc__icon--teal">
+                  <DollarSign :size="16" />
+                </div>
+                <div>
+                  <h3 class="bmc-sc__title">Pricing &amp; Payment</h3>
+                  <p class="bmc-sc__sub">Configure donation amounts and currency</p>
+                </div>
+              </div>
+
+              <!-- Price + Currency -->
+              <div class="bmc-sr bmc-sr--field bmc-sr--2col bmc-sr--last">
+                <div>
+                  <label class="bmc-label">Default coffee price</label>
+                  <el-input-number
+                    v-model="template.defaultAmount"
+                    :min="1"
+                    :step="1"
+                    controls-position="right"
+                    style="width: 100%"
+                  />
+                </div>
+                <div>
+                  <label class="bmc-label">Currency</label>
+                  <el-select
+                    v-model="template.currency"
+                    filterable
+                    placeholder="Select Currency"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="(currencyName, currencyKey) in currencies"
+                      :key="currencyKey"
+                      :label="`${currencyKey} — ${currencyName}`"
+                      :value="currencyKey"
+                    />
+                  </el-select>
+                </div>
+              </div>
+            </div>
+
+            </div><!-- /.bmc-sc-2col -->
+
+            <!-- Subscription Card -->
             <div class="bmc-sc">
               <div class="bmc-sc__hd">
                 <div class="bmc-sc__icon bmc-sc__icon--blue">
                   <User :size="16" />
                 </div>
                 <div>
-                  <h3 class="bmc-sc__title">Subscriber Account</h3>
-                  <p class="bmc-sc__sub">Let subscribers view their subscriptions on a dedicated page</p>
+                  <h3 class="bmc-sc__title">Subscriptions</h3>
+                  <p class="bmc-sc__sub">Manage recurring payments and subscriber account access</p>
                 </div>
               </div>
 
-              <!-- Enable toggle -->
+              <!-- Allow recurring -->
+              <div class="bmc-sr">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Allow recurring</p>
+                  <p class="bmc-toggle-row__desc">Show a "Make it recurring" option on the checkout form (Stripe only)</p>
+                </div>
+                <el-switch v-model="template.allow_recurring" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Recurring interval -->
+              <div v-if="template.allow_recurring === 'yes'" class="bmc-sr">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Recurring interval</p>
+                  <p class="bmc-toggle-row__desc">How often supporters will be charged</p>
+                </div>
+                <el-select v-model="template.recurring_interval" style="width: 130px">
+                  <el-option label="Monthly" value="month" />
+                  <el-option label="Yearly" value="year" />
+                </el-select>
+              </div>
+
+              <!-- Enable subscriber account -->
               <div class="bmc-sr" :class="{ 'bmc-sr--last': template.enable_account !== 'yes' }">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Enable subscriber accounts</p>
@@ -126,70 +192,28 @@
               </div>
             </div>
 
-            </div><!-- /.bmc-sc-2col -->
-
-            <!-- Pricing & Payment Card -->
-            <div class="bmc-sc">
-              <div class="bmc-sc__hd">
-                <div class="bmc-sc__icon bmc-sc__icon--teal">
-                  <DollarSign :size="16" />
+            <div class="bmc-danger-zone">
+              <div class="bmc-danger-zone__main">
+                <div class="bmc-danger-zone__icon">
+                  <AlertTriangle :size="18" />
                 </div>
                 <div>
-                  <h3 class="bmc-sc__title">Pricing &amp; Payment</h3>
-                  <p class="bmc-sc__sub">Configure donation amounts and currency</p>
+                  <h3 class="bmc-danger-zone__title">Danger zone</h3>
+                  <p class="bmc-danger-zone__text">
+                    Delete all local test-mode transactions, subscriptions, supporters/customers, and related activity logs.
+                    Live-mode payment data will be preserved.
+                  </p>
                 </div>
               </div>
-
-              <!-- Price + Currency -->
-              <div class="bmc-sr bmc-sr--field bmc-sr--2col">
-                <div>
-                  <label class="bmc-label">Default coffee price</label>
-                  <el-input-number
-                    v-model="template.defaultAmount"
-                    :min="1"
-                    :step="1"
-                    controls-position="right"
-                    style="width: 100%"
-                  />
-                </div>
-                <div>
-                  <label class="bmc-label">Currency</label>
-                  <el-select
-                    v-model="template.currency"
-                    filterable
-                    placeholder="Select Currency"
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="(currencyName, currencyKey) in currencies"
-                      :key="currencyKey"
-                      :label="`${currencyKey} — ${currencyName}`"
-                      :value="currencyKey"
-                    />
-                  </el-select>
-                </div>
-              </div>
-
-              <!-- Allow recurring -->
-              <div class="bmc-sr" :class="{ 'bmc-sr--last': template.allow_recurring !== 'yes' }">
-                <div class="bmc-toggle-row__text">
-                  <p class="bmc-toggle-row__label">Allow recurring</p>
-                  <p class="bmc-toggle-row__desc">Show a "Make it recurring" option on the checkout form (Stripe only)</p>
-                </div>
-                <el-switch v-model="template.allow_recurring" active-value="yes" inactive-value="no" />
-              </div>
-
-              <!-- Recurring interval -->
-              <div v-if="template.allow_recurring === 'yes'" class="bmc-sr bmc-sr--last">
-                <div class="bmc-toggle-row__text">
-                  <p class="bmc-toggle-row__label">Recurring interval</p>
-                  <p class="bmc-toggle-row__desc">How often supporters will be charged</p>
-                </div>
-                <el-select v-model="template.recurring_interval" style="width: 130px">
-                  <el-option label="Monthly" value="month" />
-                  <el-option label="Yearly" value="year" />
-                </el-select>
-              </div>
+              <button
+                type="button"
+                class="bmc-danger-zone__button"
+                :disabled="deletingTestData"
+                @click="confirmDeleteTestData"
+              >
+                <Trash2 :size="14" />
+                {{ deletingTestData ? 'Deleting…' : 'Delete all test data' }}
+              </button>
             </div>
 
           </section>
@@ -514,7 +538,8 @@
 </template>
 
 <script>
-import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User } from 'lucide-vue-next';
+import { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User, AlertTriangle, Trash2 } from 'lucide-vue-next';
+import { ElMessageBox } from 'element-plus';
 import PageTitle from './UI/PageTitle.vue';
 import CodeBlock from './UI/CodeBlock.vue';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
@@ -522,13 +547,14 @@ import MediaButton from './Parts/MediaButton.vue';
 
 export default {
   name: 'Settings',
-  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
+  components: { Save, RotateCcw, Eye, Coffee, ExternalLink, UserCircle2, Camera, MousePointerClick, FileText, DollarSign, User, AlertTriangle, Trash2, PageTitle, CodeBlock, MediaButton, CoffeeLoader },
 
   data() {
     return {
       fetching: true,
       saving: false,
       resetting: false,
+      deletingTestData: false,
       currencies: {},
       pages: [],
       previewUrl: window.BuyMeCoffeeAdmin.preview_url,
@@ -642,6 +668,39 @@ export default {
         this.resetting = false;
       });
     },
+    confirmDeleteTestData() {
+      ElMessageBox.prompt(
+        'Type DELETE TEST DATA to permanently delete local test-mode transactions, subscriptions, supporters/customers, and related activity logs.',
+        'Delete all test data?',
+        {
+          confirmButtonText: 'Delete all test data',
+          cancelButtonText: 'Cancel',
+          inputPattern: /^DELETE TEST DATA$/,
+          inputErrorMessage: 'Type DELETE TEST DATA exactly',
+          type: 'error',
+          confirmButtonClass: 'el-button--danger',
+        }
+      )
+        .then(({ value }) => {
+          this.deleteTestData(value);
+        })
+        .catch(() => {});
+    },
+    deleteTestData(confirmation) {
+      this.deletingTestData = true;
+      this.$post({
+        action: 'buymecoffee_admin_ajax',
+        route: 'delete_test_data',
+        data: { confirmation },
+        buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+      }).then((response) => {
+        this.$handleSuccess(response?.data?.message || 'Test data deleted successfully.');
+      }).fail((error) => {
+        this.$handleError(error);
+      }).always(() => {
+        this.deletingTestData = false;
+      });
+    },
   },
 
   mounted() {
@@ -652,6 +711,10 @@ export default {
 
 <style scoped>
 /* ─── Settings cards (General section) ────── */
+.bmc-general-settings {
+  margin-bottom: 100px;
+}
+
 .bmc-sc-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -757,6 +820,91 @@ export default {
 /* ─── Hint teal variant ──────────────────── */
 .bmc-hint--teal {
   color: var(--color-accent-teal);
+}
+
+/* ─── Danger zone ────────────────────────── */
+.bmc-danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  margin-bottom: 32px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 12px;
+}
+
+.bmc-danger-zone__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bmc-danger-zone__icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 8px;
+}
+
+.bmc-danger-zone__title {
+  margin: 0;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bmc-danger-zone__text {
+  margin: 3px 0 0;
+  color: #7f1d1d;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.bmc-danger-zone__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  border: 1px solid #b91c1c;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bmc-danger-zone__button:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.bmc-danger-zone__button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .bmc-danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bmc-danger-zone__button {
+    width: 100%;
+  }
 }
 
 /* ─── Action bar buttons ─────────────────── */
