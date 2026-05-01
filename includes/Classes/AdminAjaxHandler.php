@@ -467,6 +467,7 @@ class AdminAjaxHandler
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: 1: deleted test transaction count, 2: deleted test subscription count, 3: deleted test supporter/customer count, 4: deleted activity log count. */
                 __('Deleted %1$d test transactions, %2$d test subscriptions, %3$d test supporters/customers, and %4$d activity logs.', 'buy-me-coffee'),
                 $deletedTransactions,
                 $deletedSubscriptions,
