@@ -26,6 +26,7 @@ class Buttons
             "allow_recurring" => 'no',
             "recurring_interval" => 'month',
             "enable_account" => 'no',
+            "show_recent_supporters" => 'yes',
             "advanced" => array(
                 "image" => '',
                 "banner_image" => '',

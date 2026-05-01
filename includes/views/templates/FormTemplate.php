@@ -105,6 +105,7 @@ $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' 
                 <p class="bmc-about-card__bio bmc-about-card__bio--empty"><?php esc_html_e('No bio yet.', 'buy-me-coffee'); ?></p>
                 <?php endif; ?>
 
+                <?php if (Arr::get($template, 'show_recent_supporters', 'yes') === 'yes'): ?>
                 <div class="bmc-about-card__divider"></div>
 
                 <h4 class="bmc-about-card__section-title"><?php esc_html_e('Recent supporters', 'buy-me-coffee'); ?></h4>
@@ -129,6 +130,7 @@ $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' 
                     <span class="bmc-about-card__empty-icon">💛</span>
                     <p><?php esc_html_e('Be the first to support!', 'buy-me-coffee'); ?></p>
                 </div>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

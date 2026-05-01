@@ -65,12 +65,21 @@
               </div>
 
               <!-- Collect message -->
-              <div class="bmc-sr bmc-sr--last">
+              <div class="bmc-sr">
                 <div class="bmc-toggle-row__text">
                   <p class="bmc-toggle-row__label">Collect message</p>
                   <p class="bmc-toggle-row__desc">Allow supporters to leave a message with their donation</p>
                 </div>
                 <el-switch v-model="template.enableMessage" active-value="yes" inactive-value="no" />
+              </div>
+
+              <!-- Show recent supporters -->
+              <div class="bmc-sr bmc-sr--last">
+                <div class="bmc-toggle-row__text">
+                  <p class="bmc-toggle-row__label">Show recent supporters</p>
+                  <p class="bmc-toggle-row__desc">Display the recent supporters list on the donation page</p>
+                </div>
+                <el-switch v-model="template.show_recent_supporters" active-value="yes" inactive-value="no" />
               </div>
             </div>
 
@@ -602,6 +611,7 @@ export default {
         recurring_interval: 'month',
         enable_account: 'no',
         account_page_id: 0,
+        show_recent_supporters: 'yes',
         advanced: {
           image: '',
           bgColor: '#ff813f',
