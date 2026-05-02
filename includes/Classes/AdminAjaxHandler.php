@@ -544,11 +544,25 @@ class AdminAjaxHandler
     {
         $settings = (new Buttons())->getButton();
 
-        $rawPages = get_pages(['sort_column' => 'post_title', 'sort_order' => 'ASC', 'post_status' => 'publish']);
+        $accountPageId = !empty($settings['account_page_id']) ? (int) $settings['account_page_id'] : 0;
+        $pageIds = get_posts([
+            'post_type'        => 'page',
+            'post_status'      => 'publish',
+            'posts_per_page'   => 100,
+            'orderby'          => 'title',
+            'order'            => 'ASC',
+            'fields'           => 'ids',
+            'suppress_filters' => false,
+        ]);
+
+        if ($accountPageId && !in_array($accountPageId, $pageIds, true) && get_post_status($accountPageId) === 'publish') {
+            $pageIds[] = $accountPageId;
+        }
+
         $pages = [];
-        if (is_array($rawPages)) {
-            foreach ($rawPages as $page) {
-                $pages[] = ['id' => $page->ID, 'title' => $page->post_title];
+        if (is_array($pageIds)) {
+            foreach ($pageIds as $pageId) {
+                $pages[] = ['id' => (int) $pageId, 'title' => get_the_title($pageId)];
             }
         }
 
