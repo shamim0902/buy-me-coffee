@@ -57,7 +57,7 @@
                 <span class="bmc-status-badge" :class="'bmc-status-badge--' + row.status">{{ row.status }}</span>
               </template>
             </el-table-column>
-            <el-table-column width="50" align="center">
+            <el-table-column width="100" align="center">
               <template #default="{ row }">
                 <el-dropdown trigger="click" @command="(cmd) => handleMemberAction(cmd, row)">
                   <button class="bmc-actions-btn" type="button">

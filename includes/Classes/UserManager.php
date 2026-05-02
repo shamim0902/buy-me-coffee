@@ -198,6 +198,11 @@ class UserManager
     private function syncSubscriptionAccessMeta(int $userId): void
     {
         buymecoffee_user_has_active_subscription($userId, true);
-        delete_user_meta($userId, 'buymecoffee_active_level_ids');
+
+        // Invalidate level IDs cache — will be re-built on next access check
+        $supporterIds = buymecoffee_get_supporter_ids_for_user($userId);
+        if (!empty($supporterIds)) {
+            buymecoffee_delete_supporter_meta($supporterIds[0], 'active_level_ids');
+        }
     }
 }

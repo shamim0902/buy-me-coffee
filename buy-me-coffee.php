@@ -39,10 +39,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
-    if (!defined('BUYMECOFFEE_PRODUCTION')) {
-        define('BUYMECOFFEE_PRODUCTION', true);
+    if (!defined('BUYMECOFFEE_DEVELOPMENT')) {
+        define('BUYMECOFFEE_DEVELOPMENT', true);
     }
-    define('BUYMECOFFEE_DB_VERSION', '1.8');
+    define('BUYMECOFFEE_DB_VERSION', '1.9');
 
     // if (!defined('BUYMECOFFEE_DEBUG')) {
     //     define('BUYMECOFFEE_DEBUG', false);

@@ -48,6 +48,7 @@ class Activator
         $this->createSubscriptionsTable();
         $this->createActivitiesTable();
         $this->createMembershipLevelsTable();
+        $this->createSupportersMetaTable();
     }
 
     public function createSupportersTable()
@@ -190,6 +191,24 @@ class Activator
                 updated_at timestamp NULL,
                 KEY bmc_lvl_status (status),
                 KEY bmc_lvl_sort (sort_order)
+        ) $charset_collate;";
+
+        $this->runSQL($sql, $table_name);
+    }
+
+    public function createSupportersMetaTable()
+    {
+        global $wpdb;
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_name = $wpdb->prefix . 'buymecoffee_supporters_meta';
+        $sql = "CREATE TABLE $table_name (
+                id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                supporter_id BIGINT(20) UNSIGNED NOT NULL,
+                meta_key varchar(255) NOT NULL,
+                meta_value longtext,
+                KEY bmc_sm_supporter (supporter_id),
+                KEY bmc_sm_key (meta_key(191)),
+                KEY bmc_sm_supporter_key (supporter_id, meta_key(191))
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
