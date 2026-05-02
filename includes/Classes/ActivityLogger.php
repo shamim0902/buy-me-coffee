@@ -156,42 +156,26 @@ class ActivityLogger
         int $page = 0,
         int $perPage = 20
     ): array {
-        global $wpdb;
-
-        $actTable   = $wpdb->prefix . self::TABLE;
-        $transTable = $wpdb->prefix . 'buymecoffee_transactions';
+        $supporterId = absint($supporterId);
         $page       = max(0, (int) $page);
         $perPage    = max(1, min(100, (int) $perPage));
         $offset     = $page * $perPage;
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned tables require direct aggregate query.
-        $total = (int) $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$actTable}
-                WHERE (object_type IN ('submission','email') AND object_id = %d)
-                    OR (object_type = 'payment' AND object_id IN (
-                        SELECT id FROM {$transTable} WHERE entry_id = %d
-                    ))",
-                $supporterId,
-                $supporterId
-            )
+        $transactionIds = self::idsFromRows(
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('entry_id', $supporterId)
+                ->select('id')
+                ->get()
         );
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned tables require direct paginated query.
-        $logs = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$actTable}
-                WHERE (object_type IN ('submission','email') AND object_id = %d)
-                    OR (object_type = 'payment' AND object_id IN (
-                        SELECT id FROM {$transTable} WHERE entry_id = %d
-                    ))
-                ORDER BY created_at DESC LIMIT %d OFFSET %d",
-                $supporterId,
-                $supporterId,
-                $perPage,
-                $offset
-            )
-        );
+        $total = (int) self::supporterActivityQuery($supporterId, $transactionIds)->count();
+
+        $logs = self::supporterActivityQuery($supporterId, $transactionIds)
+            ->orderBy('created_at', 'DESC')
+            ->limit($perPage)
+            ->offset($offset)
+            ->get();
 
         foreach ($logs as $log) {
             if (!empty($log->context)) {
@@ -200,5 +184,37 @@ class ActivityLogger
         }
 
         return ['logs' => $logs ?: [], 'total' => $total];
+    }
+
+    private static function supporterActivityQuery(int $supporterId, array $transactionIds)
+    {
+        return buyMeCoffeeQuery()
+            ->table(self::TABLE)
+            ->where(function ($whereQuery) use ($supporterId, $transactionIds) {
+                $whereQuery->where(function ($submissionQuery) use ($supporterId) {
+                    $submissionQuery->whereIn('object_type', ['submission', 'email'])
+                        ->where('object_id', $supporterId);
+                });
+
+                if (!empty($transactionIds)) {
+                    $whereQuery->orWhere(function ($paymentQuery) use ($transactionIds) {
+                        $paymentQuery->where('object_type', 'payment')
+                            ->whereIn('object_id', $transactionIds);
+                    });
+                }
+            });
+    }
+
+    private static function idsFromRows($rows): array
+    {
+        $ids = [];
+        foreach ((array) $rows as $row) {
+            if (is_object($row) && isset($row->id)) {
+                $ids[] = absint($row->id);
+            }
+        }
+
+        $ids = array_filter($ids);
+        return array_values(array_unique($ids));
     }
 }
