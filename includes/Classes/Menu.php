@@ -25,7 +25,7 @@ class Menu
         $this->pageHook = add_menu_page(
             $title,
             $title,
-            'manage_options',
+            'read',
             'buy-me-coffee.php',
             [$this, 'render'],
             'dashicons-coffee',
@@ -181,6 +181,13 @@ class Menu
 
     public function render()
     {
+        if (!AccessControl::hasTopLevelMenuPermission()) {
+            wp_die(
+                esc_html__('You do not have permission to access this page.', 'buy-me-coffee'),
+                403
+            );
+        }
+
         ?>
         <div class="wrap" style="margin:0; padding:0;">
             <div id="buy-me-coffee_app">
