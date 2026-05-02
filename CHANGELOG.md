@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 - Resolved WordPress Plugin Check warnings for SQL preparation, direct database usage, safe redirects, sanitized inputs, webhook nonce exceptions, readme metadata, and production-root Markdown files.
 - Reworked test-data cleanup and activity log lookups to avoid interpolated table-name SQL in scanner-sensitive paths.
 - Fixed Stripe subscription confirmation mismatch errors and subscriber account creation emails by validating the local subscription against Stripe invoices when payment intent metadata is unavailable.
+- Fixed PayPal live-mode checkout by using PayPal's current live REST endpoint, safer Standard redirect URL generation, single-item Standard checkout, supported-currency validation, and currency-aware SDK loading.
 - Synced the warning fixes into the generated build copy used for release validation.
 
 ---

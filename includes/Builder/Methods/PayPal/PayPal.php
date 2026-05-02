@@ -245,44 +245,50 @@ class PayPal extends BaseMethods
             $this->maybeShowModal($transaction, $paypalSettings);
         }
 
-        $paypal_redirect = 'https://www.paypal.com/cgi-bin/webscr/?';
+        $paypal_redirect = 'https://www.paypal.com/cgi-bin/webscr';
 
         if ($paypalSettings['payment_mode'] === 'test') {
-            $paypal_redirect = 'https://www.sandbox.paypal.com/cgi-bin/webscr/?';
+            $paypal_redirect = 'https://www.sandbox.paypal.com/cgi-bin/webscr';
         }
 
         $supportersModel = new Supporters();
         $supporter = $supportersModel->find($entryId);
         $listener_url = apply_filters('buymecoffee_paypal_ipn_url', site_url('?buymecoffee_ipn_listener=1&method=paypal'), $supporter);
+        $currency = strtoupper(sanitize_text_field($supporter->currency ?? 'USD'));
+
+        if (!$this->isSupportedCurrency($currency)) {
+            wp_send_json_error(array(
+                'message' => sprintf(
+                    /* translators: %s: three-letter currency code */
+                    __('PayPal does not support %s for checkout. Please choose a PayPal-supported currency such as USD, EUR, or GBP.', 'buy-me-coffee'),
+                    $currency
+                ),
+            ), 400);
+        }
+
+        $amount = $this->formatPayPalAmount((int) $transaction->payment_total, $currency);
+        if ((float) $amount <= 0) {
+            wp_send_json_error(array(
+                'message' => __('PayPal payment amount must be greater than zero.', 'buy-me-coffee'),
+            ), 400);
+        }
 
         $paypal_args = array(
-            'cmd' => '_cart',
-            'upload' => '1',
+            'cmd' => '_donations',
             'business' => $paypalSettings['paypal_email'],
-            'email' => $supporter->supporters_email,
+            'item_name' => $this->getPayPalItemName($supporter),
+            'amount' => $amount,
             'no_shipping' => '1',
             'no_note' => '1',
-            'currency_code' => $supporter->currency ?? 'USD',
+            'currency_code' => $currency,
             'charset' => 'UTF-8',
             'custom' => $transactionId,
             'return' => $this->successUrl($supporter),
             'notify_url' => $listener_url,
             'cancel_return' => $this->failedUrl($supporter),
-            'image_url' => '',
         );
 
-        $payment_item = $this->cartItems($transaction);
-
-        if (!$payment_item) {
-            return;
-        }
-        $paypal_args = array_merge($payment_item, $paypal_args);
-
         $paypal_args = apply_filters('buymecoffee_paypal_payment_args', $paypal_args);
-
-        if (!$payment_item && $paypal_args['cmd'] == '_cart') {
-            return;
-        }
 
         $supportersModel->updateData($entryId, array(
             'payment_mode' => $paypalSettings['payment_mode']
@@ -294,7 +300,7 @@ class PayPal extends BaseMethods
             ));
         }
 
-        $paypal_redirect .= http_build_query($paypal_args);
+        $paypal_redirect = add_query_arg($paypal_args, $paypal_redirect);
 
         wp_send_json_success(array(
             'message' => __('You are redirected for payment.', 'buy-me-coffee'),
@@ -305,15 +311,61 @@ class PayPal extends BaseMethods
         exit;
     }
 
-    public function cartItems($item)
+    private function formatPayPalAmount($amountInCents, $currency)
     {
-        $paypal_args = array(
-            'item_name_1' => 'coffee_payment',
-            'quantity_1' => 1,
-            'amount_1' => round($item->payment_total / 100, 2)
-        );
+        $amount = max(0, (int) $amountInCents) / 100;
+        $zeroDecimalCurrencies = ['HUF', 'JPY', 'TWD'];
 
-        return $paypal_args;
+        if (in_array($currency, $zeroDecimalCurrencies, true)) {
+            return (string) (int) round($amount, 0);
+        }
+
+        return number_format($amount, 2, '.', '');
+    }
+
+    private function getPayPalItemName($supporter)
+    {
+        $name = !empty($supporter->supporters_name)
+            ? sprintf(
+                /* translators: %s: supporter name */
+                __('Coffee support from %s', 'buy-me-coffee'),
+                $supporter->supporters_name
+            )
+            : __('Coffee support', 'buy-me-coffee');
+
+        return mb_substr(wp_strip_all_tags($name), 0, 127);
+    }
+
+    private function isSupportedCurrency($currency)
+    {
+        $supportedCurrencies = [
+            'AUD',
+            'BRL',
+            'CAD',
+            'CNY',
+            'CZK',
+            'DKK',
+            'EUR',
+            'HKD',
+            'HUF',
+            'ILS',
+            'JPY',
+            'MYR',
+            'MXN',
+            'TWD',
+            'NZD',
+            'NOK',
+            'PHP',
+            'PLN',
+            'GBP',
+            'SGD',
+            'SEK',
+            'CHF',
+            'THB',
+            'USD',
+        ];
+
+        return in_array(strtoupper($currency), $supportedCurrencies, true);
     }
 
     public function successUrl($supporter)
@@ -441,9 +493,23 @@ class PayPal extends BaseMethods
 
         $mode = $settings['payment_mode'];
         $clientId = $mode === 'test' ? $settings['test_public_key'] : $settings['live_public_key'];
+        $currency = PaymentHelper::getCurrency() ?: 'USD';
 
         //phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
-        wp_enqueue_script('wpm-buymecoffee-checkout-sdk-' . $this->method, 'https://www.paypal.com/sdk/js?client-id=' . $clientId, [], null, false);
+        wp_enqueue_script(
+            'wpm-buymecoffee-checkout-sdk-' . $this->method,
+            add_query_arg(
+                [
+                    'client-id' => $clientId,
+                    'currency'  => strtoupper($currency),
+                    'intent'    => 'capture',
+                ],
+                'https://www.paypal.com/sdk/js'
+            ),
+            [],
+            null,
+            false
+        );
 
         Vite::enqueueScript('wpm-buymecoffee-checkout-handler-' . $this->method, 'js/PaymentMethods/paypal-checkout.js', ['wpm-buymecoffee-checkout-sdk-paypal', 'jquery'], '1.0.1', false);
 

@@ -207,6 +207,7 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 - Fixes Security audits
 - Improves different modules.
 - Fixes Stripe subscription confirmation mismatch errors and subscriber account creation emails.
+- Fixes PayPal live-mode checkout by using the current live REST endpoint, safer redirect URL generation, single-item Standard checkout, and supported-currency validation.
 
 = 1.2.4 May 01, 2026 =
 - Adds Deactivation feedback modal with WPMiners feedback collection

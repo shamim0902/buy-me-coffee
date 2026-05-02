@@ -6,7 +6,7 @@ class API
 {
     private static $settings;
     private static $testApiUrl = 'https://api-m.sandbox.paypal.com';
-    private static $liveApiUrl = 'https://api.paypal.com';
+    private static $liveApiUrl = 'https://api-m.paypal.com';
     public function __construct()
     {
         self::$settings = new PayPalSettings();
