@@ -151,7 +151,8 @@ class Vite
 
     public static function isDevMode(): bool
     {
-        return defined('BUYMECOFFEE_DEVELOPMENT') && BUYMECOFFEE_DEVELOPMENT === 'yes';
+        return defined('BUYMECOFFEE_DEVELOPMENT')
+            && (BUYMECOFFEE_DEVELOPMENT === true || BUYMECOFFEE_DEVELOPMENT === 'yes');
     }
 
     private static function getDevPath(): string
