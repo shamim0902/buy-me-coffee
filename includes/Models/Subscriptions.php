@@ -23,7 +23,7 @@ class Subscriptions extends Model
     public function index($args = [])
     {
         $page           = isset($args['page']) ? max(0, intval($args['page'])) : 0;
-        $posts_per_page = isset($args['posts_per_page']) ? max(1, intval($args['posts_per_page'])) : 10;
+        $posts_per_page = isset($args['posts_per_page']) ? max(1, min(100, intval($args['posts_per_page']))) : 10;
         $search         = isset($args['search']) ? sanitize_text_field($args['search']) : '';
         $filter_status  = isset($args['filter_status']) ? sanitize_text_field($args['filter_status']) : 'all';
 

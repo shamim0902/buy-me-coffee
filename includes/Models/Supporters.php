@@ -17,7 +17,9 @@ class Supporters extends Model
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
 
-        $offset = intval($args['page'] * $args['posts_per_page']);
+        $page = isset($args['page']) ? max(0, intval($args['page'])) : 0;
+        $postsPerPage = isset($args['posts_per_page']) ? max(1, min(100, intval($args['posts_per_page']))) : 10;
+        $offset = $page * $postsPerPage;
 
         // Use a correlated subquery for transaction_type instead of a JOIN
         // to avoid duplicate rows when a supporter has multiple transactions.
@@ -28,7 +30,7 @@ class Supporters extends Model
                 $this->raw("(SELECT transaction_type FROM {$txTable} WHERE entry_id = {$supTable}.id ORDER BY id DESC LIMIT 1) as transaction_type")
             )
             ->offset($offset)
-            ->limit($args['posts_per_page']);
+            ->limit($postsPerPage);
 
         if (isset($args['filter_top'])) {
             $query->where('buymecoffee_supporters.payment_status', 'paid')
@@ -93,7 +95,7 @@ class Supporters extends Model
             $currency->formatted_total = PaymentHelper::getFormattedAmount($currency->total_amount, $currency->currency);
         }
         $total = $query->count();
-        $lastPage = ceil($total / $args['posts_per_page']);
+        $lastPage = ceil($total / $postsPerPage);
 
         wp_send_json_success(
             array(
@@ -354,8 +356,8 @@ class Supporters extends Model
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
         $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
-        $page         = isset($args['page']) ? intval($args['page']) : 0;
-        $postsPerPage = isset($args['posts_per_page']) ? intval($args['posts_per_page']) : 12;
+        $page         = isset($args['page']) ? max(0, intval($args['page'])) : 0;
+        $postsPerPage = isset($args['posts_per_page']) ? max(1, min(100, intval($args['posts_per_page']))) : 12;
         $offset       = $page * $postsPerPage;
         $search       = isset($args['search']) ? sanitize_text_field($args['search']) : '';
 
