@@ -153,6 +153,7 @@ class Supporters extends Model
         $transactions = (new Transactions())->getQuery()
             ->where('entry_id', $supporter->id)
             ->orderBy('created_at', 'DESC')
+            ->limit(100)
             ->get();
 
         // Primary transaction (latest) for the detail card
@@ -183,39 +184,66 @@ class Supporters extends Model
             $otherDonations = $this->getQuery()
                 ->where('supporters_email', $supporter->supporters_email)
                 ->orderBy('created_at', 'DESC')
+                ->limit(20)
                 ->get();
         } else {
-            $otherDonations = $this->getQuery()
-                ->where('buymecoffee_supporters.id', $id)->get();
+            $otherDonations = $this->getQuery()->where('buymecoffee_supporters.id', $id)->get();
         }
 
         $supporter->other_donations = $otherDonations;
 
-        // Collect all supporter entry IDs for this person (same email)
-        $supporterIds = array_map(function ($d) {
-            return (int) $d->id;
-        }, $otherDonations);
+        global $wpdb;
 
-        // Calculate lifetime totals from TRANSACTIONS (includes renewals)
-        $allTransactions = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->whereIn('entry_id', $supporterIds)
-            ->get();
+        $supportersTable = $wpdb->prefix . 'buymecoffee_supporters';
+        $transactionsTable = $wpdb->prefix . 'buymecoffee_transactions';
 
-        $totalAmountPaid = 0;
-        $totalAmountPending = 0;
-        foreach ($allTransactions as $tx) {
-            if ($tx->status === 'paid') {
-                $totalAmountPaid += (int) $tx->payment_total;
-            } else {
-                $totalAmountPending += (int) $tx->payment_total;
-            }
+        if (!empty($supporter->supporters_email)) {
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are plugin-owned tables using the WordPress prefix
+            $donationStats = $wpdb->get_row($wpdb->prepare(
+                "SELECT COUNT(*) as donation_count, COALESCE(SUM(coffee_count), 0) as total_coffee
+                FROM {$supportersTable}
+                WHERE supporters_email = %s",
+                $supporter->supporters_email
+            ));
+
+            $transactionStats = $wpdb->get_row($wpdb->prepare(
+                "SELECT
+                    COALESCE(SUM(CASE WHEN t.status = %s THEN t.payment_total ELSE 0 END), 0) as total_paid,
+                    COALESCE(SUM(CASE WHEN t.status <> %s OR t.status IS NULL THEN t.payment_total ELSE 0 END), 0) as total_pending
+                FROM {$transactionsTable} t
+                INNER JOIN {$supportersTable} s ON s.id = t.entry_id
+                WHERE s.supporters_email = %s",
+                'paid',
+                'paid',
+                $supporter->supporters_email
+            ));
+            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        } else {
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are plugin-owned tables using the WordPress prefix
+            $donationStats = $wpdb->get_row($wpdb->prepare(
+                "SELECT COUNT(*) as donation_count, COALESCE(SUM(coffee_count), 0) as total_coffee
+                FROM {$supportersTable}
+                WHERE id = %d",
+                (int) $supporter->id
+            ));
+
+            $transactionStats = $wpdb->get_row($wpdb->prepare(
+                "SELECT
+                    COALESCE(SUM(CASE WHEN status = %s THEN payment_total ELSE 0 END), 0) as total_paid,
+                    COALESCE(SUM(CASE WHEN status <> %s OR status IS NULL THEN payment_total ELSE 0 END), 0) as total_pending
+                FROM {$transactionsTable}
+                WHERE entry_id = %d",
+                'paid',
+                'paid',
+                (int) $supporter->id
+            ));
+            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         }
 
-        $totalCoffee = 0;
-        foreach ($otherDonations as $value) {
-            $totalCoffee += floatval($value->coffee_count);
-        }
+        $totalAmountPaid = (int) ($transactionStats->total_paid ?? 0);
+        $totalAmountPending = (int) ($transactionStats->total_pending ?? 0);
+        $totalCoffee = (float) ($donationStats->total_coffee ?? 0);
+        $supporter->other_donations_total = (int) ($donationStats->donation_count ?? count($otherDonations));
 
         $currencySymbol = html_entity_decode(PaymentHelper::currencySymbol($supporter->currency), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $supporter->all_time_total_paid    = $currencySymbol . ' ' . ($totalAmountPaid / 100);
