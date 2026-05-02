@@ -1195,34 +1195,64 @@ class AdminAjaxHandler
     {
         global $wpdb;
 
+        $allowedTables = [
+            $wpdb->prefix . 'buymecoffee_transactions',
+            $wpdb->prefix . 'buymecoffee_subscriptions',
+            $wpdb->prefix . 'buymecoffee_supporters',
+        ];
+
+        if ($column !== 'id' || !in_array($table, $allowedTables, true)) {
+            return 0;
+        }
+
         $ids = $this->normalizeIds($ids);
         if (empty($ids)) {
             return 0;
         }
 
-        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
-        $sql = "DELETE FROM {$table} WHERE {$column} IN ({$placeholders})";
-        $prepared = call_user_func_array([$wpdb, 'prepare'], array_merge([$sql], $ids));
-        $result = $wpdb->query($prepared);
+        $deleted = 0;
+        foreach ($ids as $id) {
+            $result = $wpdb->delete($table, ['id' => (int) $id], ['%d']);
+            if ($result !== false) {
+                $deleted += (int) $result;
+            }
+        }
 
-        return $result === false ? 0 : (int) $result;
+        return $deleted;
     }
 
     private function deleteActivityRowsByObjectIds($table, $objectType, $ids)
     {
         global $wpdb;
 
+        if ($table !== $wpdb->prefix . 'buymecoffee_activities') {
+            return 0;
+        }
+
+        $allowedObjectTypes = ['payment', 'subscription', 'submission', 'email'];
+        $objectType = sanitize_key($objectType);
+        if (!in_array($objectType, $allowedObjectTypes, true)) {
+            return 0;
+        }
+
         $ids = $this->normalizeIds($ids);
         if (empty($ids)) {
             return 0;
         }
 
-        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
-        $sql = "DELETE FROM {$table} WHERE object_type = %s AND object_id IN ({$placeholders})";
-        $prepared = call_user_func_array([$wpdb, 'prepare'], array_merge([$sql, $objectType], $ids));
-        $result = $wpdb->query($prepared);
+        $deleted = 0;
+        foreach ($ids as $id) {
+            $result = $wpdb->delete(
+                $table,
+                ['object_type' => $objectType, 'object_id' => (int) $id],
+                ['%s', '%d']
+            );
+            if ($result !== false) {
+                $deleted += (int) $result;
+            }
+        }
 
-        return $result === false ? 0 : (int) $result;
+        return $deleted;
     }
 
     private function getReviewPromptSignals()
