@@ -1105,3 +1105,25 @@ form.wpm_submitting_form {
   25%  { opacity: 0.55; }
   100% { opacity: 0;    transform: translateY(-12px) scaleY(1.15); }
 }
+
+/* ─── Level-locked membership checkout ──── */
+.bmc-level-locked-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  padding: 16px 0 8px;
+}
+
+.bmc-level-locked-amount {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--bmc-accent, #0d9488);
+  letter-spacing: -0.5px;
+}
+
+.bmc-level-locked-interval {
+  font-size: 14px;
+  font-weight: 500;
+  color: #71717a;
+}

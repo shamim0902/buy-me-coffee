@@ -72,3 +72,66 @@ if (!function_exists('buymecoffee_user_has_active_subscription')) {
     }
 }
 
+if (!function_exists('buymecoffee_user_get_active_level_ids')) {
+    /**
+     * Return array of membership level IDs for which a WP user has an active subscription.
+     *
+     * @param int  $userId       WordPress user ID.
+     * @param bool $forceRefresh Recalculate from DB even when cached meta exists.
+     * @return int[]
+     */
+    function buymecoffee_user_get_active_level_ids($userId, $forceRefresh = false)
+    {
+        $userId = absint($userId);
+        if (!$userId) {
+            return [];
+        }
+
+        if (!$forceRefresh) {
+            $cached = get_user_meta($userId, 'buymecoffee_active_level_ids', true);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $supporters = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('wp_user_id', $userId)
+            ->select(['id'])
+            ->get();
+
+        if (empty($supporters)) {
+            update_user_meta($userId, 'buymecoffee_active_level_ids', []);
+            return [];
+        }
+
+        $supporterIds = [];
+        foreach ($supporters as $supporter) {
+            $supporterIds[] = (int) $supporter->id;
+        }
+
+        $activeStatuses = apply_filters('buymecoffee_active_subscription_statuses_for_access', ['active']);
+        if (empty($activeStatuses) || !is_array($activeStatuses)) {
+            $activeStatuses = ['active'];
+        }
+
+        $rows = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->whereIn('supporter_id', $supporterIds)
+            ->whereIn('status', $activeStatuses)
+            ->select(['level_id'])
+            ->get();
+
+        $levelIds = [];
+        foreach ($rows as $row) {
+            if (!empty($row->level_id)) {
+                $levelIds[] = (int) $row->level_id;
+            }
+        }
+
+        $levelIds = array_unique($levelIds);
+        update_user_meta($userId, 'buymecoffee_active_level_ids', $levelIds);
+
+        return $levelIds;
+    }
+}

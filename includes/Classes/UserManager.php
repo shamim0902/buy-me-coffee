@@ -180,5 +180,6 @@ class UserManager
     private function syncSubscriptionAccessMeta(int $userId): void
     {
         buymecoffee_user_has_active_subscription($userId, true);
+        delete_user_meta($userId, 'buymecoffee_active_level_ids');
     }
 }

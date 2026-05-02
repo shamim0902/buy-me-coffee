@@ -27,6 +27,7 @@ class DemoPage
         $this->loadTemplateStyles();
         $btnController = new Buttons();
         $template = $btnController->getButton();
+        $args = apply_filters('buymecoffee_form_render_args', $args);
         ob_start();
         include BUYMECOFFEE_DIR . 'includes/views/templates/FormShortCode.php';
         return ob_get_clean();
@@ -86,7 +87,7 @@ class DemoPage
                 'banner_image' => esc_url($bannerImage),
                 'name' => esc_html(ArrayHelper::get($template, 'yourName')),
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                'args' => static::getSanitizedArguments($args),
+                'args' => apply_filters('buymecoffee_form_render_args', static::getSanitizedArguments($args)),
             ]);
             exit();
         }

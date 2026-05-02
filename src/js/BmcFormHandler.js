@@ -179,12 +179,21 @@ class BmcFormHandler {
         this.form.data('wpm_selected_payment_method', paymentMethod.val());
         paymentMethod.parent().addClass('wpm_payment_active');
 
-        // Show recurring option only for Stripe
+        const isLevelLocked = this.form.hasClass('bmc-level-locked');
         const isStripe = paymentMethod.val() === 'stripe';
-        this.form.find('.buymecoffee_recurring_section').toggle(isStripe);
-        if (!isStripe) {
-            this.form.find('.buymecoffee_is_recurring').prop('checked', false);
-            this.toggleRecurringEmail(false);
+
+        if (isLevelLocked) {
+            // Level-locked: recurring is always on, show section only for Stripe
+            this.form.find('.buymecoffee_recurring_section').toggle(isStripe);
+            this.form.find('.buymecoffee_is_recurring').prop('checked', isStripe);
+            this.toggleRecurringEmail(isStripe);
+        } else {
+            // Normal: show recurring option only for Stripe
+            this.form.find('.buymecoffee_recurring_section').toggle(isStripe);
+            if (!isStripe) {
+                this.form.find('.buymecoffee_is_recurring').prop('checked', false);
+                this.toggleRecurringEmail(false);
+            }
         }
     }
 

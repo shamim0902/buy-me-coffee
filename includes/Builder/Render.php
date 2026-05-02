@@ -149,13 +149,37 @@ class Render
             $customAmount = intval($_GET['custom']);
         }
 
+        // Pre-populate form from membership level when arriving via paywall CTA
+        $bmcLevelId = 0;
+        if (!empty($args['bmc_level'])) {
+            $bmcLevel   = $args['bmc_level'];
+            $bmcLevelId = absint($bmcLevel->id);
+            $defaultAmount    = (int) round($bmcLevel->price / 100);
+            $customCoffeeDefault = $defaultAmount;
+            $allowRecurring   = true;
+            $recurringInterval = sanitize_text_field($bmcLevel->interval_type ?: 'month');
+        }
+
         ob_start();
         ?>
-        <form id="<?php echo esc_attr($formDynamicClass . '_main_wrapper');  ?>" class="buymecoffee_form" data-wpm_currency="<?php echo esc_html($currency); ?>">
+        <form id="<?php echo esc_attr($formDynamicClass . '_main_wrapper');  ?>" class="buymecoffee_form<?php echo $bmcLevelId ? ' bmc-level-locked' : ''; ?>" data-wpm_currency="<?php echo esc_html($currency); ?>"<?php echo $bmcLevelId ? ' data-bmc-level-id="' . absint($bmcLevelId) . '"' : ''; ?>>
             <input type="hidden" name="__buymecoffee_ref" value="<?php echo esc_html($template['yourName']); ?>"/>
             <input type="hidden" name="buymecoffee_quantity" value="1"/>
+            <?php if ($bmcLevelId): ?>
+            <input type="hidden" name="bmc_level_id" value="<?php echo absint($bmcLevelId); ?>"/>
+            <?php endif; ?>
             <div class="buymecoffee_payment_processor"></div>
-            <?php if (!$isCustomPay): ?>
+            <?php if ($bmcLevelId): ?>
+            <!-- Level-locked: show fixed amount, hide coffee selector -->
+            <div class="buymecoffee_input_content">
+                <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
+                       data-price="<?php echo esc_attr($defaultAmount * 100); ?>"/>
+            </div>
+            <div class="bmc-level-locked-info">
+                <span class="bmc-level-locked-amount"><?php echo esc_html($symbool . $defaultAmount); ?></span>
+                <span class="bmc-level-locked-interval">/<?php echo esc_html($recurringInterval === 'year' ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee')); ?></span>
+            </div>
+            <?php elseif (!$isCustomPay): ?>
             <div class="buymecoffee_input_content">
                 <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
                        data-price="<?php echo esc_attr($defaultAmount * 100); ?>"/>
@@ -243,6 +267,12 @@ class Render
             <?php
             $intervalLabel = $recurringInterval === 'year' ? __('yearly', 'buy-me-coffee') : __('monthly', 'buy-me-coffee');
             if ($allowRecurring) : ?>
+            <?php if ($bmcLevelId) : ?>
+            <!-- Level subscription: recurring is forced, checkbox pre-checked and hidden -->
+            <div class="buymecoffee_recurring_section" data-interval="<?php echo esc_attr($recurringInterval); ?>">
+                <input type="checkbox" class="buymecoffee_is_recurring" name="buymecoffee_is_recurring" value="yes" checked style="display:none;">
+            </div>
+            <?php else : ?>
             <div class="buymecoffee_recurring_section" style="display:none;" data-interval="<?php echo esc_attr($recurringInterval); ?>">
                 <label class="buymecoffee_recurring_label">
                     <input type="checkbox" class="buymecoffee_is_recurring" name="buymecoffee_is_recurring" value="yes">
@@ -250,6 +280,7 @@ class Render
                     <span class="buymecoffee_recurring_hint">(<?php echo esc_html(sprintf(/* translators: %s: billing interval, e.g. "monthly" */ __('billed %s', 'buy-me-coffee'), $intervalLabel)); ?>)</span>
                 </label>
             </div>
+            <?php endif; ?>
             <?php endif; ?>
 
             <div data-element_type="submit" class="buymecoffee_form_item buymecoffee_form_submit_wrapper">

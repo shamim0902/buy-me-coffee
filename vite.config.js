@@ -29,7 +29,8 @@ const inputs = {
     'css/BasicTemplate' : 'src/scss/public/BasicTemplate.scss',
 
     //Block Editor assets
-    'js/Editor/gutenBlock' : 'src/js/Editor/gutenBlock.jsx'
+    'js/Editor/gutenBlock'      : 'src/js/Editor/gutenBlock.jsx',
+    'js/Editor/postAccessPanel' : 'src/js/Editor/postAccessPanel.jsx'
 }
 export default defineConfig({
     base: './',

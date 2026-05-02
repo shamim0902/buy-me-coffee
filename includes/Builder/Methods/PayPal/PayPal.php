@@ -71,7 +71,7 @@ class PayPal extends BaseMethods
             // Test the credentials by getting access token
             $apiUrl = $mode === 'test'
                 ? 'https://api-m.sandbox.paypal.com/v1/oauth2/token'
-                : 'https://api.paypal.com/v1/oauth2/token';
+                : 'https://api-m.paypal.com/v1/oauth2/token';
 
             $auth = base64_encode($clientId . ':' . $clientSecret);
 

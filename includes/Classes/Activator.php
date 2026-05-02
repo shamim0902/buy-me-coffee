@@ -47,6 +47,7 @@ class Activator
         $this->createTransactionTable();
         $this->createSubscriptionsTable();
         $this->createActivitiesTable();
+        $this->createMembershipLevelsTable();
     }
 
     public function createSupportersTable()
@@ -136,10 +137,12 @@ class Activator
                 cancelled_at timestamp NULL,
                 created_at timestamp NULL,
                 updated_at timestamp NULL,
+                level_id int(11) DEFAULT NULL,
                 UNIQUE KEY bmc_sub_stripe_sub (stripe_subscription_id(191)),
                 KEY bmc_sub_supporter (supporter_id),
                 KEY bmc_sub_status (status),
-                KEY bmc_sub_created (created_at)
+                KEY bmc_sub_created (created_at),
+                KEY bmc_sub_lvl (level_id)
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
@@ -163,6 +166,30 @@ class Activator
                 created_at timestamp NULL,
                 KEY bmc_act_obj (object_type, object_id),
                 KEY bmc_act_time (created_at)
+        ) $charset_collate;";
+
+        $this->runSQL($sql, $table_name);
+    }
+
+    public function createMembershipLevelsTable()
+    {
+        global $wpdb;
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_name = $wpdb->prefix . 'buymecoffee_membership_levels';
+        $sql = "CREATE TABLE $table_name (
+                id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                name varchar(255) NOT NULL,
+                description text,
+                price int(11) NOT NULL DEFAULT 0,
+                interval_type varchar(50) NOT NULL DEFAULT 'month',
+                status varchar(50) NOT NULL DEFAULT 'active',
+                rewards longtext,
+                access_rules longtext,
+                sort_order int(11) NOT NULL DEFAULT 0,
+                created_at timestamp NULL,
+                updated_at timestamp NULL,
+                KEY bmc_lvl_status (status),
+                KEY bmc_lvl_sort (sort_order)
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);

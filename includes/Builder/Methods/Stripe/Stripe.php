@@ -61,6 +61,11 @@ class Stripe extends BaseMethods
             'public_key' => $keys['public']
         );
 
+        // Pass membership level ID through to subscription creation
+        if (!empty($form_data['bmc_level_id'])) {
+            $paymentArgs['bmc_level_id'] = absint($form_data['bmc_level_id']);
+        }
+
         $isRecurring = isset($form_data['is_recurring']) && $form_data['is_recurring'] === 'yes';
         if ($isRecurring) {
             $interval        = isset($form_data['recurring_interval']) ? sanitize_text_field($form_data['recurring_interval']) : 'month';
