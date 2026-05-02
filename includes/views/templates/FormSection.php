@@ -14,7 +14,8 @@ $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' 
 
 <div class="bmc-form-card <?php echo sanitize_text_field(Arr::get($template, 'advanced.formShadow')) == 'yes' ? 'bmc-form-card--shadow' : ''; ?>" style="<?php echo esc_attr($bmcAccentVars); ?>">
     <?php
-    if (isset($template['formTitle']) && sanitize_text_field($template['formTitle']) === 'yes'): ?>
+    $hasLevel = !empty($args['bmc_level']);
+    if (!$hasLevel && isset($template['formTitle']) && sanitize_text_field($template['formTitle']) === 'yes'): ?>
     <h3 class="bmc-form-card__title">
         <?php
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form parameters

@@ -61,6 +61,24 @@ class UserManager
 
         $this->linkUserToSupporter((int) $supporter->id, $userId);
         $this->syncSubscriptionAccessMeta($userId);
+
+        // Auto-login newly created users when the request comes from the browser (AJAX),
+        // not from a webhook (which has no browser session).
+        if (!empty($userData['created']) && !is_user_logged_in() && $this->isBrowserRequest()) {
+            wp_set_current_user($userId);
+            wp_set_auth_cookie($userId, true);
+        }
+    }
+
+    private function isBrowserRequest(): bool
+    {
+        // Webhook requests use the Stripe-Signature header; browser AJAX does not.
+        // Also check for the standard WP AJAX action which confirms it's a user-initiated request.
+        if (!empty($_SERVER['HTTP_STRIPE_SIGNATURE'])) {
+            return false;
+        }
+
+        return defined('DOING_AJAX') && DOING_AJAX;
     }
 
     public function handleSubscriptionCancelled($subscriptionId)

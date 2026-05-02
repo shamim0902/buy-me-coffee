@@ -1108,11 +1108,23 @@ form.wpm_submitting_form {
 
 /* ─── Level-locked membership checkout ──── */
 .bmc-level-locked-info {
+  text-align: center;
+  padding: 12px 0 8px;
+}
+
+.bmc-level-locked-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #18181b;
+  margin-bottom: 2px;
+}
+
+.bmc-level-locked-pricing {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 2px;
-  padding: 16px 0 8px;
 }
 
 .bmc-level-locked-amount {
@@ -1126,4 +1138,11 @@ form.wpm_submitting_form {
   font-size: 14px;
   font-weight: 500;
   color: #71717a;
+}
+
+.bmc-level-recurring-notice {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  text-align: center;
 }

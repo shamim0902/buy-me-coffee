@@ -24,6 +24,8 @@ class Stripe extends BaseMethods
             Vite::staticPath() . 'images/stripe.svg'
         );
 
+        $this->supports = ['one_time', 'subscription'];
+
         add_action('buymecoffee_make_payment_stripe', array($this, 'makePayment'), 10, 3);
         add_action("buymecoffee_ipn_endpoint_stripe", array($this, 'verifyIpn'), 10, 2);
         add_action('buymecoffee_get_payment_settings_stripe', array($this, 'getPaymentSettings'));

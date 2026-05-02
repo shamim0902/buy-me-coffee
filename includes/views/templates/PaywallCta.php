@@ -42,7 +42,9 @@ $ctaSubtext = !empty($settings['cta_subtext'])
                 $price    = (int) $level->price;
                 $interval = ($level->interval_type === 'year') ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee');
                 $rewards  = !empty($level->rewards) ? (array) $level->rewards : [];
-                $levelUrl = esc_url(add_query_arg('bmc_level_id', absint($level->id), $redirectUrl));
+                $levelUrl = add_query_arg('bmc_level_id', absint($level->id), $redirectUrl);
+                $levelUrl = add_query_arg('bmc_return_url', rawurlencode(get_permalink($postId)), $levelUrl);
+                $levelUrl = esc_url($levelUrl);
             ?>
             <div class="bmc-paywall__level">
                 <div class="bmc-paywall__level-header">

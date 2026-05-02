@@ -151,9 +151,11 @@ class Render
 
         // Pre-populate form from membership level when arriving via paywall CTA
         $bmcLevelId = 0;
+        $bmcLevelName = '';
         if (!empty($args['bmc_level'])) {
             $bmcLevel   = $args['bmc_level'];
             $bmcLevelId = absint($bmcLevel->id);
+            $bmcLevelName = sanitize_text_field($bmcLevel->name);
             $defaultAmount    = (int) round($bmcLevel->price / 100);
             $customCoffeeDefault = $defaultAmount;
             $allowRecurring   = true;
@@ -167,17 +169,26 @@ class Render
             <input type="hidden" name="buymecoffee_quantity" value="1"/>
             <?php if ($bmcLevelId): ?>
             <input type="hidden" name="bmc_level_id" value="<?php echo absint($bmcLevelId); ?>"/>
+            <?php
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only URL param
+            $bmcReturnUrl = isset($_GET['bmc_return_url']) ? esc_url_raw(wp_unslash($_GET['bmc_return_url'])) : '';
+            if ($bmcReturnUrl): ?>
+            <input type="hidden" name="bmc_return_url" value="<?php echo esc_url($bmcReturnUrl); ?>"/>
+            <?php endif; ?>
             <?php endif; ?>
             <div class="buymecoffee_payment_processor"></div>
             <?php if ($bmcLevelId): ?>
-            <!-- Level-locked: show fixed amount, hide coffee selector -->
+            <!-- Level-locked: show level name + fixed amount, hide coffee selector -->
             <div class="buymecoffee_input_content">
                 <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
                        data-price="<?php echo esc_attr($defaultAmount * 100); ?>"/>
             </div>
-            <div class="bmc-level-locked-info">
-                <span class="bmc-level-locked-amount"><?php echo esc_html($symbool . $defaultAmount); ?></span>
-                <span class="bmc-level-locked-interval">/<?php echo esc_html($recurringInterval === 'year' ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee')); ?></span>
+            <div class="bmc-level-locked-info" data-bmc-level-info>
+                <span class="bmc-level-locked-name"><?php echo esc_html($bmcLevelName); ?></span>
+                <div class="bmc-level-locked-pricing">
+                    <span class="bmc-level-locked-amount"><?php echo esc_html($symbool . $defaultAmount); ?></span>
+                    <span class="bmc-level-locked-interval">/<?php echo esc_html($recurringInterval === 'year' ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee')); ?></span>
+                </div>
             </div>
             <?php elseif (!$isCustomPay): ?>
             <div class="buymecoffee_input_content">
@@ -260,7 +271,7 @@ class Render
 
             <div class="buymecoffee_form_item buymecoffee_pay_methods" id="buymecoffee_pay_methods">
                 <div class="buymecoffee_pay_method" data-payment_selected="none">
-                    <?php echo esc_html(static::payMethod($template)); ?>
+                    <?php echo esc_html(static::payMethod($template, $bmcLevelId)); ?>
                 </div>
             </div>
 
@@ -268,9 +279,8 @@ class Render
             $intervalLabel = $recurringInterval === 'year' ? __('yearly', 'buy-me-coffee') : __('monthly', 'buy-me-coffee');
             if ($allowRecurring) : ?>
             <?php if ($bmcLevelId) : ?>
-            <!-- Level subscription: recurring is forced, checkbox pre-checked and hidden -->
-            <div class="buymecoffee_recurring_section" data-interval="<?php echo esc_attr($recurringInterval); ?>">
-                <input type="checkbox" class="buymecoffee_is_recurring" name="buymecoffee_is_recurring" value="yes" checked style="display:none;">
+            <div class="buymecoffee_recurring_section" style="display:none;" data-interval="<?php echo esc_attr($recurringInterval); ?>">
+                <input type="hidden" class="buymecoffee_is_recurring" name="buymecoffee_is_recurring" value="yes">
             </div>
             <?php else : ?>
             <div class="buymecoffee_recurring_section" style="display:none;" data-interval="<?php echo esc_attr($recurringInterval); ?>">
@@ -312,17 +322,29 @@ class Render
         return ob_get_clean();
     }
 
-    public static function payMethod($template)
+    public static function payMethod($template, $bmcLevelId = 0)
     {
         $methods = PaymentHandler::getAllMethods();
+        $requiresSubscription = (bool) $bmcLevelId;
         $hasActiveMethod = false;
 
         foreach ($methods as $method) {
-            if (isset($method['status']) && $method['status'] == 'yes') {
-                $hasActiveMethod = true;
-                do_action('buymecoffee_render_component_' . $method['route'], $template);
+            if (!isset($method['status']) || $method['status'] != 'yes') {
+                continue;
             }
+
+            // For subscription checkouts, only show gateways that support subscriptions
+            if ($requiresSubscription) {
+                $supports = isset($method['supports']) ? $method['supports'] : ['one_time'];
+                if (!in_array('subscription', $supports, true)) {
+                    continue;
+                }
+            }
+
+            $hasActiveMethod = true;
+            do_action('buymecoffee_render_component_' . $method['route'], $template);
         }
+
         if (!$hasActiveMethod) {
             return __("Please activate at least one payment method!", 'buy-me-coffee');
         }

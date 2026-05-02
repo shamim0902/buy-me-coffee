@@ -56,6 +56,11 @@ class BmcFormHandler {
             this.toggleRecurringEmail(e.target.checked);
         });
 
+        // Level-locked subscriptions: email is always required
+        if (this.form.hasClass('bmc-level-locked')) {
+            this.toggleRecurringEmail(true);
+        }
+
         this.form.on('submit', (e) => {
             e.preventDefault();
             this.handleFormSubmit(this.form);
@@ -80,9 +85,13 @@ class BmcFormHandler {
         }
     }
 
+    isRecurring(form) {
+        return form.find('.buymecoffee_is_recurring').is(':checked') || form.find('input.buymecoffee_is_recurring[type="hidden"]').val() === 'yes';
+    }
+
     handleFormSubmit(form) {
         // Validate email is present when recurring is selected
-        if (form.find('.buymecoffee_is_recurring').is(':checked')) {
+        if (this.isRecurring(form)) {
             const emailVal = form.find('input.wpm-supporter-email').val()?.trim();
             if (!emailVal) {
                 const emailField = form.find('[data-element_type="email"]');
@@ -113,7 +122,7 @@ class BmcFormHandler {
             payment_method: form.data('wpm_selected_payment_method'),
             currency: form.data('wpm_currency'),
             form_data: jQuery(form).serializeArray(),
-            is_recurring: form.find('.buymecoffee_is_recurring').is(':checked') ? 'yes' : 'no',
+            is_recurring: this.isRecurring(form) ? 'yes' : 'no',
             recurring_interval: form.find('.buymecoffee_recurring_section').data('interval') || 'month',
         });
 
@@ -183,10 +192,8 @@ class BmcFormHandler {
         const isStripe = paymentMethod.val() === 'stripe';
 
         if (isLevelLocked) {
-            // Level-locked: recurring is always on, show section only for Stripe
-            this.form.find('.buymecoffee_recurring_section').toggle(isStripe);
-            this.form.find('.buymecoffee_is_recurring').prop('checked', isStripe);
-            this.toggleRecurringEmail(isStripe);
+            // Level-locked: recurring section and email are always visible, don't touch them
+            return;
         } else {
             // Normal: show recurring option only for Stripe
             this.form.find('.buymecoffee_recurring_section').toggle(isStripe);

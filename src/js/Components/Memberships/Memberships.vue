@@ -31,21 +31,45 @@
           </div>
 
           <el-table :data="members" style="width:100%" v-loading="membersLoading" empty-text="No members yet">
-            <el-table-column prop="supporters_name" label="Name" min-width="140">
+            <el-table-column prop="supporters_name" label="Name" min-width="130">
               <template #default="{ row }">{{ row.supporters_name || 'Anonymous' }}</template>
             </el-table-column>
-            <el-table-column prop="supporters_email" label="Email" min-width="180" />
-            <el-table-column prop="level_name" label="Level" min-width="140">
+            <el-table-column prop="supporters_email" label="Email" min-width="170" />
+            <el-table-column prop="level_name" label="Level" min-width="120">
               <template #default="{ row }">
                 <span class="bmc-level-badge">{{ row.level_name || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" label="Joined" min-width="130">
-              <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+            <el-table-column label="Renews" min-width="120">
+              <template #default="{ row }">
+                <span v-if="row.status === 'active' && row.current_period_end">{{ formatDate(row.current_period_end) }}</span>
+                <span v-else-if="row.status === 'cancelled'" class="bmc-text-muted">Cancelled</span>
+                <span v-else class="bmc-text-muted">—</span>
+              </template>
             </el-table-column>
-            <el-table-column prop="status" label="Status" width="110">
+            <el-table-column prop="interval_type" label="Billing" width="90">
+              <template #default="{ row }">
+                <span class="bmc-text-muted">{{ row.interval_type === 'year' ? 'Yearly' : 'Monthly' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="Status" width="100">
               <template #default="{ row }">
                 <span class="bmc-status-badge" :class="'bmc-status-badge--' + row.status">{{ row.status }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column width="50" align="center">
+              <template #default="{ row }">
+                <el-dropdown trigger="click" @command="(cmd) => handleMemberAction(cmd, row)">
+                  <button class="bmc-actions-btn" type="button">
+                    <MoreHorizontal :size="16" />
+                  </button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="view_subscription">View subscription</el-dropdown-item>
+                      <el-dropdown-item v-if="row.status === 'active'" command="cancel" divided style="color:#dc2626">Cancel membership</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </template>
             </el-table-column>
           </el-table>
@@ -334,7 +358,7 @@
 
 <script setup>
 import { ref, computed, getCurrentInstance, onMounted } from 'vue';
-import { Trash2, Calendar, BookOpen, Video, FileText } from 'lucide-vue-next';
+import { Trash2, Calendar, BookOpen, Video, FileText, MoreHorizontal } from 'lucide-vue-next';
 import { ElMessageBox } from 'element-plus';
 import CoffeeLoader from '../UI/CoffeeLoader.vue';
 import PageTitle from '../UI/PageTitle.vue';
@@ -468,6 +492,29 @@ async function confirmDelete(level) {
   }
 }
 
+async function handleMemberAction(command, row) {
+  if (command === 'view_subscription') {
+    vm?.$router?.push({ name: 'SubscriptionDetail', params: { id: row.subscription_id } });
+  } else if (command === 'cancel') {
+    try {
+      await ElMessageBox.confirm(
+        `Cancel the membership for "${row.supporters_name || 'this member'}"? This will revoke their access to paid content.`,
+        'Cancel Membership',
+        { confirmButtonText: 'Cancel Membership', cancelButtonText: 'Keep', type: 'warning' }
+      );
+      const res = await adminPost('cancel_subscription', { id: row.subscription_id });
+      if (res?.success) {
+        toast.success('Membership cancelled.');
+        await fetchMembers();
+      } else {
+        toast.error(res?.data?.message || 'Failed to cancel membership.');
+      }
+    } catch {
+      // user cancelled dialog
+    }
+  }
+}
+
 onMounted(async () => {
   await Promise.all([fetchLevels(), fetchSettings(), fetchMembers()]);
   loading.value = false;
@@ -528,7 +575,12 @@ onMounted(async () => {
 .bmc-status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; text-transform: capitalize; }
 .bmc-status-badge--active { background: #dcfce7; color: #16a34a; }
 .bmc-status-badge--cancelled, .bmc-status-badge--canceled { background: #fee2e2; color: #dc2626; }
+.bmc-status-badge--incomplete { background: #e0e7ff; color: #4338ca; }
 .bmc-status-badge--pending { background: #fef9c3; color: #a16207; }
+
+.bmc-text-muted { color: var(--text-tertiary); font-size: 12.5px; }
+.bmc-actions-btn { background: none; border: 1px solid var(--border-secondary); border-radius: 6px; padding: 4px 6px; cursor: pointer; color: var(--text-tertiary); display: flex; align-items: center; transition: color .15s, border-color .15s; }
+.bmc-actions-btn:hover { color: var(--text-primary); border-color: var(--border-primary); }
 
 /* ─── Guide tab ─────────────────────────── */
 .bmc-guide-steps { display: flex; flex-direction: column; gap: 0; }

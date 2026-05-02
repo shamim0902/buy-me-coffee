@@ -257,11 +257,8 @@ class MembershipAjaxHandler
         $supTable     = $wpdb->prefix . 'buymecoffee_supporters';
         $levelsTable  = $wpdb->prefix . 'buymecoffee_membership_levels';
 
-        // Build WHERE clause
-        $where = $wpdb->prepare(
-            "WHERE {$subsTable}.status = %s AND {$subsTable}.level_id IS NOT NULL",
-            'active'
-        );
+        // Build WHERE clause — show all members with a level (active, cancelled, etc.)
+        $where = "WHERE {$subsTable}.level_id IS NOT NULL";
 
         if ($search) {
             $like = '%' . $wpdb->esc_like($search) . '%';
@@ -281,7 +278,10 @@ class MembershipAjaxHandler
         $offset = $page * $postsPerPage;
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are hardcoded
         $rows = $wpdb->get_results(
-            "SELECT {$subsTable}.id, {$subsTable}.created_at, {$subsTable}.status,"
+            "SELECT {$subsTable}.id, {$subsTable}.id as subscription_id,"
+            . " {$subsTable}.created_at, {$subsTable}.status,"
+            . " {$subsTable}.current_period_end, {$subsTable}.interval_type,"
+            . " {$subsTable}.amount, {$subsTable}.currency,"
             . " {$supTable}.supporters_name, {$supTable}.supporters_email,"
             . " {$levelsTable}.name as level_name"
             . " FROM {$subsTable} {$joins} {$where}"
