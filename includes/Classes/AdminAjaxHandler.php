@@ -1113,37 +1113,58 @@ class AdminAjaxHandler
 
     private function canAccessRoute($route)
     {
-        $readOnlyRoutes = [
-            'get_data',
-            'gateways',
-            'get_settings',
-            'get_weekly_revenue',
-            'get_supporters',
-            'get_top_supporters',
-            'get_supporter',
-            'status_report',
-            'get_email_notifications',
-            'get_subscriptions',
-            'get_subscription',
-            'get_subscription_stats',
-            'get_supporters_list',
-            'get_supporter_stats',
-            'get_supporter_settings',
-            'get_activities',
+        $menuOnlyRoutes = [
             'get_review_prompt',
-        ];
-
-        $topLevelWriteRoutes = [
             'dismiss_whats_new',
             'review_prompt_action',
         ];
 
-        if (in_array($route, $readOnlyRoutes, true)) {
+        $reportRoutes = [
+            'get_weekly_revenue',
+            'status_report',
+            'get_supporter_stats',
+        ];
+
+        $supporterDataRoutes = [
+            'get_supporters',
+            'get_top_supporters',
+            'get_supporter',
+            'get_supporters_list',
+            'get_supporter_settings',
+        ];
+
+        $paymentDataRoutes = [
+            'gateways',
+            'get_subscriptions',
+            'get_subscription',
+            'get_subscription_stats',
+            'get_activities',
+        ];
+
+        $settingsRoutes = [
+            'get_data',
+            'get_settings',
+            'get_email_notifications',
+        ];
+
+        if (in_array($route, $menuOnlyRoutes, true)) {
             return AccessControl::hasTopLevelMenuPermission();
         }
 
-        if (in_array($route, $topLevelWriteRoutes, true)) {
-            return AccessControl::hasTopLevelMenuPermission();
+        if (in_array($route, $reportRoutes, true)) {
+            return AccessControl::hasReportsPermission();
+        }
+
+        if (in_array($route, $supporterDataRoutes, true)) {
+            return AccessControl::hasSupporterDataPermission();
+        }
+
+        if (in_array($route, $paymentDataRoutes, true)) {
+            return AccessControl::hasPaymentDataPermission();
+        }
+
+        if (in_array($route, $settingsRoutes, true)) {
+            return AccessControl::hasSettingsPermission();
         }
 
         return AccessControl::hasFinancialPermission();

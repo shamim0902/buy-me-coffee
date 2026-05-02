@@ -22,10 +22,50 @@ class AccessControl
         $menuPermissions = array(
             'manage_options',
             'buy-me-coffee_full_access',
-            'buy-me-coffee_can_view_menus'
+            'buy-me-coffee_can_view_menus',
+            'buy-me-coffee_view_reports',
+            'buy-me-coffee_view_supporters',
+            'buy-me-coffee_view_payments',
+            'buy-me-coffee_manage_settings'
         );
 
         return self::hasCapability($menuPermissions);
+    }
+
+    public static function hasReportsPermission()
+    {
+        return self::hasCapability([
+            'manage_options',
+            'buy-me-coffee_full_access',
+            'buy-me-coffee_view_reports'
+        ]);
+    }
+
+    public static function hasSupporterDataPermission()
+    {
+        return self::hasCapability([
+            'manage_options',
+            'buy-me-coffee_full_access',
+            'buy-me-coffee_view_supporters'
+        ]);
+    }
+
+    public static function hasPaymentDataPermission()
+    {
+        return self::hasCapability([
+            'manage_options',
+            'buy-me-coffee_full_access',
+            'buy-me-coffee_view_payments'
+        ]);
+    }
+
+    public static function hasSettingsPermission()
+    {
+        return self::hasCapability([
+            'manage_options',
+            'buy-me-coffee_full_access',
+            'buy-me-coffee_manage_settings'
+        ]);
     }
 
     public static function hasFinancialPermission()
