@@ -194,16 +194,18 @@ class Supporters extends Model
 
         global $wpdb;
 
-        $supportersTable = $wpdb->prefix . 'buymecoffee_supporters';
+        $supportersTable   = $wpdb->prefix . 'buymecoffee_supporters';
         $transactionsTable = $wpdb->prefix . 'buymecoffee_transactions';
 
         if (!empty($supporter->supporters_email)) {
-            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are plugin-owned tables using the WordPress prefix
+            $supporterEmail = sanitize_email((string) $supporter->supporters_email);
+
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate queries with prepared supporter email.
             $donationStats = $wpdb->get_row($wpdb->prepare(
                 "SELECT COUNT(*) as donation_count, COALESCE(SUM(coffee_count), 0) as total_coffee
                 FROM {$supportersTable}
                 WHERE supporters_email = %s",
-                $supporter->supporters_email
+                $supporterEmail
             ));
 
             $transactionStats = $wpdb->get_row($wpdb->prepare(
@@ -215,16 +217,18 @@ class Supporters extends Model
                 WHERE s.supporters_email = %s",
                 'paid',
                 'paid',
-                $supporter->supporters_email
+                $supporterEmail
             ));
-            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         } else {
-            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are plugin-owned tables using the WordPress prefix
+            $supporterId = absint($supporter->id);
+
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate queries with prepared supporter ID.
             $donationStats = $wpdb->get_row($wpdb->prepare(
                 "SELECT COUNT(*) as donation_count, COALESCE(SUM(coffee_count), 0) as total_coffee
                 FROM {$supportersTable}
                 WHERE id = %d",
-                (int) $supporter->id
+                $supporterId
             ));
 
             $transactionStats = $wpdb->get_row($wpdb->prepare(
@@ -235,9 +239,9 @@ class Supporters extends Model
                 WHERE entry_id = %d",
                 'paid',
                 'paid',
-                (int) $supporter->id
+                $supporterId
             ));
-            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         }
 
         $totalAmountPaid = (int) ($transactionStats->total_paid ?? 0);
@@ -411,7 +415,7 @@ class Supporters extends Model
 
         // Use a single raw SQL query with LEFT JOINs to get aggregated data per unique email.
         // Anonymous donors (empty email) are grouped individually via COALESCE.
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix, dynamic WHERE is pre-prepared
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and dynamic WHERE fragments are prepared.
         $groupCol = "COALESCE(NULLIF(s.supporters_email, ''), CONCAT('anon_', s.id))";
 
         // $whereClause is either empty or built entirely from $wpdb->prepare() calls above.
@@ -439,7 +443,7 @@ class Supporters extends Model
             LIMIT %d OFFSET %d";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $postsPerPage, $offset));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         foreach ($results as $supporter) {
             $supporter->total_paid      = (int) $supporter->total_paid;
@@ -470,7 +474,7 @@ class Supporters extends Model
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
         $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query with fixed table identifiers.
         $stats = $wpdb->get_row("SELECT
             COUNT(DISTINCT COALESCE(NULLIF(s.supporters_email, ''), CONCAT('anon_', s.id))) as total_supporters,
             COALESCE(SUM(CASE WHEN t.status = 'paid' THEN t.payment_total ELSE 0 END), 0) as lifetime_revenue,
@@ -479,7 +483,7 @@ class Supporters extends Model
             FROM {$supTable} s
             LEFT JOIN {$txTable} t ON t.entry_id = s.id
         ");
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         $totalSupporters = (int) ($stats->total_supporters ?? 0);
         $lifetimeRevenue = (int) ($stats->lifetime_revenue ?? 0);
@@ -504,7 +508,7 @@ class Supporters extends Model
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
         $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned leaderboard aggregate query with fixed table identifiers.
         $sql = "SELECT
                 MAX(s.id) as latest_entry_id,
                 MAX(s.supporters_name) as supporters_name,
@@ -524,7 +528,7 @@ class Supporters extends Model
             LIMIT %d";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $limit));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         foreach ($results as $supporter) {
             $supporter->total_paid       = (int) $supporter->total_paid;
@@ -553,7 +557,7 @@ class Supporters extends Model
         $showMessage = ($settings['show_message'] ?? 'yes') === 'yes';
         $showAvatar  = ($settings['show_avatar'] ?? 'yes') === 'yes';
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names from $wpdb->prefix
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned public wall aggregate query with fixed table identifiers.
         $sql = "SELECT
                 MAX(s.supporters_name) as supporters_name,
                 s.supporters_email,
@@ -569,7 +573,7 @@ class Supporters extends Model
             LIMIT %d";
 
         $rows = $wpdb->get_results($wpdb->prepare($sql, $limit));
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         $result = [];
         $rank   = 0;

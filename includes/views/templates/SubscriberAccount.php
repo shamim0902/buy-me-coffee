@@ -1,4 +1,6 @@
-<?php if (!defined('ABSPATH')) exit;
+<?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
+if (!defined('ABSPATH')) exit;
 
 use BuyMeCoffee\Helpers\PaymentHelper;
 

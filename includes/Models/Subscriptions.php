@@ -67,23 +67,13 @@ class Subscriptions extends Model
 
     public function getStats()
     {
-        global $wpdb;
-
-        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
-
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is built from WordPress prefix and a plugin-owned table
-        $stats = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT
-                    COUNT(*) as active_count,
-                    COALESCE(SUM(CASE WHEN interval_type = %s THEN ROUND(amount / 12) ELSE amount END), 0) as mrr
-                FROM {$subscriptionsTable}
-                WHERE status = %s",
-                'year',
-                'active'
+        $stats = $this->getQuery()
+            ->select(
+                $this->raw('COUNT(*) as active_count'),
+                $this->raw("COALESCE(SUM(CASE WHEN interval_type = 'year' THEN ROUND(amount / 12) ELSE amount END), 0) as mrr")
             )
-        );
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            ->where('status', 'active')
+            ->first();
 
         $active_count = (int) ($stats->active_count ?? 0);
         $mrr = (int) ($stats->mrr ?? 0);

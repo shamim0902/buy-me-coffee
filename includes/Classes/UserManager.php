@@ -179,6 +179,6 @@ class UserManager
 
     private function syncSubscriptionAccessMeta(int $userId): void
     {
-        buy_me_coffee_user_has_active_subscription($userId, true);
+        buymecoffee_user_has_active_subscription($userId, true);
     }
 }

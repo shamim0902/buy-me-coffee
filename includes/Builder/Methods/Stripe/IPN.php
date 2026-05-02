@@ -18,9 +18,11 @@ class IPN
     {
         $postData = @file_get_contents('php://input');
 
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Stripe webhook fallback; authenticity is verified by re-fetching the event from Stripe.
         if (!$postData && !empty($_POST)) {
             $postData = wp_json_encode(stripslashes_deep($_POST));
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
 
         if (!$postData) {
             self::log('Payload is empty — no php://input data and no $_POST fallback');

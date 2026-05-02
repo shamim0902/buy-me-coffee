@@ -1,184 +1,197 @@
-=== Buy Me Coffee - Free Donation & Subscription Plugin for Stripe & PayPal ===
+=== Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
-Tags: donate, donation, stripe, fundraising, paypal
+Tags: buy me a coffee, donation, payments, stripe payments, fundraising
 Requires at least: 5.7
 Tested up to: 6.9
 Stable tag: 1.2.4
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
-Accept donations and recurring subscriptions with Stripe & PayPal. No commission, no third-party platform. Supporter wall, Gutenberg block, tip jar.
+Accept donations, tips, and recurring subscriptions with Stripe and PayPal. Zero commission, supporter wall, blocks, refunds, and activity logs.
 
 == Description ==
 
 [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.com/buymecoffee-demo) | [Visit Plugin Site](https://wpminers.com/buymecoffee)
 
-**Buy Me Coffee** is a free, lightweight WordPress donation plugin that lets you accept tips, donations, and recurring subscriptions directly to your own Stripe and PayPal accounts — with zero commission and no third-party platform in between.
+**Buy Me Coffee** is a free, lightweight WordPress donation plugin that lets you accept tips, one-time donations, and recurring monthly or yearly subscriptions directly into your own Stripe and PayPal accounts — with **zero commission** and no third-party platform in between.
 
-Unlike services like Buy Me a Coffee, Ko-fi, or Patreon that route payments through their platforms and take a cut, this plugin sends every penny directly to your merchant account. Your supporters pay you, not a middleman.
+Unlike Buy Me a Coffee, Ko-fi, or Patreon, which route payments through their own platforms and take a cut, this plugin sends every payment directly to your merchant account. Your supporters pay you — not a middleman.
 
 [youtube https://www.youtube.com/watch?v=m3T5LQ1DOEc&ab_channel=WPMiners]
 
 = Who Is This For? =
 
-Buy Me Coffee is built for anyone who creates value online and wants a simple way to accept support:
+Buy Me Coffee is built for anyone who creates value online and wants a direct, self-hosted way to accept donations and tips:
 
 * **Bloggers & Writers** — Add a "buy me a coffee" tip jar to any post or page
-* **Artists & Musicians** — Accept donations for your creative work
-* **Podcasters & YouTubers** — Let your audience support you directly
+* **Artists & Musicians** — Accept donations and one-time tips for your creative work
+* **Podcasters & YouTubers** — Let your audience support you directly without a middleman
 * **Open-Source Developers** — Fundraise for your project without a SaaS dependency
-* **Nonprofits & Charities** — Collect donations with Stripe or PayPal
-* **Educators & Coaches** — Accept recurring support from your community
+* **Nonprofits & Charities** — Collect donations with Stripe or PayPal, zero commission
+* **Educators & Coaches** — Accept monthly recurring support from your community
+* **Freelancers & Consultants** — Let clients or fans tip your work
+* **Church & Community Organizations** — Accept recurring giving on your own WordPress site
 
 = Why Choose Buy Me Coffee? =
 
-* **Zero commission, zero fees** — We never take a percentage of your donations. Free means free.
-* **Direct payments** — Stripe and PayPal deposit funds directly into YOUR account. No middleman platform, no delayed payouts.
-* **No account required** — Your supporters don't need to create an account on a third-party site. They just donate.
-* **Self-hosted & private** — All data stays on your WordPress site. No external tracking, no data harvesting.
-* **Built-in recurring subscriptions** — Monthly and yearly subscriptions via Stripe, included free. No paid addon required.
-* **Modern admin dashboard** — A beautiful Vue-powered admin panel with dark mode, not a dated WordPress settings page.
+* **Zero commission, zero fees** — We never take a percentage of your donations. Free means free, forever.
+* **Direct payments** — Stripe and PayPal deposit funds directly into YOUR bank account. No platform holding your money.
+* **No third-party account required** — Supporters don't need to sign up anywhere. They just donate.
+* **Self-hosted & private** — All donor data stays on your WordPress site. No external tracking, no data harvesting.
+* **Recurring subscriptions built-in** — Monthly and yearly Stripe subscriptions included free. No paid addon required.
+* **Modern admin dashboard** — A beautiful Vue 3-powered admin panel with dark mode, revenue charts, and activity logs.
+* **One-click refunds** — Refund any Stripe or PayPal transaction from inside WordPress — no need to log into your gateway dashboard.
+* **Full activity logging** — Every payment, renewal, cancellation, refund, and webhook event is recorded with a searchable timeline.
 
 = Key Features =
 
 **Accept Donations via Stripe & PayPal**
-On-site Stripe checkout and PayPal Pro let your visitors pay without ever leaving your site. Supports 135+ currencies via Stripe and 20+ via PayPal. Credit cards, debit cards, Apple Pay, Google Pay — whatever Stripe supports.
+On-site Stripe checkout and PayPal integration let your visitors donate without ever leaving your website. Supports 135+ currencies via Stripe and 20+ via PayPal. Credit cards, debit cards, Apple Pay, and Google Pay — whatever your visitors prefer.
 
-**Recurring Subscriptions (Stripe)**
-Let your supporters become long-term backers with monthly or yearly recurring donations. Full lifecycle management — automatic renewals via webhook, admin cancellation, status tracking, and a dedicated subscription management page.
+**Recurring Monthly & Yearly Donations (Stripe)**
+Let your supporters become long-term monthly or yearly backers with Stripe recurring subscriptions. Full lifecycle management is included: automatic renewals via webhook, admin cancellation from WordPress, subscription status tracking, and a dedicated subscriber account page. No paid addon required.
 
 **Supporter Wall & Donor Leaderboard**
-Display a beautiful ranked leaderboard of your top supporters on any page with the `[buymecoffee_supporters]` shortcode. Gold, silver, and bronze badges for your top 3 donors. Fully configurable — choose what to show (name, avatar, amount, message) from the admin settings.
+Display a beautiful ranked leaderboard of your top donors on any page with the `[buymecoffee_supporters]` shortcode. Gold, silver, and bronze badges highlight your top 3 supporters. Choose which fields to display (name, avatar, amount, message) from the admin settings.
 
 **Gutenberg Block & Shortcodes**
-Add a donation button or form anywhere using the native Gutenberg block, or use shortcodes for classic editors and widgets:
+Add a donation button, inline donation form, or full donation page anywhere on your site using the native Gutenberg block or classic-editor shortcodes:
 
-* `[buymecoffee_button]` — Donation button (opens modal or links to donation page)
-* `[buymecoffee_form]` — Inline donation form
-* `[buymecoffee_basic]` — Full-page donation template with banner, profile, and form
-* `[buymecoffee_supporters]` — Public supporter wall / donor leaderboard
-* `[buymecoffee_account]` — Subscriber account dashboard for logged-in supporters
+* `[buymecoffee_button]` — Donation button that opens a modal or links to your donation page
+* `[buymecoffee_form]` — Inline donation form embedded on any post or page
+* `[buymecoffee_basic]` — Full-page donation template with banner, profile, supporter wall, and form
+* `[buymecoffee_supporters]` — Public supporter wall / ranked donor leaderboard
+* `[buymecoffee_account]` — Subscriber self-service dashboard for logged-in recurring supporters
 
 **One-Click Refunds**
-Issue full refunds for Stripe and PayPal transactions directly from your admin panel. A confirmation modal shows transaction details and gateway response in real time — no need to log into your payment dashboard.
+Issue full refunds for Stripe and PayPal transactions directly from your WordPress admin. A confirmation modal displays transaction details and live gateway response — no need to visit your Stripe or PayPal dashboard.
 
 **Subscriber Account Page**
-Recurring supporters automatically get a WordPress user account linked to their subscription. Place the `[buymecoffee_account]` shortcode on any page to give them a self-service dashboard showing their active subscriptions and payment history.
+Recurring supporters are optionally assigned a WordPress user account linked to their subscription. Place the `[buymecoffee_account]` shortcode on any page to give them a self-service dashboard showing active subscriptions, billing history, and payment status.
 
-**Activity Logging**
-Every event is recorded — payments, refunds, subscription renewals, cancellations, webhook events, and emails. Each supporter and subscription has its own activity timeline. A global Activity Log page gives you a filterable, paginated view of everything happening across your site.
+**Complete Activity Logging**
+Every event is logged — payments, refunds, subscription renewals, cancellations, webhook events, and outgoing emails. Each supporter and subscription has its own chronological activity timeline. A global Activity Log page provides a filterable, paginated view across your entire donation history.
 
 **Email Notifications**
-Automatically send a thank-you email to donors after each successful payment and notify yourself with an admin alert. Both templates are fully editable with dynamic placeholders like `{{donor_name}}`, `{{amount}}`, and `{{payment_method}}`.
+Automatically send a branded thank-you email to donors after every successful payment, and receive an admin notification for each new donation. Both templates are fully customizable with dynamic placeholders: `{{donor_name}}`, `{{amount}}`, `{{payment_method}}`, and more.
 
 **Supporters Admin Hub**
-A dedicated admin page with:
+A dedicated admin hub with everything in one place:
 
-* **Metric cards** — Total supporters, lifetime revenue, active subscribers, average donation
-* **Top supporters ranking** — Your biggest backers at a glance
-* **Configurable display settings** — Control what appears on the public supporter wall
-* **Shortcode documentation** — Copy-paste shortcodes with descriptions
-* **Privacy controls** — Hide emails, allow anonymous donations
+* **Metric cards** — Total supporters, lifetime revenue, active subscribers, average donation amount
+* **Top supporters ranking** — Your highest-value donors at a glance
+* **Configurable display settings** — Control exactly what appears on the public supporter wall
+* **Shortcode documentation** — Copy-paste shortcodes with descriptions, inline in the admin
+* **Privacy controls** — Mask email addresses, allow anonymous donations, hide donor amounts
 
-**Customizable Appearance**
-Personalize your donation page with your profile image, banner photo, brand colors, and custom quote. A live preview updates as you make changes. All styling is handled through CSS variables — no bloated CSS overrides.
+**Customizable Donation Page Appearance**
+Personalize your donation page with a profile image, banner photo, brand accent color, and a custom quote. A live preview updates in real time as you make changes. Styling uses CSS custom properties — no bloated override rules.
 
-**Modern Admin Panel**
-The entire admin interface is built as a single-page application with Vue 3, featuring sidebar navigation, breadcrumbs, dark mode with system theme detection, and a responsive design that works on any screen size.
+**Modern Vue 3 Admin Panel**
+The entire admin interface is a single-page application built with Vue 3, featuring sidebar navigation, breadcrumbs, a revenue chart dashboard, dark mode with system theme detection, and a responsive layout that works on desktop and mobile.
 
-**Multisite Compatible**
-Activate network-wide on WordPress Multisite — each site gets its own isolated data, supporters, and settings.
+**WordPress Multisite Compatible**
+Activate network-wide on WordPress Multisite — each site gets its own isolated tables, supporter records, and plugin settings.
+
+**Guided Quick Setup Wizard**
+A 5-step onboarding wizard (Welcome → Profile → Form → Payment → Launch) gets you from zero to accepting donations in under two minutes. Includes Stripe API key verification and PayPal credentials setup.
+
+**Test Mode & Safe Data Reset**
+Switch between Stripe test mode and live mode without changing your configuration. A "Delete all test data" button removes test transactions, supporters, and subscriptions in one click so your dashboard stays clean.
 
 = Compare: Buy Me Coffee vs. Alternatives =
 
-**Buy Me Coffee (this plugin)**
-
-* 0% commission — you keep every cent
-* Direct payments to your own Stripe or PayPal account
-* Recurring subscriptions included free
-* Admin refunds from WordPress
-* Activity logging for every event
-* Supporter wall shortcode built in
-* Modern Vue SPA admin with dark mode
-* Self-hosted data — nothing stored externally
-* Free forever, no paid addons
-
-**Official Buy Me a Coffee Plugin**
-
-* 5% commission on every donation
-* Payments routed through their platform
-* Recurring subscriptions require a paid plan
-* No admin refunds, no activity logging
-* Basic widget — no full admin UI
-* Data stored on external servers
-
-**GiveWP Free**
-
-* 0% commission, direct payments
-* Recurring subscriptions require a paid addon
-* Supporter wall requires an addon
-* Traditional WordPress admin UI
-* Self-hosted data
-* Free core + paid addons for advanced features
-
-**Ko-fi Plugin**
-
-* Ko-fi takes 0% but the platform takes 5% on some features
-* Payments routed through Ko-fi platform
-* Recurring support via Ko-fi only
-* No admin refunds or activity logging
-* No WordPress admin UI — redirects to Ko-fi
-* Data stored on external servers
+| Feature | **Buy Me Coffee Plugin** | Official Buy Me a Coffee | GiveWP Free | Ko-fi Plugin |
+|---|---|---|---|---|
+| Commission | **0%** | 5% per donation | 0% | 0% (platform takes 5% on some features) |
+| Payment routing | **Direct to you** | Through their platform | Direct to you | Through Ko-fi |
+| Recurring subscriptions | **Included free** | Requires paid plan | Paid addon | Via Ko-fi only |
+| Admin refunds | **Yes, from WordPress** | No | No | No |
+| Activity logging | **Full event log** | None | None | None |
+| Supporter wall | **Built-in shortcode** | Basic widget | Addon required | None |
+| Admin UI | **Modern Vue SPA** | Basic widget | Traditional WP | Redirect to Ko-fi |
+| Data storage | **Self-hosted** | External servers | Self-hosted | External servers |
+| Dark mode | **Yes** | No | No | No |
+| Price | **Free forever** | Free + 5% cut | Free core + paid addons | Free + platform fees |
 
 = Get Started in 2 Minutes =
 
-1. Install and activate the plugin
+1. Install and activate the plugin from the WordPress plugin directory
 2. Run the Quick Setup wizard (Dashboard → Buy Me Coffee → Quick Setup)
-3. Connect your Stripe or PayPal account
-4. Add `[buymecoffee_button]` to any post or page
-5. Start receiving donations directly to your account
+3. Connect your Stripe or PayPal account in Settings
+4. Add `[buymecoffee_button]` to any post, page, or widget area
+5. Start receiving donations directly to your account — zero commission
 
 == Installation ==
-1. Download and upload the plugin files to `/wp-content/plugins/buy-me-coffee`, or install directly through the WordPress plugin screen.
+
+1. Download and upload the plugin files to `/wp-content/plugins/buy-me-coffee`, or install directly through the WordPress plugin screen using **Plugins → Add New → Search "Buy Me Coffee"**.
 2. Activate the plugin through the **Plugins** screen in WordPress.
-3. Go to **Dashboard → Buy Me Coffee → Quick Setup** to connect your payment gateway and configure your first donation form.
+3. Go to **Dashboard → Buy Me Coffee → Quick Setup** to connect your payment gateway and configure your donation form.
 
 == Frequently Asked Questions ==
 
 = Is this plugin really free? =
-Yes. Buy Me Coffee is 100% free with no premium version, no paid addons, and no commission on donations. We will never charge you a percentage of your earnings.
-
-= How do I accept donations? =
-Connect your Stripe or PayPal account in Settings, then add the `[buymecoffee_button]` shortcode or Gutenberg block to any page. Your visitors can donate via credit card, debit card, or PayPal.
-
-= Do you support recurring donations? =
-Yes. Stripe recurring subscriptions are built in — supporters can choose monthly or yearly billing. Renewals, cancellations, and status changes are handled automatically via webhooks.
+Yes. Buy Me Coffee is 100% free with no premium version, no paid addons, and no commission on donations. We will never charge you a percentage of your donations or earnings.
 
 = Is this a Buy Me a Coffee alternative? =
-Yes. Unlike the official Buy Me a Coffee platform which routes payments through their servers and takes a 5% cut, this plugin sends donations directly to your own Stripe or PayPal account with zero fees.
+Yes. Unlike the official Buy Me a Coffee platform which routes payments through their servers and charges a 5% fee, this plugin sends donations directly to your own Stripe or PayPal account with zero platform fees.
+
+= Is this a Ko-fi alternative? =
+Yes. Unlike Ko-fi which requires your supporters to use the Ko-fi platform and routes payments through their service, this plugin keeps everything on your own WordPress site with direct payments to your accounts.
+
+= Is this a Patreon alternative? =
+Yes. If you want to accept recurring monthly or yearly support from your community without giving Patreon a cut, this plugin provides built-in recurring subscriptions via Stripe — no third-party platform required.
+
+= How do I accept donations? =
+Connect your Stripe or PayPal account in the Settings page, then add the `[buymecoffee_button]` shortcode or Gutenberg block to any page. Your visitors can donate via credit card, debit card, Apple Pay, Google Pay, or PayPal.
+
+= Do you support recurring donations? =
+Yes. Stripe recurring subscriptions are fully built in — supporters can choose monthly or yearly billing intervals. Renewals, cancellations, payment failures, and status changes are handled automatically via Stripe webhooks. No paid addon is required.
 
 = What currencies are supported? =
 Stripe supports 135+ currencies. PayPal supports USD, EUR, GBP, CAD, AUD, and 15+ more. You can select your preferred currency in the plugin settings.
 
-= Can I display my supporters on the frontend? =
-Yes. Use the `[buymecoffee_supporters]` shortcode to display a ranked supporter wall / donor leaderboard. Configure which fields to show (name, avatar, amount, message) from the Supporters admin page.
+= Can I display my supporters publicly? =
+Yes. Use the `[buymecoffee_supporters]` shortcode to display a ranked supporter wall and donor leaderboard on any page. Configure which fields to show (name, avatar, amount, message) and privacy settings from the Supporters admin page.
 
-= Do supporters need an account? =
-No. One-time donations require no account. For recurring subscribers, the plugin can optionally auto-create a WordPress user account so they can manage their subscription via the `[buymecoffee_account]` shortcode.
+= Do donors need to create an account? =
+No. One-time donations require no account anywhere. For recurring subscribers, the plugin can optionally auto-create a WordPress user account so they can manage their subscription via the `[buymecoffee_account]` shortcode.
 
 = Can I issue refunds from WordPress? =
-Yes. Open any supporter's profile, click Refund Transaction, and the refund is processed through Stripe or PayPal in real time. The modal shows the gateway response and updated transaction status.
+Yes. Open any supporter's profile, click Refund Transaction, and the refund is processed through Stripe or PayPal in real time. The confirmation modal shows the live gateway response and updated transaction status.
+
+= Is there a tip jar shortcode? =
+Yes. The `[buymecoffee_button]` shortcode creates a donation/tip button on any page. The `[buymecoffee_form]` shortcode embeds an inline donation form. Both work as tip jars for blog posts, portfolios, or any page.
+
+= How do I add a donation button to a blog post? =
+Add `[buymecoffee_button]` anywhere inside the post content. You can also use the native Gutenberg block — search "Buy Me Coffee" in the block inserter to add it visually without a shortcode.
+
+= Can I set a suggested or default donation amount? =
+Yes. You can configure preset donation amounts and a default selected amount in the plugin's Form Settings. Donors can also enter a custom amount.
+
+= Is it compatible with page builders like Elementor or Divi? =
+Yes. The shortcodes work in any shortcode-capable widget or page builder area. The Gutenberg block works natively in the WordPress block editor.
 
 = Is it secure? =
-Yes. All payments are processed by Stripe and PayPal — we never see or store card details. The admin panel is protected by WordPress nonces and capability checks. Webhook payloads are verified by re-fetching the event from the Stripe API.
+Yes. All payments are processed directly by Stripe and PayPal — no card numbers or sensitive payment data ever touches your server. The admin panel is protected by WordPress nonces and user capability checks. Stripe webhook payloads are verified by re-fetching the event from the Stripe API rather than relying on signature alone.
 
 = Does it work with my theme? =
-Yes. The donation button, form, and supporter wall are designed to work with any properly-coded WordPress theme. Styles use scoped CSS classes that don't conflict with your theme.
+Yes. The donation button, form, and supporter wall are designed to work with any properly coded WordPress theme. Styles use scoped CSS classes and CSS custom properties that do not conflict with your theme's styles.
 
 = Does it support WordPress Multisite? =
-Yes. The plugin can be activated network-wide. Each site in the network gets its own isolated database tables, settings, and supporter data.
+Yes. The plugin can be activated network-wide. Each site in the network gets its own isolated database tables, settings, supporters, and donation records.
+
+= Can I customize the donation page appearance? =
+Yes. Upload a banner image, set a profile photo, choose your brand accent color, and write a custom quote. Changes appear in a live preview before you save. The `?share_coffee` URL parameter loads your full-page branded donation experience.
+
+= What email notifications does it send? =
+The plugin sends a thank-you email to the donor after each successful payment and an admin notification email to you. Both templates support custom HTML and dynamic merge tags including donor name, amount, and payment method.
+
+= Can I see a history of all donation activity? =
+Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded in an activity log. Each supporter profile has its own timeline. A global Activity Log page shows your complete donation history with filters and pagination.
 
 == Screenshots ==
+
 1. Admin Dashboard — Revenue chart, recent transactions, quick stats, and subscription overview
 2. Supporters Hub — Metric cards, top supporter ranking, display settings, and shortcode docs
 3. Supporter Profile — Transaction details, subscription info, payment history, and activity timeline
@@ -198,7 +211,7 @@ Yes. The plugin can be activated network-wide. Each site in the network gets its
 
 = 1.2.3 May 01, 2026 =
 - Adds Currency and number formatting
-- Adds Safe “Delete all test data” in one click
+- Adds Safe "Delete all test data" in one click
 
 = 1.2.2 April 30, 2026 =
 - Adds Redesigned 5-step onboarding wizard (Welcome, Profile, Form, Payment, Launch)
@@ -306,41 +319,3 @@ Redesigned onboarding wizard with PayPal setup, Stripe key verification, form co
 
 = 1.2.1 =
 Supporter wall shortcode, admin supporters hub with metrics and rankings, refund modal with gateway response, webhook fixes, and multiple bug fixes.
-
-# Development Docs
-
-#### CDN used for Payments:
-* [Stripe SDK](https://js.stripe.com/v3/)
-  is used to create a Stripe payment element and collect donations from your visitors. There is clear documentation on Stripe's website about how Stripe manages user data.
-
-* [PayPal SDK](https://developer.paypal.com/sdk/js/reference/)
-  is used to create a PayPal donation button and collect donations from your visitors. There is clear documentation on PayPal's website about how PayPal manages user data.
-
-#### 3rd Party services:
-* [Stripe](https://www.stripe.com)
-  is used to process payments. The client SDK is loaded from [js.stripe.com/v3/](https://js.stripe.com/v3/) and the server communicates with the [Stripe API](https://api.stripe.com/v1/). No card information is stored on your server — only the Stripe public key and secret key are saved in your WordPress database.
-  [Stripe Privacy Policy](https://stripe.com/privacy) | [Stripe Terms of Service](https://stripe.com/legal)
-
-* [PayPal](https://www.paypal.com/)
-  is used to process PayPal donations. The SDK is loaded from [paypal.com/sdk/js](https://www.paypal.com/sdk/js?client-id=) with your Client ID. IPN verification uses [ipnpb.paypal.com](https://ipnpb.paypal.com/cgi-bin/webscr) (live) and [ipnpb.sandbox.paypal.com](https://ipnpb.sandbox.paypal.com/cgi-bin/webscr) (test).
-  [PayPal Privacy Policy](https://www.paypal.com/us/legalhub/privacy-full) | [PayPal User Agreement](https://www.paypal.com/us/legalhub/useragreement-full)
-
-#### PHP library:
-* [WP Fluent DB](https://github.com/hasanuzzamanbe/wp-fluent/) — A lightweight database query builder for WordPress inspired by Laravel's Eloquent. Bundled in the plugin, no external data collection.
-
-#### NPM Packages:
-* [vue](https://www.npmjs.com/package/vue) — Vue 3 framework
-* [vue-router](https://www.npmjs.com/package/vue-router) — Client-side routing for the admin SPA
-* [element-plus](https://www.npmjs.com/package/element-plus) — Vue 3 UI component library
-* [@element-plus/icons-vue](https://www.npmjs.com/package/@element-plus/icons-vue) — Element Plus icon set
-* [lucide-vue-next](https://www.npmjs.com/package/lucide-vue-next) — Lucide icon components for Vue 3
-* [@fontsource/inter](https://www.npmjs.com/package/@fontsource/inter) — Self-hosted Inter typeface
-* [@wordpress/hooks](https://www.npmjs.com/package/@wordpress/hooks) — WordPress hooks system for JS
-* [chart.js](https://www.npmjs.com/package/chart.js) — Chart rendering for the dashboard
-* [clipboard](https://www.npmjs.com/package/clipboard) — Clipboard copy utility
-* [lodash](https://www.npmjs.com/package/lodash) — Utility library
-* [lodash-es](https://www.npmjs.com/package/lodash-es) — ES module build of lodash
-* [nanoid](https://www.npmjs.com/package/nanoid) — Tiny unique ID generator
-
-#### Contribution:
-Visit the [GitHub Repository](https://github.com/hasanuzzamanbe/buy-me-coffee) for source code, build scripts, and contribution guidelines.

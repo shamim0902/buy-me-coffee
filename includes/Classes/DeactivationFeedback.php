@@ -68,7 +68,8 @@ class DeactivationFeedback
             'other',
         ];
 
-        $rawReasons = isset($_POST['reasons']) ? wp_unslash($_POST['reasons']) : [];
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Values are unslashed, type-checked, and sanitized per item below.
+        $rawReasons = isset($_POST['reasons']) ? wp_unslash((array) $_POST['reasons']) : [];
         if (!is_array($rawReasons)) {
             $rawReasons = [];
         }

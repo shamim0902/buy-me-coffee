@@ -13,7 +13,7 @@ if (!function_exists('buyMeCoffeeQuery')) {
     }
 }
 
-if (!function_exists('buy_me_coffee_user_has_active_subscription')) {
+if (!function_exists('buymecoffee_user_has_active_subscription')) {
     /**
      * Check whether a WP user currently has an active Buy Me Coffee subscription.
      *
@@ -21,7 +21,7 @@ if (!function_exists('buy_me_coffee_user_has_active_subscription')) {
      * @param bool $forceRefresh Recalculate from DB even when cached meta exists.
      * @return bool
      */
-    function buy_me_coffee_user_has_active_subscription($userId, $forceRefresh = false)
+    function buymecoffee_user_has_active_subscription($userId, $forceRefresh = false)
     {
         $userId = absint($userId);
         if (!$userId) {
@@ -71,5 +71,4 @@ if (!function_exists('buy_me_coffee_user_has_active_subscription')) {
         return $hasActiveSubscription;
     }
 }
-
 

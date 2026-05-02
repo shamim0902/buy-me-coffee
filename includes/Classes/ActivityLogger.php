@@ -160,30 +160,38 @@ class ActivityLogger
 
         $actTable   = $wpdb->prefix . self::TABLE;
         $transTable = $wpdb->prefix . 'buymecoffee_transactions';
+        $page       = max(0, (int) $page);
+        $perPage    = max(1, min(100, (int) $perPage));
         $offset     = $page * $perPage;
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are safe constants
-        $where = $wpdb->prepare(
-            "(object_type IN ('submission','email') AND object_id = %d)
-              OR (object_type = 'payment' AND object_id IN (
-                   SELECT id FROM {$transTable} WHERE entry_id = %d
-              ))",
-            $supporterId,
-            $supporterId
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned tables require direct aggregate query.
+        $total = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$actTable}
+                WHERE (object_type IN ('submission','email') AND object_id = %d)
+                    OR (object_type = 'payment' AND object_id IN (
+                        SELECT id FROM {$transTable} WHERE entry_id = %d
+                    ))",
+                $supporterId,
+                $supporterId
+            )
         );
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- fully built above
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$actTable} WHERE {$where}");
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- fully built above
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned tables require direct paginated query.
         $logs = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$actTable} WHERE {$where} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                "SELECT * FROM {$actTable}
+                WHERE (object_type IN ('submission','email') AND object_id = %d)
+                    OR (object_type = 'payment' AND object_id IN (
+                        SELECT id FROM {$transTable} WHERE entry_id = %d
+                    ))
+                ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $supporterId,
+                $supporterId,
                 $perPage,
                 $offset
             )
         );
-        // phpcs:enable
 
         foreach ($logs as $log) {
             if (!empty($log->context)) {

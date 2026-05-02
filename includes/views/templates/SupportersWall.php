@@ -1,4 +1,6 @@
-<?php if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly ?>
+<?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template file with local variables
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly ?>
 
 <div class="buymecoffee-supporters-wall">
     <?php if ( empty( $supporters ) ) : ?>

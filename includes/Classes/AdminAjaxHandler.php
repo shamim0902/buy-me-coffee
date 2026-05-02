@@ -419,44 +419,97 @@ class AdminAjaxHandler
             ], 400);
         }
 
-        global $wpdb;
+        $testTransactionIds = $this->idsFromRows(
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('payment_mode', 'test')
+                ->select('id')
+                ->get()
+        );
 
-        $supportersTable    = $wpdb->prefix . 'buymecoffee_supporters';
-        $transactionsTable  = $wpdb->prefix . 'buymecoffee_transactions';
-        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
-        $activitiesTable    = $wpdb->prefix . 'buymecoffee_activities';
-
-        $testTransactionIds = $this->normalizeIds($wpdb->get_col(
-            $wpdb->prepare("SELECT id FROM {$transactionsTable} WHERE payment_mode = %s", 'test')
-        ));
-
-        $testSubscriptionIds = $this->normalizeIds($wpdb->get_col(
-            $wpdb->prepare("SELECT id FROM {$subscriptionsTable} WHERE payment_mode = %s", 'test')
-        ));
+        $testSubscriptionIds = $this->idsFromRows(
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('payment_mode', 'test')
+                ->select('id')
+                ->get()
+        );
 
         $candidateSupporterIds = $this->normalizeIds(array_merge(
-            (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$supportersTable} WHERE payment_mode = %s", 'test')),
-            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT entry_id FROM {$transactionsTable} WHERE payment_mode = %s AND entry_id > 0", 'test')),
-            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT supporter_id FROM {$subscriptionsTable} WHERE payment_mode = %s AND supporter_id > 0", 'test'))
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_supporters')
+                    ->where('payment_mode', 'test')
+                    ->select('id')
+                    ->get()
+            ),
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_transactions')
+                    ->where('payment_mode', 'test')
+                    ->where('entry_id', '>', 0)
+                    ->selectDistinct('entry_id')
+                    ->get(),
+                'entry_id'
+            ),
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_subscriptions')
+                    ->where('payment_mode', 'test')
+                    ->where('supporter_id', '>', 0)
+                    ->selectDistinct('supporter_id')
+                    ->get(),
+                'supporter_id'
+            )
         ));
 
         $liveSupporterIds = $this->normalizeIds(array_merge(
-            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT entry_id FROM {$transactionsTable} WHERE entry_id > 0 AND (payment_mode IS NULL OR payment_mode <> %s)", 'test')),
-            (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT supporter_id FROM {$subscriptionsTable} WHERE supporter_id > 0 AND (payment_mode IS NULL OR payment_mode <> %s)", 'test')),
-            (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$supportersTable} WHERE payment_mode IS NOT NULL AND payment_mode <> '' AND payment_mode <> %s", 'test'))
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_transactions')
+                    ->where('entry_id', '>', 0)
+                    ->where(function ($whereQuery) {
+                        $whereQuery->whereNull('payment_mode')
+                            ->orWhere('payment_mode', '<>', 'test');
+                    })
+                    ->selectDistinct('entry_id')
+                    ->get(),
+                'entry_id'
+            ),
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_subscriptions')
+                    ->where('supporter_id', '>', 0)
+                    ->where(function ($whereQuery) {
+                        $whereQuery->whereNull('payment_mode')
+                            ->orWhere('payment_mode', '<>', 'test');
+                    })
+                    ->selectDistinct('supporter_id')
+                    ->get(),
+                'supporter_id'
+            ),
+            $this->idsFromRows(
+                buyMeCoffeeQuery()
+                    ->table('buymecoffee_supporters')
+                    ->whereNotNull('payment_mode')
+                    ->where('payment_mode', '<>', '')
+                    ->where('payment_mode', '<>', 'test')
+                    ->select('id')
+                    ->get()
+            )
         ));
 
         $supporterIdsToDelete = array_values(array_diff($candidateSupporterIds, $liveSupporterIds));
 
         $deletedActivities = 0;
-        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'payment', $testTransactionIds);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'subscription', $testSubscriptionIds);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'submission', $supporterIdsToDelete);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds($activitiesTable, 'email', $supporterIdsToDelete);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds('payment', $testTransactionIds);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds('subscription', $testSubscriptionIds);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds('submission', $supporterIdsToDelete);
+        $deletedActivities += $this->deleteActivityRowsByObjectIds('email', $supporterIdsToDelete);
 
-        $deletedTransactions = $this->deleteRowsByIds($transactionsTable, 'id', $testTransactionIds);
-        $deletedSubscriptions = $this->deleteRowsByIds($subscriptionsTable, 'id', $testSubscriptionIds);
-        $deletedSupporters = $this->deleteRowsByIds($supportersTable, 'id', $supporterIdsToDelete);
+        $deletedTransactions = $this->deleteRowsByIds('buymecoffee_transactions', $testTransactionIds);
+        $deletedSubscriptions = $this->deleteRowsByIds('buymecoffee_subscriptions', $testSubscriptionIds);
+        $deletedSupporters = $this->deleteRowsByIds('buymecoffee_supporters', $supporterIdsToDelete);
 
         do_action('buymecoffee_test_data_deleted', [
             'transactions'  => $deletedTransactions,
@@ -1191,17 +1244,27 @@ class AdminAjaxHandler
         return array_values(array_unique($normalized));
     }
 
-    private function deleteRowsByIds($table, $column, $ids)
+    private function idsFromRows($rows, $field = 'id')
     {
-        global $wpdb;
+        $ids = [];
+        foreach ((array) $rows as $row) {
+            if (is_object($row) && isset($row->{$field})) {
+                $ids[] = $row->{$field};
+            }
+        }
 
+        return $this->normalizeIds($ids);
+    }
+
+    private function deleteRowsByIds($table, $ids)
+    {
         $allowedTables = [
-            $wpdb->prefix . 'buymecoffee_transactions',
-            $wpdb->prefix . 'buymecoffee_subscriptions',
-            $wpdb->prefix . 'buymecoffee_supporters',
+            'buymecoffee_transactions',
+            'buymecoffee_subscriptions',
+            'buymecoffee_supporters',
         ];
 
-        if ($column !== 'id' || !in_array($table, $allowedTables, true)) {
+        if (!in_array($table, $allowedTables, true)) {
             return 0;
         }
 
@@ -1210,25 +1273,14 @@ class AdminAjaxHandler
             return 0;
         }
 
-        $deleted = 0;
-        foreach ($ids as $id) {
-            $result = $wpdb->delete($table, ['id' => (int) $id], ['%d']);
-            if ($result !== false) {
-                $deleted += (int) $result;
-            }
-        }
-
-        return $deleted;
+        return (int) buyMeCoffeeQuery()
+            ->table($table)
+            ->whereIn('id', $ids)
+            ->delete();
     }
 
-    private function deleteActivityRowsByObjectIds($table, $objectType, $ids)
+    private function deleteActivityRowsByObjectIds($objectType, $ids)
     {
-        global $wpdb;
-
-        if ($table !== $wpdb->prefix . 'buymecoffee_activities') {
-            return 0;
-        }
-
         $allowedObjectTypes = ['payment', 'subscription', 'submission', 'email'];
         $objectType = sanitize_key($objectType);
         if (!in_array($objectType, $allowedObjectTypes, true)) {
@@ -1240,19 +1292,11 @@ class AdminAjaxHandler
             return 0;
         }
 
-        $deleted = 0;
-        foreach ($ids as $id) {
-            $result = $wpdb->delete(
-                $table,
-                ['object_type' => $objectType, 'object_id' => (int) $id],
-                ['%s', '%d']
-            );
-            if ($result !== false) {
-                $deleted += (int) $result;
-            }
-        }
-
-        return $deleted;
+        return (int) buyMeCoffeeQuery()
+            ->table('buymecoffee_activities')
+            ->where('object_type', $objectType)
+            ->whereIn('object_id', $ids)
+            ->delete();
     }
 
     private function getReviewPromptSignals()

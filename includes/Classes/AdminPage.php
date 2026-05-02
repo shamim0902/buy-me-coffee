@@ -13,9 +13,9 @@ class AdminPage
             return;
         }
 
-        // Auth check — redirect to login if not authorized
+        // Auth check - redirect to login if not authorized.
         if (!is_user_logged_in()) {
-            wp_redirect(wp_login_url(site_url('?buymecoffee_admin')));
+            wp_safe_redirect(wp_login_url(site_url('?buymecoffee_admin')));
             exit;
         }
 
@@ -52,7 +52,7 @@ class AdminPage
             'buy-me-coffee-inter-font',
             'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
             array(),
-            null
+            BUYMECOFFEE_VERSION
         );
 
         Vite::enqueueScript(
