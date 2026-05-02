@@ -67,26 +67,26 @@ class Subscriptions extends Model
 
     public function getStats()
     {
-        $active_count = (int) $this->getQuery()
-            ->where('status', 'active')
-            ->count();
+        global $wpdb;
 
-        // MRR: sum of monthly-normalised amounts for active subscriptions.
-        // Yearly amounts are divided by 12.
-        $rows = $this->getQuery()
-            ->select('amount', 'interval_type')
-            ->where('status', 'active')
-            ->get();
+        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
-        $mrr = 0;
-        foreach ($rows as $row) {
-            $amount = (int) $row->amount;
-            if ($row->interval_type === 'year') {
-                $mrr += (int) round($amount / 12);
-            } else {
-                $mrr += $amount;
-            }
-        }
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is built from WordPress prefix and a plugin-owned table
+        $stats = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT
+                    COUNT(*) as active_count,
+                    COALESCE(SUM(CASE WHEN interval_type = %s THEN ROUND(amount / 12) ELSE amount END), 0) as mrr
+                FROM {$subscriptionsTable}
+                WHERE status = %s",
+                'year',
+                'active'
+            )
+        );
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        $active_count = (int) ($stats->active_count ?? 0);
+        $mrr = (int) ($stats->mrr ?? 0);
 
         // Recent active subscriptions for dashboard widget
         $recent_rows = buyMeCoffeeQuery()
