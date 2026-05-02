@@ -101,18 +101,17 @@ Switch between Stripe test mode and live mode without changing your configuratio
 
 = Compare: Buy Me Coffee vs. Alternatives =
 
-| Feature | **Buy Me Coffee Plugin** | Official Buy Me a Coffee | GiveWP Free | Ko-fi Plugin |
-|---|---|---|---|---|
-| Commission | **0%** | 5% per donation | 0% | 0% (platform takes 5% on some features) |
-| Payment routing | **Direct to you** | Through their platform | Direct to you | Through Ko-fi |
-| Recurring subscriptions | **Included free** | Requires paid plan | Paid addon | Via Ko-fi only |
-| Admin refunds | **Yes, from WordPress** | No | No | No |
-| Activity logging | **Full event log** | None | None | None |
-| Supporter wall | **Built-in shortcode** | Basic widget | Addon required | None |
-| Admin UI | **Modern Vue SPA** | Basic widget | Traditional WP | Redirect to Ko-fi |
-| Data storage | **Self-hosted** | External servers | Self-hosted | External servers |
-| Dark mode | **Yes** | No | No | No |
-| Price | **Free forever** | Free + 5% cut | Free core + paid addons | Free + platform fees |
+Buy Me Coffee is built for direct, self-hosted donations instead of routing supporters through an external platform.
+
+* **Commission:** Buy Me Coffee takes 0%. Official Buy Me a Coffee takes a platform fee. GiveWP Free takes 0%. Ko-fi may charge platform fees for some features.
+* **Payment routing:** Buy Me Coffee sends payments directly to your Stripe or PayPal account. Official Buy Me a Coffee routes payments through its platform. GiveWP routes payments directly. Ko-fi routes payments through Ko-fi.
+* **Recurring subscriptions:** Buy Me Coffee includes Stripe subscriptions free. Official Buy Me a Coffee requires a paid plan. GiveWP requires a paid addon. Ko-fi subscriptions stay on Ko-fi.
+* **Admin refunds:** Buy Me Coffee supports Stripe and PayPal refunds from WordPress. The compared free alternatives do not include the same built-in WordPress refund workflow.
+* **Activity logging:** Buy Me Coffee includes a full payment, refund, subscription, webhook, and email event log.
+* **Supporter wall:** Buy Me Coffee includes a built-in `[buymecoffee_supporters]` shortcode.
+* **Admin UI:** Buy Me Coffee uses a modern Vue-powered WordPress admin screen with dark mode.
+* **Data storage:** Buy Me Coffee stores supporter and payment records on your WordPress site.
+* **Price:** Buy Me Coffee is free forever with no plugin commission.
 
 = Get Started in 2 Minutes =
 
