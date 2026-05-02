@@ -107,6 +107,11 @@ class Stripe extends BaseMethods
 
     private function activateMatchedSubscription($intentId, $requestedSubscriptionId)
     {
+        $requestedSubscriptionId = absint($requestedSubscriptionId);
+        if (!$requestedSubscriptionId) {
+            return false;
+        }
+
         $intent = (new API())->makeRequest(
             'payment_intents/' . $intentId,
             [],
@@ -124,17 +129,40 @@ class Stripe extends BaseMethods
         }
 
         $orderHash = sanitize_text_field(ArrayHelper::get($intent, 'metadata.ref_id', ''));
-        if (!$orderHash) {
+
+        $localSubscription = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->where('id', $requestedSubscriptionId)
+            ->first();
+
+        if (!$localSubscription) {
             return false;
         }
 
-        $supporter = (new Supporters())->getByHash($orderHash);
-        if (!$supporter || empty($supporter->transaction)) {
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', $requestedSubscriptionId)
+            ->where('payment_method', 'stripe')
+            ->first();
+
+        if (!$transaction || (int) $transaction->entry_id !== (int) $localSubscription->supporter_id) {
             return false;
         }
 
-        $actualSubscriptionId = (int) ($supporter->transaction->subscription_id ?? 0);
-        if ($actualSubscriptionId <= 0 || $actualSubscriptionId !== (int) $requestedSubscriptionId) {
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('id', (int) $localSubscription->supporter_id)
+            ->first();
+
+        if (!$supporter) {
+            return false;
+        }
+
+        if ($orderHash && (!hash_equals((string) $transaction->entry_hash, $orderHash) || !hash_equals((string) $supporter->entry_hash, $orderHash))) {
+            return false;
+        }
+
+        if (!$orderHash && !$this->intentBelongsToSubscription($intentId, $localSubscription)) {
             return false;
         }
 
@@ -142,11 +170,6 @@ class Stripe extends BaseMethods
             'status'     => 'active',
             'updated_at' => current_time('mysql'),
         ];
-
-        $localSubscription = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->where('id', $actualSubscriptionId)
-            ->first();
 
         if ($localSubscription && !empty($localSubscription->stripe_subscription_id)) {
             $stripeSubscription = (new API())->makeRequest(
@@ -164,9 +187,46 @@ class Stripe extends BaseMethods
             }
         }
 
-        (new Subscriptions())->updateData($actualSubscriptionId, $update);
+        (new Subscriptions())->updateData($requestedSubscriptionId, $update);
+        (new Supporters())->updateData((int) $supporter->id, [
+            'payment_status' => $intentStatus === 'succeeded' ? 'paid' : 'pending',
+            'updated_at'     => current_time('mysql'),
+        ]);
+        (new Transactions())->updateData((int) $transaction->id, [
+            'status'       => $intentStatus === 'succeeded' ? 'paid' : 'pending',
+            'charge_id'    => sanitize_text_field($intentId),
+            'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
+            'payment_note' => wp_json_encode($intent),
+            'updated_at'   => current_time('mysql'),
+        ]);
+
+        do_action('buymecoffee_subscription_activated', $requestedSubscriptionId);
 
         return true;
+    }
+
+    private function intentBelongsToSubscription($intentId, $subscription): bool
+    {
+        if (empty($subscription->stripe_subscription_id)) {
+            return false;
+        }
+
+        $invoices = (new API())->getList('invoices', [
+            'subscription' => sanitize_text_field($subscription->stripe_subscription_id),
+            'limit'        => 10,
+        ], StripeSettings::getKeys('secret'));
+
+        if (is_wp_error($invoices) || empty($invoices['data'])) {
+            return false;
+        }
+
+        foreach ($invoices['data'] as $invoice) {
+            if (!empty($invoice['payment_intent']) && hash_equals((string) $intentId, (string) $invoice['payment_intent'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function handleInlinePayment($transaction, $paymentArgs, $apiKey)

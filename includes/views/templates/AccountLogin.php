@@ -4,6 +4,7 @@
         <div class="bmc-account-login__icon">☕</div>
         <h2 class="bmc-account-login__title"><?php esc_html_e('Supporter Account', 'buy-me-coffee'); ?></h2>
         <p class="bmc-account-login__desc"><?php esc_html_e('Log in to view your subscriptions and manage your supporter profile.', 'buy-me-coffee'); ?></p>
+        <p class="bmc-account-login__notice"><?php esc_html_e('After subscribing, check your email for your account credentials and password setup link.', 'buy-me-coffee'); ?></p>
         <?php
         wp_login_form([
             'redirect'       => $redirect ?? get_permalink(),
@@ -20,7 +21,8 @@
 .bmc-account-login { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 40px 32px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
 .bmc-account-login__icon { font-size: 40px; margin-bottom: 12px; }
 .bmc-account-login__title { font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 8px; }
-.bmc-account-login__desc { font-size: 14px; color: #6b7280; margin: 0 0 24px; }
+.bmc-account-login__desc { font-size: 14px; color: #6b7280; margin: 0 0 12px; }
+.bmc-account-login__notice { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; color: #9a3412; font-size: 13px; line-height: 1.5; margin: 0 0 24px; padding: 10px 12px; }
 .bmc-account-login #loginform { text-align: left; }
 .bmc-account-login #loginform p { margin-bottom: 14px; }
 .bmc-account-login #loginform label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }

@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: buy me a coffee, donation, payments, stripe payments, fundraising
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.4
+Stable tag: 1.2.5
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -202,6 +202,11 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 8. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.5 May 02, 2026 =
+- Fixes Security audits
+- Improves different modules.
+- Fixes Stripe subscription confirmation mismatch errors and subscriber account creation emails.
 
 = 1.2.4 May 01, 2026 =
 - Adds Deactivation feedback modal with WPMiners feedback collection
