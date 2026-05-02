@@ -58,11 +58,9 @@ class UserManager
         }
 
         $userId = (int) $userData['user_id'];
-        $isCreated = !empty($userData['created']);
 
         $this->linkUserToSupporter((int) $supporter->id, $userId);
         $this->syncSubscriptionAccessMeta($userId);
-        $this->maybeAutoLogin($userId, $isCreated);
     }
 
     public function handleSubscriptionCancelled($subscriptionId)
@@ -96,30 +94,6 @@ class UserManager
         }
 
         $this->syncSubscriptionAccessMeta((int) $supporter->wp_user_id);
-    }
-
-    private function maybeAutoLogin(int $userId, bool $isCreated)
-    {
-        // Only auto-login during a front-end AJAX call (payment confirmation),
-        // and only for accounts created in this payment flow.
-        if (!$isCreated || !wp_doing_ajax() || is_user_logged_in()) {
-            return;
-        }
-
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- action guard for payment confirmation callbacks
-        $action = isset($_REQUEST['action']) ? sanitize_text_field(wp_unslash($_REQUEST['action'])) : '';
-        if (strpos($action, 'buymecoffee_payment_confirmation_') !== 0) {
-            return;
-        }
-
-        $user = get_user_by('ID', $userId);
-        if (!$user) {
-            return;
-        }
-
-        wp_set_current_user($userId);
-        wp_set_auth_cookie($userId, true, is_ssl());
-        do_action('wp_login', $user->user_login, $user);
     }
 
     private function getOrCreateUser(string $email, string $name): array
