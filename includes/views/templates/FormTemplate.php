@@ -42,10 +42,15 @@ $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' 
     <!-- ── Top Nav ── -->
     <nav class="bmc-nav">
         <div class="bmc-nav__left">
+            <?php if (!empty($profile_image)) : ?>
             <img class="bmc-nav__avatar"
                  src="<?php echo esc_url($profile_image); ?>"
                  alt="<?php echo esc_attr($name); ?>"
-                 data-field="image">
+                 data-field="image"
+                 onerror="this.style.display='none'">
+            <?php else : ?>
+            <span class="bmc-nav__avatar-fallback"><?php echo esc_html(mb_strtoupper(mb_substr($name, 0, 1))); ?></span>
+            <?php endif; ?>
             <span class="bmc-nav__name"><?php echo esc_html($name); ?></span>
         </div>
         <div class="bmc-nav__center"></div>
