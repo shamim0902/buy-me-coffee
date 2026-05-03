@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) exit;
 
 use BuyMeCoffee\Helpers\PaymentHelper;
+use BuyMeCoffee\Models\Subscriptions;
 
 $statusLabels = [
     'active'     => __('Active', 'buy-me-coffee'),
@@ -45,6 +46,7 @@ $statusLabels = [
                             <th><?php esc_html_e('Status', 'buy-me-coffee'); ?></th>
                             <th><?php esc_html_e('Next Renewal', 'buy-me-coffee'); ?></th>
                             <th><?php esc_html_e('Started', 'buy-me-coffee'); ?></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -52,6 +54,7 @@ $statusLabels = [
                             $amount = $sub->amount ? html_entity_decode(PaymentHelper::getFormattedAmount($sub->amount, $sub->currency), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '--';
                             $interval = ($sub->interval_type === 'year') ? __('Yearly', 'buy-me-coffee') : __('Monthly', 'buy-me-coffee');
                             $status = isset($statusLabels[$sub->status]) ? $statusLabels[$sub->status] : ucfirst($sub->status);
+                            $hasFutureAccess = $sub->status === 'cancelled' && Subscriptions::hasAccessValidity($sub);
                             $periodEnd = (!empty($sub->current_period_end) && $sub->current_period_end !== '0000-00-00 00:00:00')
                                 ? date_i18n(get_option('date_format'), strtotime($sub->current_period_end))
                                 : '--';
@@ -62,9 +65,28 @@ $statusLabels = [
                         <tr>
                             <td><?php echo esc_html($amount); ?></td>
                             <td><?php echo esc_html($interval); ?></td>
-                            <td><span class="bmc-sub-status bmc-sub-status--<?php echo esc_attr($sub->status); ?>"><?php echo esc_html($status); ?></span></td>
-                            <td><?php echo esc_html($periodEnd); ?></td>
+                            <td>
+                                <span class="bmc-sub-status bmc-sub-status--<?php echo esc_attr($sub->status); ?>"><?php echo esc_html($status); ?></span>
+                                <?php if ($hasFutureAccess) : ?>
+                                <span class="bmc-sub-access-hint"><?php echo esc_html(sprintf(/* translators: %s: date */ __('Access until %s', 'buy-me-coffee'), $periodEnd)); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?php echo esc_html($sub->status === 'active' ? $periodEnd : '--'); ?></td>
                             <td><?php echo esc_html($startedAt); ?></td>
+                            <td>
+                                <?php if ($sub->status === 'active') : ?>
+                                <div class="bmc-sub-actions">
+                                    <button type="button" class="bmc-sub-actions__trigger" aria-label="<?php esc_attr_e('Actions', 'buy-me-coffee'); ?>">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                    </button>
+                                    <div class="bmc-sub-actions__menu">
+                                        <button type="button" class="bmc-sub-actions__item bmc-sub-actions__item--danger" data-bmc-cancel-sub="<?php echo absint($sub->id); ?>">
+                                            <?php esc_html_e('Cancel subscription', 'buy-me-coffee'); ?>
+                                        </button>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -135,7 +157,7 @@ body { margin-top: 0 !important; }
 .bmc-account-back-link:hover { color: #1d4ed8; text-decoration: underline; }
 .bmc-account-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
 .bmc-account-card__title { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 16px; }
-.bmc-account-table-wrap { overflow-x: auto; }
+.bmc-account-table-wrap { overflow: visible; }
 .bmc-account-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .bmc-account-table th { text-align: left; padding: 8px 12px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
 .bmc-account-table td { padding: 10px 12px; color: #374151; border-bottom: 1px solid #f3f4f6; }
@@ -149,6 +171,84 @@ body { margin-top: 0 !important; }
 .bmc-sub-status--paid      { background: #dcfce7; color: #166534; }
 .bmc-sub-status--pending   { background: #fef9c3; color: #854d0e; }
 .bmc-sub-status--failed    { background: #fee2e2; color: #991b1b; }
+.bmc-sub-access-hint { display: block; font-size: 11px; color: #d97706; margin-top: 3px; }
 .bmc-receipt-link { font-size: 12px; font-weight: 500; color: #2563eb; text-decoration: none; white-space: nowrap; }
 .bmc-receipt-link:hover { text-decoration: underline; }
+
+/* Actions dropdown */
+.bmc-sub-actions { position: relative; display: inline-block; }
+.bmc-sub-actions__trigger { background: none; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 6px; cursor: pointer; color: #9ca3af; display: flex; align-items: center; transition: color .15s, border-color .15s; }
+.bmc-sub-actions__trigger:hover { color: #374151; border-color: #d1d5db; }
+.bmc-sub-actions__menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.1); min-width: 180px; z-index: 9999; padding: 4px; }
+.bmc-account-table { position: relative; }
+.bmc-account-table td { position: relative; }
+.bmc-sub-actions.bmc-sub-actions--open .bmc-sub-actions__menu { display: block; }
+.bmc-sub-actions__item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; font-size: 13px; color: #374151; cursor: pointer; border-radius: 6px; }
+.bmc-sub-actions__item:hover { background: #f3f4f6; }
+.bmc-sub-actions__item--danger { color: #dc2626; }
+.bmc-sub-actions__item--danger:hover { background: #fef2f2; }
 </style>
+
+<script>
+(function(){
+    // Toggle dropdown
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('.bmc-sub-actions__trigger');
+        var allMenus = document.querySelectorAll('.bmc-sub-actions');
+
+        if (trigger) {
+            e.stopPropagation();
+            var parent = trigger.closest('.bmc-sub-actions');
+            var isOpen = parent.classList.contains('bmc-sub-actions--open');
+            allMenus.forEach(function(m) { m.classList.remove('bmc-sub-actions--open'); });
+            if (!isOpen) parent.classList.add('bmc-sub-actions--open');
+            return;
+        }
+
+        allMenus.forEach(function(m) { m.classList.remove('bmc-sub-actions--open'); });
+    });
+
+    // Cancel subscription
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-bmc-cancel-sub]');
+        if (!btn) return;
+
+        var subId = btn.getAttribute('data-bmc-cancel-sub');
+        if (!subId) return;
+
+        // phpcs:ignore -- inline JS template
+        if (!confirm('<?php echo esc_js(__('Are you sure you want to cancel this subscription? You will lose access to member-only content.', 'buy-me-coffee')); ?>')) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '<?php echo esc_js(__('Cancelling...', 'buy-me-coffee')); ?>';
+
+        var formData = new FormData();
+        formData.append('action', 'buymecoffee_cancel_subscription');
+        formData.append('subscription_id', subId);
+        formData.append('buymecoffee_nonce', '<?php echo esc_js(wp_create_nonce('buymecoffee_nonce')); ?>');
+
+        fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.data?.message || '<?php echo esc_js(__('Failed to cancel subscription.', 'buy-me-coffee')); ?>');
+                btn.disabled = false;
+                btn.textContent = '<?php echo esc_js(__('Cancel subscription', 'buy-me-coffee')); ?>';
+            }
+        })
+        .catch(function() {
+            alert('<?php echo esc_js(__('Request failed. Please try again.', 'buy-me-coffee')); ?>');
+            btn.disabled = false;
+            btn.textContent = '<?php echo esc_js(__('Cancel subscription', 'buy-me-coffee')); ?>';
+        });
+    });
+})();
+</script>

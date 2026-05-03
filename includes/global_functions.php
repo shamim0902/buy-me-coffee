@@ -126,9 +126,31 @@ if (!function_exists('buymecoffee_get_supporter_ids_for_user')) {
 
 // ── Subscription access checks ──
 
+if (!function_exists('buymecoffee_subscription_access_where')) {
+    /**
+     * Build the WHERE clause for subscriptions that grant content access.
+     *
+     * A subscription grants access if:
+     *   - status is 'active', OR
+     *   - status is 'cancelled' but current_period_end is still in the future
+     *     (the subscriber already paid for this billing cycle)
+     *
+     * @param string $table  Fully-qualified subscriptions table name.
+     * @return string SQL WHERE fragment (without leading WHERE/AND).
+     */
+    function buymecoffee_subscription_access_where($table)
+    {
+        $now = current_time('mysql', true); // UTC
+        return "({$table}.status = 'active' OR ({$table}.status = 'cancelled' AND {$table}.current_period_end IS NOT NULL AND {$table}.current_period_end > '{$now}'))";
+    }
+}
+
 if (!function_exists('buymecoffee_user_has_active_subscription')) {
     /**
      * Check whether a WP user currently has an active Buy Me Coffee subscription.
+     *
+     * A subscription counts as active if its status is 'active', or if it was
+     * cancelled but the paid billing period (current_period_end) hasn't expired yet.
      *
      * Caches result in buymecoffee_supporters_meta (key: has_active_subscription).
      *
@@ -138,6 +160,8 @@ if (!function_exists('buymecoffee_user_has_active_subscription')) {
      */
     function buymecoffee_user_has_active_subscription($userId, $forceRefresh = false)
     {
+        global $wpdb;
+
         $userId = absint($userId);
         if (!$userId) {
             return false;
@@ -148,7 +172,6 @@ if (!function_exists('buymecoffee_user_has_active_subscription')) {
             return false;
         }
 
-        // Use the first supporter for meta storage
         $primarySupporterId = $supporterIds[0];
 
         if (!$forceRefresh) {
@@ -161,16 +184,15 @@ if (!function_exists('buymecoffee_user_has_active_subscription')) {
             }
         }
 
-        $activeStatuses = apply_filters('buymecoffee_active_subscription_statuses_for_access', ['active']);
-        if (empty($activeStatuses) || !is_array($activeStatuses)) {
-            $activeStatuses = ['active'];
-        }
+        $table        = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $placeholders = implode(',', array_fill(0, count($supporterIds), '%d'));
+        $accessWhere  = buymecoffee_subscription_access_where($table);
 
-        $activeCount = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->whereIn('supporter_id', $supporterIds)
-            ->whereIn('status', $activeStatuses)
-            ->count();
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name and access clause are hardcoded
+        $activeCount = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE supporter_id IN ({$placeholders}) AND {$accessWhere}",
+            ...$supporterIds
+        ));
 
         $hasActive = $activeCount > 0;
         buymecoffee_update_supporter_meta($primarySupporterId, 'has_active_subscription', $hasActive ? 'yes' : 'no');
@@ -181,7 +203,9 @@ if (!function_exists('buymecoffee_user_has_active_subscription')) {
 
 if (!function_exists('buymecoffee_user_get_active_level_ids')) {
     /**
-     * Return array of membership level IDs for which a WP user has an active subscription.
+     * Return array of membership level IDs for which a WP user has access.
+     *
+     * Includes cancelled subscriptions whose paid period hasn't expired yet.
      *
      * Caches result in buymecoffee_supporters_meta (key: active_level_ids).
      *
@@ -191,6 +215,8 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
      */
     function buymecoffee_user_get_active_level_ids($userId, $forceRefresh = false)
     {
+        global $wpdb;
+
         $userId = absint($userId);
         if (!$userId) {
             return [];
@@ -210,17 +236,15 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
             }
         }
 
-        $activeStatuses = apply_filters('buymecoffee_active_subscription_statuses_for_access', ['active']);
-        if (empty($activeStatuses) || !is_array($activeStatuses)) {
-            $activeStatuses = ['active'];
-        }
+        $table        = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $placeholders = implode(',', array_fill(0, count($supporterIds), '%d'));
+        $accessWhere  = buymecoffee_subscription_access_where($table);
 
-        $rows = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->whereIn('supporter_id', $supporterIds)
-            ->whereIn('status', $activeStatuses)
-            ->select(['level_id'])
-            ->get();
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name and access clause are hardcoded
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT level_id FROM {$table} WHERE supporter_id IN ({$placeholders}) AND {$accessWhere} AND level_id IS NOT NULL",
+            ...$supporterIds
+        ));
 
         $levelIds = [];
         foreach ($rows as $row) {

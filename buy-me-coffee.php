@@ -169,6 +169,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             require BUYMECOFFEE_DIR . 'includes/Models/MembershipLevel.php';
             require BUYMECOFFEE_DIR . 'includes/Controllers/MonetizationController.php';
             (new \BuyMeCoffee\Controllers\MonetizationController())->register();
+
+            // Account page AJAX (frontend subscription cancel)
+            require_once BUYMECOFFEE_DIR . 'includes/Classes/AccountPage.php';
+            (new \BuyMeCoffee\Classes\AccountPage())->registerAjax();
         }
 
         public function registerIpnHooks()
