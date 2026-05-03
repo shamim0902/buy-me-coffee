@@ -1,19 +1,21 @@
 === Buy Me a Coffee button & widgets - Fundraise with Stripe and PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
-Tags: buy me a coffee, donation, payments, stripe payments, fundraising
+Tags: buy me a coffee, donation, membership, paywall, stripe payments
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.5
+Stable tag: 1.2.6
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
-Accept donations, tips, and recurring subscriptions with Stripe and PayPal. Zero commission, supporter wall, blocks, refunds, and activity logs.
+Monetize posts with paid memberships, member-only content, donations, tips, and recurring subscriptions via Stripe and PayPal.
 
 == Description ==
 
 [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.com/buymecoffee-demo) | [Visit Plugin Site](https://wpminers.com/buymecoffee)
 
-**Buy Me Coffee** is a free, lightweight WordPress donation plugin that lets you accept tips, one-time donations, and recurring monthly or yearly subscriptions directly into your own Stripe and PayPal accounts — with **zero commission** and no third-party platform in between.
+**Buy Me Coffee** is a free, lightweight WordPress content monetization and donation plugin that lets you sell paid memberships, protect member-only posts, accept tips, receive one-time donations, and run recurring monthly or yearly subscriptions directly through your own Stripe and PayPal accounts — with **zero commission** and no third-party platform in between.
+
+**New in 1.2.6: Memberships and content monetization.** Create paid membership levels, lock premium posts or pages, show teaser content with a built-in paywall CTA, and let supporters become paying members without sending them to a third-party creator platform.
 
 Unlike Buy Me a Coffee, Ko-fi, or Patreon, which route payments through their own platforms and take a cut, this plugin sends every payment directly to your merchant account. Your supporters pay you — not a middleman.
 
@@ -31,9 +33,11 @@ Buy Me Coffee is built for anyone who creates value online and wants a direct, s
 * **Educators & Coaches** — Accept monthly recurring support from your community
 * **Freelancers & Consultants** — Let clients or fans tip your work
 * **Church & Community Organizations** — Accept recurring giving on your own WordPress site
+* **Membership Site Owners** — Monetize premium posts, tutorials, newsletters, lessons, downloads, or private updates with paid access levels
 
 = Why Choose Buy Me Coffee? =
 
+* **Memberships and content monetization** — Create paid membership levels, restrict premium posts, and convert readers into recurring members.
 * **Zero commission, zero fees** — We never take a percentage of your donations. Free means free, forever.
 * **Direct payments** — Stripe and PayPal deposit funds directly into YOUR bank account. No platform holding your money.
 * **No third-party account required** — Supporters don't need to sign up anywhere. They just donate.
@@ -45,11 +49,17 @@ Buy Me Coffee is built for anyone who creates value online and wants a direct, s
 
 = Key Features =
 
+**Memberships & Content Monetization**
+Turn your WordPress site into a self-hosted membership platform. Create paid membership levels with monthly or yearly pricing, descriptions, and reward bullets. Mark posts or pages as members-only from the editor, choose which membership levels can access each piece of content, and show non-members a word-limited preview followed by a polished paywall CTA. Active members get access automatically based on their subscription status.
+
 **Accept Donations via Stripe & PayPal**
 On-site Stripe checkout and PayPal integration let your visitors donate without ever leaving your website. Supports 135+ currencies via Stripe and 20+ via PayPal. Credit cards, debit cards, Apple Pay, and Google Pay — whatever your visitors prefer.
 
 **Recurring Monthly & Yearly Donations (Stripe)**
 Let your supporters become long-term monthly or yearly backers with Stripe recurring subscriptions. Full lifecycle management is included: automatic renewals via webhook, admin cancellation from WordPress, subscription status tracking, and a dedicated subscriber account page. No paid addon required.
+
+**Membership Members Dashboard**
+Manage active members from a dedicated Memberships screen. Search members by name or email, review their level, billing interval, renewal date, and subscription status, then jump directly to subscription details or cancel a membership when needed.
 
 **Supporter Wall & Donor Leaderboard**
 Display a beautiful ranked leaderboard of your top donors on any page with the `[buymecoffee_supporters]` shortcode. Gold, silver, and bronze badges highlight your top 3 supporters. Choose which fields to display (name, avatar, amount, message) from the admin settings.
@@ -101,10 +111,11 @@ Switch between Stripe test mode and live mode without changing your configuratio
 
 = Compare: Buy Me Coffee vs. Alternatives =
 
-Buy Me Coffee is built for direct, self-hosted donations instead of routing supporters through an external platform.
+Buy Me Coffee is built for direct, self-hosted donations and memberships instead of routing supporters through an external platform.
 
 * **Commission:** Buy Me Coffee takes 0%. Official Buy Me a Coffee takes a platform fee. GiveWP Free takes 0%. Ko-fi may charge platform fees for some features.
 * **Payment routing:** Buy Me Coffee sends payments directly to your Stripe or PayPal account. Official Buy Me a Coffee routes payments through its platform. GiveWP routes payments directly. Ko-fi routes payments through Ko-fi.
+* **Content monetization:** Buy Me Coffee includes paid membership levels, members-only content controls, and a built-in paywall CTA for premium posts and pages.
 * **Recurring subscriptions:** Buy Me Coffee includes Stripe subscriptions free. Official Buy Me a Coffee requires a paid plan. GiveWP requires a paid addon. Ko-fi subscriptions stay on Ko-fi.
 * **Admin refunds:** Buy Me Coffee supports Stripe and PayPal refunds from WordPress. The compared free alternatives do not include the same built-in WordPress refund workflow.
 * **Activity logging:** Buy Me Coffee includes a full payment, refund, subscription, webhook, and email event log.
@@ -140,6 +151,12 @@ Yes. Unlike Ko-fi which requires your supporters to use the Ko-fi platform and r
 
 = Is this a Patreon alternative? =
 Yes. If you want to accept recurring monthly or yearly support from your community without giving Patreon a cut, this plugin provides built-in recurring subscriptions via Stripe — no third-party platform required.
+
+= Can I monetize members-only posts? =
+Yes. Version 1.2.6 adds membership levels and post/page access controls. Create paid levels, mark content as Paid from the editor, choose allowed levels, and show non-members a teaser plus paywall CTA.
+
+= Can I create multiple membership tiers? =
+Yes. You can create multiple active membership levels with monthly or yearly pricing, descriptions, reward bullets, and content access rules.
 
 = How do I accept donations? =
 Connect your Stripe or PayPal account in the Settings page, then add the `[buymecoffee_button]` shortcode or Gutenberg block to any page. Your visitors can donate via credit card, debit card, Apple Pay, Google Pay, or PayPal.
@@ -195,12 +212,26 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 2. Supporters Hub — Metric cards, top supporter ranking, display settings, and shortcode docs
 3. Supporter Profile — Transaction details, subscription info, payment history, and activity timeline
 4. Subscription Management — Status, billing interval, payment history, and renewal tracking
-5. Donation Page — Customizable public template with banner, profile, supporter wall, and form
-6. Payment Settings — Stripe and PayPal configuration with test/live mode switching
-7. Guided Quick Setup — Step-by-step wizard to get started in minutes
-8. Global Settings — Form fields, currency, appearance, and email notification templates
+5. Memberships — Create membership levels, manage active members, and configure content monetization
+6. Members-Only Paywall — Teaser content with membership levels, pricing, rewards, and join CTA
+7. Donation Page — Customizable public template with banner, profile, supporter wall, and form
+8. Payment Settings — Stripe and PayPal configuration with test/live mode switching
+9. Guided Quick Setup — Step-by-step wizard to get started in minutes
+10. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.6 May 03, 2026 =
+- Adds Memberships as the headline monetization feature for paid content.
+- Adds membership levels with monthly or yearly pricing, descriptions, rewards, status controls, and checkout preview links.
+- Adds members-only post and page access controls in the editor with allowed membership levels and preview word counts.
+- Adds paywall CTA for restricted content with teaser content, level pricing, reward bullets, and return-to-content checkout flow.
+- Adds active members dashboard with search, level, renewal date, billing interval, subscription status, and quick subscription actions.
+- Adds membership members API and subscription detail links from member records.
+- Adds top navigation and admin UI refinements for a cleaner membership workflow.
+- Improves supporter/subscription links by using safer link tokens in admin tables.
+- Improves frontend route guards and disables development mode for production builds.
+- Fixes PayPal live-mode checkout and currency handling improvements from the release range.
 
 = 1.2.5 May 02, 2026 =
 - Fixes Security audits
@@ -318,6 +349,9 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 - Initial release
 
 == Upgrade Notice ==
+
+= 1.2.6 =
+Major content monetization release. Adds paid membership levels, members-only post/page access, paywall CTA, member management, and admin UI improvements. Recommended for creators monetizing premium content.
 
 = 1.2.2 =
 Redesigned onboarding wizard with PayPal setup, Stripe key verification, form configuration. New Supporters hub, public supporter wall, refund modal, and 15+ bug fixes. Recommended for all users.

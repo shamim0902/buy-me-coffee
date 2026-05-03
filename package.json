@@ -1,6 +1,6 @@
 {
   "name": "plugin_name",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "A WordPress boilerplate plugin using vue.js",
   "main": "index.js",
   "scripts": {

@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 ---
 
+## [1.2.6] — 2026-05-03
+
+### Added
+- Added **Memberships** as the plugin's primary content monetization feature.
+- Added membership levels with monthly or yearly pricing, descriptions, reward bullets, active/inactive status, and checkout preview links.
+- Added members-only post and page access controls for the editor, including allowed membership levels and custom preview word counts.
+- Added paywall CTA rendering for restricted content with teaser content, membership level pricing, reward bullets, and return-to-content checkout links.
+- Added active members dashboard with member search, level, renewal date, billing interval, subscription status, subscription detail links, and cancellation action.
+- Added membership members API endpoints and member/subscription linkage for admin workflows.
+- Added top navigation and admin layout refinements to make membership management easier to reach.
+
+### Changed
+- Made content monetization and memberships the headline release focus in the WordPress readme.
+- Improved supporter and subscription table links by using safer link tokens for supporter names.
+- Disabled development mode for production and tightened public/admin route guards.
+- Updated README imagery and release positioning for the new membership flow.
+
+### Fixed
+- Fixed PayPal live checkout endpoint and currency handling regressions included in the release range.
+- Fixed membership/admin UI polish issues from the new members workflow.
+
+---
+
 ## [1.2.5] — 2026-05-02
 
 ### Fixed

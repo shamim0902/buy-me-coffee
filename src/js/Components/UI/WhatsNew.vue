@@ -21,21 +21,21 @@
         <div class="wn-header">
           <div class="wn-version-badge">Version {{ version }}</div>
           <h2 id="wn-title" class="wn-title">What's New</h2>
-          <p class="wn-subtitle">Here's what's new and improved.</p>
+          <p class="wn-subtitle">Memberships and content monetization are here.</p>
         </div>
 
         <!-- Changelog -->
         <div class="wn-changelog">
           <section class="wn-release">
             <div class="wn-release__head">
-              <span class="wn-release__version">What's New in 1.2.4</span>
+              <span class="wn-release__version">What's New in 1.2.6</span>
             </div>
             <ul class="wn-release__list">
-              <li>Adds currency and number formatting.</li>
-              <li>Adds safe “Delete all test data” in one click.</li>
-              <li>Improves Quick Setup visibility after setup is complete.</li>
-              <li>Improves the admin page by suppressing stray WordPress notices.</li>
-              <li>Fixes translated placeholder compatibility for release checks.</li>
+              <li>Create paid membership levels with monthly or yearly pricing, descriptions, rewards, and active status controls.</li>
+              <li>Protect premium posts and pages from the editor with allowed membership levels and custom preview word counts.</li>
+              <li>Show non-members a teaser plus a built-in paywall CTA with level pricing, reward bullets, and join buttons.</li>
+              <li>Manage active members with search, renewal dates, billing intervals, subscription status, and quick subscription actions.</li>
+              <li>Improves the admin experience with top navigation, safer supporter links, and production route guards.</li>
             </ul>
           </section>
         </div>
@@ -43,7 +43,7 @@
         <!-- Footer CTA -->
         <div class="wn-footer">
           <button class="wn-btn-primary" @click="dismiss">Got it — let's go!</button>
-          <a href="https://wpminers.com/whats-new-in-buy-me-a-coffee-1-2-0/" target="_blank" rel="noopener" class="wn-more-link">View full changelog 1.2.x→</a>
+          <a href="https://wpminers.com/buymecoffee/" target="_blank" rel="noopener" class="wn-more-link">Learn more about Buy Me Coffee→</a>
         </div>
 
       </div>

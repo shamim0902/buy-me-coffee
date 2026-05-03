@@ -1,6 +1,6 @@
 # Buy Me a Coffee — WordPress Plugin
 
-> Accept one-time donations and recurring subscriptions via Stripe and PayPal — directly into your own account, with zero commission.
+> Monetize members-only content, accept one-time donations, and run recurring subscriptions via Stripe and PayPal — directly into your own account, with zero commission.
 
 
 <img width="2752" height="1536" alt="compress-main-banner" src="https://github.com/user-attachments/assets/910027c7-cc31-47a6-9928-c6c864a52705" />
@@ -11,7 +11,7 @@
 
 <img width="2752" height="1536" alt="example-section" src="https://github.com/user-attachments/assets/0b63171f-2212-4524-a079-4c36a506c629" />
 
-**Current version:** `1.2.5` · [Full Changelog](CHANGELOG.md)
+**Current version:** `1.2.6` · [Full Changelog](CHANGELOG.md)
 
 [Plugin Site](https://wpminers.com/buymecoffee/) · [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.com/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
 
@@ -32,6 +32,7 @@
 
 ## Why Buy Me a Coffee
 
+- Monetize posts and pages with paid membership levels and built-in paywall CTA
 - Accept one-time and recurring donations on your own WordPress site
 - Receive payments directly to your Stripe or PayPal account
 - Manage supporters, subscriptions, and activity from a modern admin dashboard
@@ -40,6 +41,12 @@
 ---
 
 ## What's New in 1.2.x
+
+### 1.2.6
+- **Memberships and content monetization** — create paid levels, protect posts/pages, and show a built-in paywall CTA
+- **Members dashboard** — search active members, view levels, renewal dates, billing intervals, and subscription status
+- **Post access controls** — choose allowed membership levels and teaser word counts from the editor
+- **Admin polish** — top navigation, safer supporter links, and production route guards
 
 ### 1.2.1
 - Adds Subscription management
@@ -66,6 +73,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete version history.
 
 | Capability | Details |
 |---|---|
+| Memberships | Paid levels with monthly/yearly pricing, rewards, active members, and content monetization |
+| Content access | Members-only posts/pages with editor controls, teaser previews, and paywall CTA |
 | Payments | Stripe (on-site) and PayPal Pro |
 | Recurring subscriptions | Monthly or yearly via Stripe with full webhook lifecycle |
 | Refunds | Stripe and PayPal refunds from the admin panel |
