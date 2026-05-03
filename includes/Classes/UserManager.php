@@ -45,6 +45,7 @@ class UserManager
 
         // Skip if already linked to a WP user
         if (!empty($supporter->wp_user_id)) {
+            $this->syncSubscriptionAccessMeta((int) $supporter->wp_user_id);
             return;
         }
 
