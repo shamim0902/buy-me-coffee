@@ -126,6 +126,9 @@
               <router-link :to="'/memberships/level/' + level.id" class="bmc-btn bmc-btn--outline bmc-btn--full">
                 Edit
               </router-link>
+              <a :href="previewUrl + '&bmc_level_id=' + level.id" target="_blank" class="bmc-level-card__action" title="Preview checkout">
+                <ExternalLink :size="14" />
+              </a>
               <button class="bmc-level-card__delete" @click="confirmDelete(level)" title="Delete">
                 <Trash2 :size="14" />
               </button>
@@ -358,7 +361,7 @@
 
 <script setup>
 import { ref, computed, getCurrentInstance, onMounted } from 'vue';
-import { Trash2, Calendar, BookOpen, Video, FileText, MoreHorizontal } from 'lucide-vue-next';
+import { Trash2, Calendar, BookOpen, Video, FileText, MoreHorizontal, ExternalLink } from 'lucide-vue-next';
 import { ElMessageBox } from 'element-plus';
 import CoffeeLoader from '../UI/CoffeeLoader.vue';
 import PageTitle from '../UI/PageTitle.vue';
@@ -404,6 +407,7 @@ const tabs = [
 ];
 
 
+const previewUrl = window.BuyMeCoffeeAdmin?.preview_url || '#';
 const active = computed(() => vm?.$route?.query?.tab || 'members');
 
 function setTab(key) {
@@ -543,6 +547,9 @@ onMounted(async () => {
 .bmc-level-card__reward-icon { color: var(--color-primary-500); flex-shrink: 0; }
 
 .bmc-level-card__footer { padding: 12px 20px 16px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border-secondary); }
+.bmc-level-card__delete { margin-left: auto; }
+.bmc-level-card__action { display: flex; align-items: center; justify-content: center; background: none; border: 1px solid var(--border-secondary); border-radius: 6px; padding: 6px 8px; cursor: pointer; color: var(--text-tertiary); text-decoration: none; transition: color .15s, border-color .15s; }
+.bmc-level-card__action:hover { color: var(--color-primary-600); border-color: var(--color-primary-400); }
 .bmc-level-card__delete { background: none; border: 1px solid var(--border-secondary); border-radius: 6px; padding: 6px 8px; cursor: pointer; color: var(--text-tertiary); transition: color .15s, border-color .15s; }
 .bmc-level-card__delete:hover { color: #ef4444; border-color: #ef4444; }
 
