@@ -165,6 +165,22 @@ class Stripe extends BaseMethods
             return false;
         }
 
+        $intentAmount = (int) ArrayHelper::get($intent, 'amount', 0);
+        if ($intentAmount <= 0) {
+            $intentAmount = (int) ArrayHelper::get($intent, 'amount_received', 0);
+        }
+
+        $expectedAmount = (int) $localSubscription->amount;
+        if ($intentAmount > 0 && $expectedAmount > 0 && $intentAmount !== $expectedAmount) {
+            return false;
+        }
+
+        $intentCurrency = strtolower(sanitize_text_field(ArrayHelper::get($intent, 'currency', '')));
+        $expectedCurrency = strtolower(sanitize_text_field($localSubscription->currency));
+        if ($intentCurrency && $expectedCurrency && $intentCurrency !== $expectedCurrency) {
+            return false;
+        }
+
         if ($orderHash && (!hash_equals((string) $transaction->entry_hash, $orderHash) || !hash_equals((string) $supporter->entry_hash, $orderHash))) {
             return false;
         }
