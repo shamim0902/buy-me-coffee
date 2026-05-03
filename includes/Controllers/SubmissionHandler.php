@@ -202,6 +202,12 @@ class SubmissionHandler
             return null;
         }
 
+        if (!MonetizationController::isMembershipActive()) {
+            wp_send_json_error([
+                'message' => __('New memberships are currently paused.', 'buy-me-coffee')
+            ], 400);
+        }
+
         if ($paymentMethod !== 'stripe') {
             wp_send_json_error([
                 'message' => __('Membership checkout is only available with Stripe.', 'buy-me-coffee')

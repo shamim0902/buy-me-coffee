@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
  *   $settings    — array from MonetizationController::getGlobalSettings()
  *   $postId      — int, current post ID
  *   $redirectUrl — string, the subscription form URL
+ *   $membershipPaused — bool, whether new member checkout is paused
  */
 
 use BuyMeCoffee\Helpers\PaymentHelper;
@@ -36,7 +37,11 @@ $ctaSubtext = !empty($settings['cta_subtext'])
         <h3 class="bmc-paywall__title"><?php echo esc_html($ctaHeading); ?></h3>
         <p class="bmc-paywall__subtext"><?php echo esc_html($ctaSubtext); ?></p>
 
-        <?php if (!empty($levels)): ?>
+        <?php if (!empty($membershipPaused)): ?>
+        <div class="bmc-paywall__no-levels">
+            <p class="bmc-paywall__subtext"><?php esc_html_e('New memberships are currently paused.', 'buy-me-coffee'); ?></p>
+        </div>
+        <?php elseif (!empty($levels)): ?>
         <div class="bmc-paywall__levels">
             <?php foreach ($levels as $level):
                 $price    = (int) $level->price;

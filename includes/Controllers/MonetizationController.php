@@ -73,6 +73,7 @@ class MonetizationController
         $allLevels   = self::getActiveLevels();
         $levels      = $this->filterLevelsForPost($postId, $allLevels);
         $settings    = self::getGlobalSettings();
+        $membershipPaused = !self::isMembershipActive();
         $redirectUrl = !empty($settings['redirect_url'])
             ? esc_url($settings['redirect_url'])
             : esc_url(home_url('/?share_coffee'));
@@ -116,6 +117,10 @@ class MonetizationController
 
     public function prePopulateFormFromLevel($args)
     {
+        if (!self::isMembershipActive()) {
+            return $args;
+        }
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only URL param, no state change
         if (!isset($_GET['bmc_level_id'])) {
             return $args;
@@ -155,6 +160,12 @@ class MonetizationController
 
         $saved = get_option('buymecoffee_membership_settings', []);
         return array_merge($defaults, is_array($saved) ? $saved : []);
+    }
+
+    public static function isMembershipActive()
+    {
+        $settings = self::getGlobalSettings();
+        return !empty($settings['membership_active']);
     }
 
     public static function getActiveLevels()
