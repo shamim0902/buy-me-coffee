@@ -25,20 +25,18 @@ if (!function_exists('buymecoffee_get_supporter_meta')) {
      */
     function buymecoffee_get_supporter_meta($supporterId, $key)
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'buymecoffee_supporters_meta';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $value = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$table} WHERE supporter_id = %d AND meta_key = %s LIMIT 1",
-            $supporterId,
-            $key
-        ));
+        $row = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters_meta')
+            ->where('supporter_id', absint($supporterId))
+            ->where('meta_key', sanitize_key($key))
+            ->select(['meta_value'])
+            ->first();
 
-        if ($value === null) {
+        if (!$row) {
             return null;
         }
 
-        return maybe_unserialize($value);
+        return maybe_unserialize($row->meta_value);
     }
 }
 
@@ -52,33 +50,28 @@ if (!function_exists('buymecoffee_update_supporter_meta')) {
      */
     function buymecoffee_update_supporter_meta($supporterId, $key, $value)
     {
-        global $wpdb;
-        $table      = $wpdb->prefix . 'buymecoffee_supporters_meta';
+        $supporterId = absint($supporterId);
+        $key        = sanitize_key($key);
         $serialized = maybe_serialize($value);
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE supporter_id = %d AND meta_key = %s LIMIT 1",
-            $supporterId,
-            $key
-        ));
+        $exists = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters_meta')
+            ->where('supporter_id', $supporterId)
+            ->where('meta_key', $key)
+            ->select(['id'])
+            ->first();
 
         if ($exists) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->update(
-                $table,
-                ['meta_value' => $serialized],
-                ['supporter_id' => $supporterId, 'meta_key' => $key],
-                ['%s'],
-                ['%d', '%s']
-            );
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_supporters_meta')
+                ->where('id', (int) $exists->id)
+                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Custom supporter meta table column, not a WP meta query.
+                ->update(['meta_value' => $serialized]);
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->insert(
-                $table,
-                ['supporter_id' => $supporterId, 'meta_key' => $key, 'meta_value' => $serialized],
-                ['%d', '%s', '%s']
-            );
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_supporters_meta')
+                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Custom supporter meta table columns, not WP meta queries.
+                ->insert(['supporter_id' => $supporterId, 'meta_key' => $key, 'meta_value' => $serialized]);
         }
     }
 }
@@ -92,10 +85,11 @@ if (!function_exists('buymecoffee_delete_supporter_meta')) {
      */
     function buymecoffee_delete_supporter_meta($supporterId, $key)
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'buymecoffee_supporters_meta';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->delete($table, ['supporter_id' => $supporterId, 'meta_key' => $key], ['%d', '%s']);
+        buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters_meta')
+            ->where('supporter_id', absint($supporterId))
+            ->where('meta_key', sanitize_key($key))
+            ->delete();
     }
 }
 
@@ -159,8 +153,6 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
      */
     function buymecoffee_user_get_active_level_ids($userId, $forceRefresh = false)
     {
-        global $wpdb;
-
         $userId = absint($userId);
         if (!$userId) {
             return [];
@@ -180,15 +172,20 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
             }
         }
 
-        $table        = $wpdb->prefix . 'buymecoffee_subscriptions';
-        $placeholders = implode(',', array_fill(0, count($supporterIds), '%d'));
-        $accessWhere  = buymecoffee_subscription_access_where($table);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name and access clause are hardcoded
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT level_id FROM {$table} WHERE supporter_id IN ({$placeholders}) AND {$accessWhere} AND level_id IS NOT NULL",
-            ...$supporterIds
-        ));
+        $rows = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->select(['level_id'])
+            ->whereIn('supporter_id', $supporterIds)
+            ->whereNotNull('level_id')
+            ->where(function ($whereQuery) {
+                $whereQuery->where('status', 'active')
+                    ->orWhere(function ($cancelledQuery) {
+                        $cancelledQuery->where('status', 'cancelled')
+                            ->whereNotNull('current_period_end')
+                            ->where('current_period_end', '>', current_time('mysql', true));
+                    });
+            })
+            ->get();
 
         $levelIds = [];
         foreach ($rows as $row) {

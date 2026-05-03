@@ -495,7 +495,6 @@ class PayPal extends BaseMethods
         $clientId = $mode === 'test' ? $settings['test_public_key'] : $settings['live_public_key'];
         $currency = PaymentHelper::getCurrency() ?: 'USD';
 
-        //phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
         wp_enqueue_script(
             'wpm-buymecoffee-checkout-sdk-' . $this->method,
             add_query_arg(
@@ -507,7 +506,7 @@ class PayPal extends BaseMethods
                 'https://www.paypal.com/sdk/js'
             ),
             [],
-            null,
+            BUYMECOFFEE_VERSION,
             false
         );
 

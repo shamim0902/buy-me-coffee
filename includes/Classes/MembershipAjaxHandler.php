@@ -17,7 +17,7 @@ class MembershipAjaxHandler
 
     public function handle($route)
     {
-        $data = isset($_REQUEST['data']) ? $this->sanitizeData(wp_unslash($_REQUEST['data'])) : []; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $data = isset($_REQUEST['data']) ? $this->sanitizeData(wp_unslash($_REQUEST['data'])) : []; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce/capability verified in AdminAjaxHandler before this catch-all route.
 
         switch ($route) {
             case 'get_membership_levels':
@@ -248,53 +248,62 @@ class MembershipAjaxHandler
 
     private function getMembershipMembers($data)
     {
-        global $wpdb;
-
         $page          = isset($data['page']) ? max(0, absint($data['page'])) : 0;
         $postsPerPage  = 20;
         $search        = isset($data['search']) ? sanitize_text_field($data['search']) : '';
 
-        $subsTable    = $wpdb->prefix . 'buymecoffee_subscriptions';
-        $supTable     = $wpdb->prefix . 'buymecoffee_supporters';
-        $levelsTable  = $wpdb->prefix . 'buymecoffee_membership_levels';
-
-        // Build WHERE clause — show members whose subscription currently grants access.
-        $accessWhere = buymecoffee_subscription_access_where($subsTable);
-        $where = "WHERE {$subsTable}.level_id IS NOT NULL AND {$accessWhere}";
-
-        if ($search) {
-            $like = '%' . $wpdb->esc_like($search) . '%';
-            $where .= $wpdb->prepare(
-                " AND ({$supTable}.supporters_name LIKE %s OR {$supTable}.supporters_email LIKE %s)",
-                $like,
-                $like
-            );
-        }
-
-        $joins = "LEFT JOIN {$supTable} ON {$subsTable}.supporter_id = {$supTable}.id"
-               . " LEFT JOIN {$levelsTable} ON {$subsTable}.level_id = {$levelsTable}.id";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are hardcoded
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$subsTable} {$joins} {$where}");
-
         $offset = $page * $postsPerPage;
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are hardcoded
-        $rows = $wpdb->get_results(
-            "SELECT {$subsTable}.id, {$subsTable}.id as subscription_id,"
-            . " {$subsTable}.created_at, {$subsTable}.status,"
-            . " {$subsTable}.current_period_end, {$subsTable}.interval_type,"
-            . " {$subsTable}.amount, {$subsTable}.currency,"
-            . " {$supTable}.supporters_name, {$supTable}.supporters_email,"
-            . " {$levelsTable}.name as level_name"
-            . " FROM {$subsTable} {$joins} {$where}"
-            . " ORDER BY {$subsTable}.created_at DESC"
-            . " LIMIT {$postsPerPage} OFFSET {$offset}"
-        );
+        $query = $this->buildMembershipMembersQuery($search);
+        $total = (int) $this->buildMembershipMembersQuery($search)->count();
+        $rows = $query
+            ->select(
+                'buymecoffee_subscriptions.id',
+                'buymecoffee_subscriptions.id as subscription_id',
+                'buymecoffee_subscriptions.created_at',
+                'buymecoffee_subscriptions.status',
+                'buymecoffee_subscriptions.current_period_end',
+                'buymecoffee_subscriptions.interval_type',
+                'buymecoffee_subscriptions.amount',
+                'buymecoffee_subscriptions.currency',
+                'buymecoffee_supporters.supporters_name',
+                'buymecoffee_supporters.supporters_email',
+                'buymecoffee_membership_levels.name as level_name'
+            )
+            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
+            ->limit($postsPerPage)
+            ->offset($offset)
+            ->get();
 
         wp_send_json_success([
             'members' => $rows ?: [],
             'total'   => $total,
         ]);
+    }
+
+    private function buildMembershipMembersQuery($search)
+    {
+        $query = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
+            ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_subscriptions.level_id', '=', 'buymecoffee_membership_levels.id')
+            ->whereNotNull('buymecoffee_subscriptions.level_id')
+            ->where(function ($whereQuery) {
+                $whereQuery->where('buymecoffee_subscriptions.status', 'active')
+                    ->orWhere(function ($cancelledQuery) {
+                        $cancelledQuery->where('buymecoffee_subscriptions.status', 'cancelled')
+                            ->whereNotNull('buymecoffee_subscriptions.current_period_end')
+                            ->where('buymecoffee_subscriptions.current_period_end', '>', current_time('mysql', true));
+                    });
+            });
+
+        if ($search) {
+            $query->where(function ($whereQuery) use ($search) {
+                $whereQuery->where('buymecoffee_supporters.supporters_name', 'LIKE', '%' . $search . '%')
+                    ->orWhere('buymecoffee_supporters.supporters_email', 'LIKE', '%' . $search . '%');
+            });
+        }
+
+        return $query;
     }
 
     private function sendMembershipInvite($data)
