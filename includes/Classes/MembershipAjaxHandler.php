@@ -18,6 +18,9 @@ class MembershipAjaxHandler
     public function handle($route)
     {
         $data = isset($_REQUEST['data']) ? $this->sanitizeData(wp_unslash($_REQUEST['data'])) : []; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce/capability verified in AdminAjaxHandler before this catch-all route.
+        if (!is_array($data)) {
+            $data = [];
+        }
 
         switch ($route) {
             case 'get_membership_levels':
@@ -248,36 +251,46 @@ class MembershipAjaxHandler
 
     private function getMembershipMembers($data)
     {
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        $this->maybeBackfillMembershipLevelIds();
+
         $page          = isset($data['page']) ? max(0, absint($data['page'])) : 0;
         $postsPerPage  = 20;
         $search        = isset($data['search']) ? sanitize_text_field($data['search']) : '';
 
         $offset = $page * $postsPerPage;
-        $query = $this->buildMembershipMembersQuery($search);
-        $total = (int) $this->buildMembershipMembersQuery($search)->count();
-        $rows = $query
-            ->select(
-                'buymecoffee_subscriptions.id',
-                'buymecoffee_subscriptions.id as subscription_id',
-                'buymecoffee_subscriptions.created_at',
-                'buymecoffee_subscriptions.status',
-                'buymecoffee_subscriptions.current_period_end',
-                'buymecoffee_subscriptions.interval_type',
-                'buymecoffee_subscriptions.amount',
-                'buymecoffee_subscriptions.currency',
-                'buymecoffee_supporters.supporters_name',
-                'buymecoffee_supporters.supporters_email',
-                'buymecoffee_membership_levels.name as level_name'
-            )
-            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
-            ->limit($postsPerPage)
-            ->offset($offset)
-            ->get();
+        $result = $this->queryMembershipMembers($search, $postsPerPage, $offset);
 
         wp_send_json_success([
-            'members' => $rows ?: [],
-            'total'   => $total,
+            'members' => $result['rows'],
+            'total'   => $result['total'],
         ]);
+    }
+
+    private function queryMembershipMembers($search, $limit, $offset)
+    {
+        $rows = $this->buildMembershipMembersQuery($search)
+            ->select([
+                'buymecoffee_subscriptions.*',
+                'buymecoffee_supporters.supporters_name',
+                'buymecoffee_supporters.supporters_email',
+                'buymecoffee_subscriptions.id'       => 'subscription_id',
+                'buymecoffee_membership_levels.name' => 'level_name',
+            ])
+            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
+            ->limit(absint($limit))
+            ->offset(absint($offset))
+            ->get();
+
+        $total = (int) $this->buildMembershipMembersQuery($search)->count();
+
+        return [
+            'rows'  => $rows ?: [],
+            'total' => $total,
+        ];
     }
 
     private function buildMembershipMembersQuery($search)
@@ -287,6 +300,7 @@ class MembershipAjaxHandler
             ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
             ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_subscriptions.level_id', '=', 'buymecoffee_membership_levels.id')
             ->whereNotNull('buymecoffee_subscriptions.level_id')
+            ->where('buymecoffee_subscriptions.level_id', '>', 0)
             ->where(function ($whereQuery) {
                 $whereQuery->where('buymecoffee_subscriptions.status', 'active')
                     ->orWhere(function ($cancelledQuery) {
@@ -296,7 +310,7 @@ class MembershipAjaxHandler
                     });
             });
 
-        if ($search) {
+        if ($search !== '') {
             $query->where(function ($whereQuery) use ($search) {
                 $whereQuery->where('buymecoffee_supporters.supporters_name', 'LIKE', '%' . $search . '%')
                     ->orWhere('buymecoffee_supporters.supporters_email', 'LIKE', '%' . $search . '%');
@@ -304,6 +318,57 @@ class MembershipAjaxHandler
         }
 
         return $query;
+    }
+
+    private function maybeBackfillMembershipLevelIds()
+    {
+        $rows = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->select(
+                'buymecoffee_subscriptions.id',
+                'buymecoffee_subscriptions.supporter_id',
+                'buymecoffee_supporters.form_data_raw'
+            )
+            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
+            ->whereNull('buymecoffee_subscriptions.level_id')
+            ->whereNotNull('buymecoffee_supporters.form_data_raw')
+            ->limit(200)
+            ->get();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        $levelModel = new MembershipLevel();
+
+        foreach ($rows as $row) {
+            $formData = maybe_unserialize($row->form_data_raw);
+            if (!is_array($formData) || empty($formData['bmc_level_id'])) {
+                continue;
+            }
+
+            $levelId = absint($formData['bmc_level_id']);
+            if (!$levelId) {
+                continue;
+            }
+
+            $level = $levelModel->find($levelId);
+            if (!$level || $level->status === 'deleted') {
+                continue;
+            }
+
+            buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('id', (int) $row->id)
+                ->update([
+                    'level_id'    => $levelId,
+                    'updated_at'  => current_time('mysql'),
+                ]);
+
+            if (function_exists('buymecoffee_delete_supporter_meta')) {
+                buymecoffee_delete_supporter_meta((int) $row->supporter_id, 'active_level_ids');
+            }
+        }
     }
 
     private function sendMembershipInvite($data)

@@ -26,6 +26,24 @@ export function useApi() {
         return formData;
     }
 
+    function buildSearchParams(params) {
+        const searchParams = new URLSearchParams();
+
+        function appendData(data, prefix = '') {
+            if (data && typeof data === 'object' && !(data instanceof File)) {
+                Object.keys(data).forEach(key => {
+                    const fullKey = prefix ? `${prefix}[${key}]` : key;
+                    appendData(data[key], fullKey);
+                });
+            } else if (prefix) {
+                searchParams.append(prefix, data == null ? '' : data);
+            }
+        }
+
+        appendData(params);
+        return searchParams;
+    }
+
     async function request(method, params = {}, signal) {
         const url = appVars.ajaxurl;
         if (!url) throw new Error('AJAX URL not configured');
@@ -36,7 +54,7 @@ export function useApi() {
         };
 
         if (method === 'GET') {
-            const qs = new URLSearchParams(params).toString();
+            const qs = buildSearchParams(params).toString();
             const fetchUrl = qs ? `${url}?${qs}` : url;
             const res = await fetch(fetchUrl, options);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);

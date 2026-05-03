@@ -34,12 +34,12 @@ class Menu
 
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
 
-        // Collapse WP admin sidebar and tag body on our page
+        // Tag the Buy Me Coffee admin page without changing the WordPress menu state.
         add_filter('admin_body_class', function ($classes) {
             global $pagenow;
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             if ($pagenow === 'admin.php' && isset($_GET['page']) && $_GET['page'] === 'buy-me-coffee.php') {
-                $classes .= ' folded bmc-admin-page';
+                $classes .= ' bmc-admin-page';
             }
             return $classes;
         });
@@ -55,11 +55,8 @@ class Menu
 
         // Strip WP admin chrome padding so our full-width app has no gaps.
         // Scoped to body.bmc-admin-page so it never affects other admin pages.
-        // Covers both folded and non-folded states (user may click to expand sidebar).
         wp_add_inline_style('wp-admin', '
-            body.bmc-admin-page #wpcontent,
-            body.bmc-admin-page.folded #wpcontent,
-            body.bmc-admin-page.auto-fold #wpcontent {
+            body.bmc-admin-page #wpcontent {
                 padding-left: 0 !important;
             }
             body.bmc-admin-page #wpbody-content {

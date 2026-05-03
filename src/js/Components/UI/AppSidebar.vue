@@ -92,9 +92,6 @@
                 <Moon v-if="!isDark" :size="14" />
                 <Sun v-else :size="14" />
             </button>
-            <a href="https://wpminers.com/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-sidebar__util-btn" title="Documentation">
-                <Info :size="14" />
-            </a>
             <a v-if="isWpAdmin" :href="fullPageUrl" class="bmc-sidebar__util-btn" title="Open full-screen dashboard">
                 <Maximize2 :size="14" />
             </a>
@@ -111,13 +108,13 @@
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-    LayoutDashboard, Heart, Users, Receipt, Settings, Palette, Code2,
-    CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
+    ExternalLink, Sparkles, ArrowLeft,
     ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
-    RefreshCw, ClipboardList, Coffee, Users2,
-    Moon, Sun, Info, Maximize2,
+    Coffee,
+    Moon, Sun, Maximize2,
 } from 'lucide-vue-next';
 import { useTheme } from '../../composables/useTheme';
+import { configItems, mainItems } from './navigation';
 
 const COLLAPSE_KEY = '__buymecoffee_sidebar_collapsed';
 
@@ -139,31 +136,6 @@ const fullPageUrl = computed(() => {
     const base = window.location.origin;
     return base + '/?buymecoffee_admin';
 });
-
-const mainItems = [
-    { label: 'Dashboard',           route: '/',                    icon: LayoutDashboard, activeNames: ['Dashboard'] },
-    { label: 'Transactions',        route: '/recent-transactions', icon: Receipt,         activeNames: ['RecentTransactions'] },
-    { label: 'Subscriptions',       route: '/subscriptions',       icon: RefreshCw,       activeNames: ['Subscriptions', 'SubscriptionDetail'] },
-    { label: 'Memberships',         route: '/memberships',         icon: Users2,          activeNames: ['Memberships', 'LevelNew', 'LevelEdit'] },
-    { label: 'Supporters',          route: '/supporters',          icon: Users,           activeNames: ['Supporters', 'Supporter'] },
-    { label: 'Activity Log',        route: '/activity-log',        icon: ClipboardList,   activeNames: ['ActivityLog'] },
-];
-
-const configItems = [
-    {
-        label: 'Settings',
-        route: '/settings',
-        icon: Settings,
-        activeNames: ['Settings'],
-        children: [
-            { label: 'General',    icon: Settings, query: { tab: 'general' } },
-            { label: 'Appearance', icon: Palette,  query: { tab: 'appearance' } },
-            { label: 'Shortcodes', icon: Code2,    query: { tab: 'shortcodes' } },
-        ],
-    },
-    { label: 'Gateways',      route: '/gateway',       icon: CreditCard, activeNames: ['Gateway', 'stripe', 'paypal'] },
-    { label: 'Notifications', route: '/notifications', icon: Bell,       activeNames: ['Notifications', 'Emails', 'Webhook'] },
-];
 
 function isActive(item) {
     return item.activeNames?.includes(route.name) || false;

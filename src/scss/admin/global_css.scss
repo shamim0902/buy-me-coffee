@@ -20,6 +20,39 @@ div#buy-me-coffee_app .el-table__cell::after {
     content: none !important;
 }
 
+// Front-end themes can style raw table/th/td elements on the full-screen app route.
+// Keep Element Plus tables self-contained so borders align in admin and full-screen modes.
+div#buy-me-coffee_app .el-table {
+    --el-table-border-color: var(--border-secondary);
+    --el-table-border: 1px solid var(--border-secondary);
+    width: 100%;
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+div#buy-me-coffee_app .el-table table {
+    width: 100%;
+    margin: 0 !important;
+    border: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+div#buy-me-coffee_app .el-table th,
+div#buy-me-coffee_app .el-table td,
+div#buy-me-coffee_app .el-table .el-table__cell {
+    border-top: 0 !important;
+    border-right: 0 !important;
+    border-left: 0 !important;
+    box-sizing: border-box;
+}
+
+div#buy-me-coffee_app .el-table .el-table__inner-wrapper::before {
+    left: 0;
+    right: 0;
+}
+
 // Legacy status classes (kept for backward compatibility with any 3rd-party extensions)
 .buymecoffee_status {
     padding: 2px 8px;

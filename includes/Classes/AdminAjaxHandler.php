@@ -1198,6 +1198,7 @@ class AdminAjaxHandler
             'get_supporter',
             'get_supporters_list',
             'get_supporter_settings',
+            'get_membership_members',
         ];
 
         $paymentDataRoutes = [
@@ -1212,6 +1213,15 @@ class AdminAjaxHandler
             'get_data',
             'get_settings',
             'get_email_notifications',
+            'get_membership_levels',
+            'save_membership_level',
+            'delete_membership_level',
+            'reorder_membership_levels',
+            'get_membership_settings',
+            'save_membership_settings',
+            'get_post_types_for_membership',
+            'get_categories_for_membership',
+            'send_membership_invite',
         ];
 
         if (in_array($route, $menuOnlyRoutes, true)) {

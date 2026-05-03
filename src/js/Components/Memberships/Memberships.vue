@@ -33,7 +33,13 @@
           <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No members yet">
             <el-table-column prop="supporters_name" label="Name" min-width="130">
               <template #default="{ row }">
-                <span class="bmc-entity-link">{{ row.supporters_name || 'Anonymous' }}</span>
+                <router-link
+                  :to="{ name: 'SubscriptionDetail', params: { id: row.subscription_id } }"
+                  class="bmc-entity-link"
+                  @click.stop
+                >
+                  {{ row.supporters_name || 'Anonymous' }}
+                </router-link>
               </template>
             </el-table-column>
             <el-table-column prop="supporters_email" label="Email" min-width="170" />
@@ -462,10 +468,24 @@ async function fetchSettings() {
 
 async function fetchMembers() {
   membersLoading.value = true;
-  const res = await adminGet('get_membership_members', { page: membersPage.value, search: memberSearch.value });
-  members.value     = res?.data?.members || [];
-  membersTotal.value = res?.data?.total  || 0;
-  membersLoading.value = false;
+  try {
+    const res = await adminGet('get_membership_members', { page: membersPage.value, search: memberSearch.value });
+    if (!res?.success) {
+      toast.error(res?.data?.message || 'Failed to load members.');
+      members.value = [];
+      membersTotal.value = 0;
+      return;
+    }
+
+    members.value = res?.data?.members || [];
+    membersTotal.value = res?.data?.total || 0;
+  } catch (error) {
+    toast.error(error?.message || 'Failed to load members.');
+    members.value = [];
+    membersTotal.value = 0;
+  } finally {
+    membersLoading.value = false;
+  }
 }
 
 function onMembersPageChange(page) {
@@ -611,8 +631,10 @@ onMounted(async () => {
   font-family: var(--font-sans);
 }
 .bmc-entity-link {
+  display: inline-flex;
   font-weight: var(--font-weight-link);
   color: var(--text-link);
+  text-decoration: none;
   transition: color .15s ease;
 }
 .bmc-table :deep(.el-table__row:hover) .bmc-entity-link {
