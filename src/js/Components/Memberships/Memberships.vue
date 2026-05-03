@@ -180,39 +180,44 @@
 
       <!-- ── Guide Tab ── -->
       <section v-show="active === 'guide'">
-        <div class="bmc-card">
-          <h3 class="bmc-sc__title" style="margin-bottom:4px">Getting Started with Memberships</h3>
-          <p class="bmc-sc__sub" style="margin-bottom:16px">Follow these steps to start monetizing your content with membership levels.</p>
+        <div class="bmc-card bmc-guide-hero">
+          <div class="bmc-guide-hero__content">
+            <h3 class="bmc-sc__title" style="margin-bottom:4px">Getting Started with Memberships</h3>
+            <p class="bmc-sc__sub" style="margin-bottom:16px">Follow these steps to start monetizing your content with membership levels.</p>
 
-          <div class="bmc-guide-steps">
-            <div class="bmc-guide-step">
-              <span class="bmc-guide-step__num">1</span>
-              <div>
-                <p class="bmc-guide-step__title">Create membership levels</p>
-                <p class="bmc-guide-step__desc">Go to the <a href="javascript:void(0)" @click="setTab('levels')">Levels</a> tab and create one or more membership tiers. Set pricing, billing interval, and reward bullets for each level.</p>
+            <div class="bmc-guide-steps">
+              <div class="bmc-guide-step">
+                <span class="bmc-guide-step__num">1</span>
+                <div>
+                  <p class="bmc-guide-step__title">Create membership levels</p>
+                  <p class="bmc-guide-step__desc">Go to the <a href="javascript:void(0)" @click="setTab('levels')">Levels</a> tab and create one or more membership tiers. Set pricing, billing interval, and reward bullets for each level.</p>
+                </div>
+              </div>
+              <div class="bmc-guide-step">
+                <span class="bmc-guide-step__num">2</span>
+                <div>
+                  <p class="bmc-guide-step__title">Mark posts as paid</p>
+                  <p class="bmc-guide-step__desc">When editing a post or page, look for the <strong>Content Access (Buy Me Coffee)</strong> panel in the editor sidebar. Set access to <em>Paid</em> and choose which membership levels can view the full content.</p>
+                </div>
+              </div>
+              <div class="bmc-guide-step">
+                <span class="bmc-guide-step__num">3</span>
+                <div>
+                  <p class="bmc-guide-step__title">Non-members see a teaser + paywall</p>
+                  <p class="bmc-guide-step__desc">Visitors without the required membership see a word-limited preview followed by a paywall CTA showing your levels, pricing, and reward bullets. Customize the CTA text and preview word count in <a href="javascript:void(0)" @click="setTab('settings')">Settings</a>.</p>
+                </div>
+              </div>
+              <div class="bmc-guide-step">
+                <span class="bmc-guide-step__num">4</span>
+                <div>
+                  <p class="bmc-guide-step__title">Members subscribe &amp; get access</p>
+                  <p class="bmc-guide-step__desc">When a visitor clicks "Join" on the paywall, they are taken to the checkout form pre-filled with the level's price and interval. After payment, they get full access to all content gated by their membership level.</p>
+                </div>
               </div>
             </div>
-            <div class="bmc-guide-step">
-              <span class="bmc-guide-step__num">2</span>
-              <div>
-                <p class="bmc-guide-step__title">Mark posts as paid</p>
-                <p class="bmc-guide-step__desc">When editing a post or page, look for the <strong>Content Access (Buy Me Coffee)</strong> panel in the editor sidebar. Set access to <em>Paid</em> and choose which membership levels can view the full content.</p>
-              </div>
-            </div>
-            <div class="bmc-guide-step">
-              <span class="bmc-guide-step__num">3</span>
-              <div>
-                <p class="bmc-guide-step__title">Non-members see a teaser + paywall</p>
-                <p class="bmc-guide-step__desc">Visitors without the required membership see a word-limited preview followed by a paywall CTA showing your levels, pricing, and reward bullets. Customize the CTA text and preview word count in <a href="javascript:void(0)" @click="setTab('settings')">Settings</a>.</p>
-              </div>
-            </div>
-            <div class="bmc-guide-step">
-              <span class="bmc-guide-step__num">4</span>
-              <div>
-                <p class="bmc-guide-step__title">Members subscribe &amp; get access</p>
-                <p class="bmc-guide-step__desc">When a visitor clicks "Join" on the paywall, they are taken to the checkout form pre-filled with the level's price and interval. After payment, they get full access to all content gated by their membership level.</p>
-              </div>
-            </div>
+          </div>
+          <div class="bmc-guide-hero__image">
+            <img :src="assetsUrl + 'images/members-only-banner.png'" alt="Membership content monetization" />
           </div>
         </div>
 
@@ -408,6 +413,7 @@ const tabs = [
 
 
 const previewUrl = window.BuyMeCoffeeAdmin?.preview_url || '#';
+const assetsUrl = window.BuyMeCoffeeAdmin?.assets_url || '';
 const active = computed(() => vm?.$route?.query?.tab || 'members');
 
 function setTab(key) {
@@ -590,6 +596,14 @@ onMounted(async () => {
 .bmc-actions-btn:hover { color: var(--text-primary); border-color: var(--border-primary); }
 
 /* ─── Guide tab ─────────────────────────── */
+.bmc-guide-hero { display: flex; gap: 24px; align-items: start; }
+.bmc-guide-hero__content { flex: 1; min-width: 0; }
+.bmc-guide-hero__image { width: 580px; flex-shrink: 0; border-radius: 10px; overflow: hidden; }
+.bmc-guide-hero__image img { display: block; width: 100%; height: auto; }
+@media (max-width: 900px) {
+  .bmc-guide-hero { flex-direction: column-reverse; }
+  .bmc-guide-hero__image { width: 100%; }
+}
 .bmc-guide-steps { display: flex; flex-direction: column; gap: 0; }
 .bmc-guide-step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-secondary); }
 .bmc-guide-step:last-child { border-bottom: none; }
