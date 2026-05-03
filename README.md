@@ -2,15 +2,18 @@
 
 > Accept one-time donations and recurring subscriptions via Stripe and PayPal — directly into your own account, with zero commission.
 
-**Current version:** `1.2.1` · [Full Changelog](CHANGELOG.md)
+
+<img width="2752" height="1536" alt="compress-main-banner" src="https://github.com/user-attachments/assets/910027c7-cc31-47a6-9928-c6c864a52705" />
+
+
+<img width="1536" height="1024" alt="members-only-banner" src="https://github.com/user-attachments/assets/02a67f3d-383a-4777-ad4a-aa2684ed4f80" />
+
+
+<img width="2752" height="1536" alt="example-section" src="https://github.com/user-attachments/assets/0b63171f-2212-4524-a079-4c36a506c629" />
+
+**Current version:** `1.2.5` · [Full Changelog](CHANGELOG.md)
 
 [Plugin Site](https://wpminers.com/buymecoffee/) · [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.com/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
-
-> [!TIP]
-> **Design System Guide:** See [`dev/blog-post-ui-redesign.md`](dev/blog-post-ui-redesign.md) for the full UI redesign process, token architecture, and implementation approach.
-
-<img width="1512" height="859" alt="image" src="https://github.com/user-attachments/assets/9c096934-aac8-46ac-bea6-a2fd97a8db30" />
-<img width="1364" height="831" alt="image" src="https://github.com/user-attachments/assets/0b63171f-2212-4524-a079-4c36a506c629" />
 
 ## Quick Navigation
 
@@ -152,6 +155,9 @@ See [CHANGELOG.md](CHANGELOG.md).
 Go to the [GitHub repository](https://github.com/hasanuzzamanbe/buy-me-coffee) — see `package.json` for the full list of scripts and dependencies.
 
 ---
+
+> [!TIP]
+> **Design System Guide:** See [`dev/blog-post-ui-redesign.md`](dev/blog-post-ui-redesign.md) for the full UI redesign process, token architecture, and implementation approach.
 
 ## License
 
