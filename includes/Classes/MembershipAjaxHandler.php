@@ -4,6 +4,7 @@ namespace BuyMeCoffee\Classes;
 
 use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Controllers\MonetizationController;
+use BuyMeCoffee\Helpers\PaymentHelper;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -303,8 +304,34 @@ class MembershipAjaxHandler
             return;
         }
 
-        $settings    = MonetizationController::getGlobalSettings();
-        $redirectUrl = !empty($settings['redirect_url']) ? esc_url($settings['redirect_url']) : home_url('/?share_coffee');
+        $levelId = isset($data['level_id']) ? absint($data['level_id']) : 0;
+        $level = $levelId ? (new MembershipLevel())->find($levelId) : null;
+        if (!$level || $level->status !== 'active') {
+            wp_send_json_error(['message' => __('Please choose an active membership level.', 'buy-me-coffee')]);
+            return;
+        }
+
+        $userId = $this->getOrCreateInviteUser($email);
+        if (!$userId) {
+            wp_send_json_error(['message' => __('Could not create a member account for this email.', 'buy-me-coffee')]);
+            return;
+        }
+
+        $supporterId = $this->getOrCreateInviteSupporter($userId, $email);
+        if (!$supporterId) {
+            wp_send_json_error(['message' => __('Could not create a supporter record for this invite.', 'buy-me-coffee')]);
+            return;
+        }
+
+        $subscriptionId = $this->grantInviteSubscription($userId, $supporterId, $level);
+        if (!$subscriptionId) {
+            wp_send_json_error(['message' => __('This member already has access to that level.', 'buy-me-coffee')]);
+            return;
+        }
+
+        $settings = get_option('buymecoffee_payment_setting', []);
+        $accountPageId = !empty($settings['account_page_id']) ? (int) $settings['account_page_id'] : 0;
+        $accountUrl = $accountPageId ? get_permalink($accountPageId) : wp_login_url();
 
         $subject = sprintf(
             /* translators: %s: site name */
@@ -313,10 +340,11 @@ class MembershipAjaxHandler
         );
 
         $body = sprintf(
-            /* translators: 1: site name, 2: membership URL */
-            __("You've been given free access to %1\$s membership!\n\nClaim your access here: %2\$s", 'buy-me-coffee'),
+            /* translators: 1: site name, 2: level name, 3: account URL */
+            __("You've been given free access to %1\$s membership level: %2\$s.\n\nAccess your account here: %3\$s", 'buy-me-coffee'),
             wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
-            esc_url_raw($redirectUrl)
+            sanitize_text_field($level->name),
+            esc_url_raw($accountUrl)
         );
 
         $sent = wp_mail($email, $subject, $body);
@@ -326,6 +354,114 @@ class MembershipAjaxHandler
         } else {
             wp_send_json_error(['message' => __('Failed to send invite email.', 'buy-me-coffee')]);
         }
+    }
+
+    private function getOrCreateInviteUser($email)
+    {
+        $existing = get_user_by('email', $email);
+        if ($existing) {
+            return (int) $existing->ID;
+        }
+
+        $username = sanitize_user(strstr($email, '@', true), true);
+        if (!$username) {
+            $username = 'member_' . substr(md5($email), 0, 8);
+        }
+
+        if (username_exists($username)) {
+            $username .= '_' . wp_generate_password(4, false, false);
+        }
+
+        $userId = wp_insert_user([
+            'user_login' => $username,
+            'user_email' => $email,
+            'role'       => 'subscriber',
+            'user_pass'  => wp_generate_password(24),
+        ]);
+
+        if (is_wp_error($userId)) {
+            return 0;
+        }
+
+        wp_send_new_user_notifications($userId, 'user');
+        return (int) $userId;
+    }
+
+    private function getOrCreateInviteSupporter($userId, $email)
+    {
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('wp_user_id', (int) $userId)
+            ->orderBy('created_at', 'DESC')
+            ->first();
+
+        if ($supporter) {
+            return (int) $supporter->id;
+        }
+
+        return (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+            'supporters_name'    => '',
+            'supporters_email'   => sanitize_email($email),
+            'supporters_message' => '',
+            'form_data_raw'      => maybe_serialize(['source' => 'membership_invite']),
+            'currency'           => strtoupper(PaymentHelper::getCurrency()),
+            'payment_status'     => 'paid',
+            'entry_hash'         => 'membership_invite_' . wp_generate_password(20, false, false),
+            'payment_total'      => 0,
+            'coffee_count'       => 0,
+            'payment_mode'       => 'manual',
+            'payment_method'     => 'membership_invite',
+            'status'             => 'new',
+            'reference'          => 'membership_invite',
+            'created_at'         => current_time('mysql'),
+            'updated_at'         => current_time('mysql'),
+            'wp_user_id'         => (int) $userId,
+        ]);
+    }
+
+    private function grantInviteSubscription($userId, $supporterId, $level)
+    {
+        $supporterIds = buymecoffee_get_supporter_ids_for_user((int) $userId);
+        if (empty($supporterIds)) {
+            $supporterIds = [(int) $supporterId];
+        }
+
+        $existing = buyMeCoffeeQuery()
+            ->table('buymecoffee_subscriptions')
+            ->whereIn('supporter_id', $supporterIds)
+            ->where('level_id', (int) $level->id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($existing) {
+            return 0;
+        }
+
+        $subscriptionId = buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+            'supporter_id'            => (int) $supporterId,
+            'stripe_subscription_id'  => null,
+            'stripe_customer_id'      => null,
+            'interval_type'           => sanitize_text_field($level->interval_type ?: 'month'),
+            'amount'                  => 0,
+            'currency'                => strtolower(PaymentHelper::getCurrency()),
+            'status'                  => 'active',
+            'payment_mode'            => 'manual',
+            'current_period_end'      => null,
+            'cancelled_at'            => null,
+            'level_id'                => (int) $level->id,
+            'created_at'              => current_time('mysql'),
+            'updated_at'              => current_time('mysql'),
+        ]);
+
+        if ($subscriptionId && function_exists('buymecoffee_delete_supporter_meta')) {
+            buymecoffee_delete_supporter_meta((int) $supporterIds[0], 'active_level_ids');
+        }
+
+        if ($subscriptionId) {
+            do_action('buymecoffee_subscription_activated', (int) $subscriptionId);
+        }
+
+        return (int) $subscriptionId;
     }
 
     private function sanitizeData($data)

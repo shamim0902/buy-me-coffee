@@ -297,7 +297,15 @@
           </div>
           <div class="bmc-invite-row">
             <el-input v-model="inviteEmail" placeholder="Enter email address" style="flex:1" />
-            <el-button type="primary" :loading="inviting" @click="sendInvite">Send Invite</el-button>
+            <el-select v-model="inviteLevelId" placeholder="Select level" style="width:220px">
+              <el-option
+                v-for="level in levels"
+                :key="level.id"
+                :label="level.name"
+                :value="level.id"
+              />
+            </el-select>
+            <el-button type="primary" :loading="inviting" :disabled="!levels.length" @click="sendInvite">Grant Access</el-button>
           </div>
         </div>
 
@@ -388,6 +396,7 @@ const membersTotal    = ref(0);
 const membersPage     = ref(0);
 const memberSearch    = ref('');
 const inviteEmail     = ref('');
+const inviteLevelId   = ref('');
 
 const membershipSettings = ref({
   default_preview_words:  50,
@@ -437,6 +446,9 @@ function formatPrice(cents) {
 async function fetchLevels() {
   const res = await adminGet('get_membership_levels');
   levels.value = res?.data?.levels || [];
+  if (!inviteLevelId.value && levels.value.length) {
+    inviteLevelId.value = levels.value[0].id;
+  }
 }
 
 async function fetchSettings() {
@@ -471,15 +483,15 @@ async function saveSettings() {
 }
 
 async function sendInvite() {
-  if (!inviteEmail.value) return;
+  if (!inviteEmail.value || !inviteLevelId.value) return;
   inviting.value = true;
-  const res = await adminPost('send_membership_invite', { email: inviteEmail.value });
+  const res = await adminPost('send_membership_invite', { email: inviteEmail.value, level_id: inviteLevelId.value });
   inviting.value = false;
   if (res?.success) {
-    toast.success('Invite sent!');
+    toast.success(res.data?.message || 'Access granted.');
     inviteEmail.value = '';
   } else {
-    toast.error(res?.data?.message || 'Failed to send invite.');
+    toast.error(res?.data?.message || 'Failed to grant access.');
   }
 }
 
