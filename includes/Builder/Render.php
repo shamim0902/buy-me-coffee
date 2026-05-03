@@ -329,7 +329,7 @@ class Render
         $hasActiveMethod = false;
 
         foreach ($methods as $method) {
-            if (!isset($method['status']) || $method['status'] != 'yes') {
+            if (!PaymentHandler::isMethodEnabled($method)) {
                 continue;
             }
 

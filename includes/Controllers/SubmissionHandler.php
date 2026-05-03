@@ -47,7 +47,7 @@ class SubmissionHandler
         $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : '';
 
         $allMethods = PaymentHandler::getAllMethods();
-        if (!$paymentMethod || !isset($allMethods[$paymentMethod]) || empty($allMethods[$paymentMethod]['status'])) {
+        if (!$paymentMethod || !isset($allMethods[$paymentMethod]) || !PaymentHandler::isMethodEnabled($allMethods[$paymentMethod])) {
             wp_send_json_error([
                 'message' => __('Invalid or disabled payment method.', 'buy-me-coffee')
             ], 400);
@@ -214,7 +214,7 @@ class SubmissionHandler
             ], 400);
         }
 
-        if (empty($allMethods['stripe']['status']) || $allMethods['stripe']['status'] !== 'yes') {
+        if (empty($allMethods['stripe']) || !PaymentHandler::isMethodEnabled($allMethods['stripe'])) {
             wp_send_json_error([
                 'message' => __('Stripe must be active for membership checkout.', 'buy-me-coffee')
             ], 400);
