@@ -219,8 +219,7 @@ export default {
                     this.webhook_url = response.data.webhook_url;
                 })
                 .fail(error => {
-                    const message = error?.responseJSON?.data?.message || 'Failed to load PayPal settings';
-                    this.$message.error(message);
+                    this.$handleError(error);
                 })
                 .always(() => { this.fetching = false; });
         },
@@ -234,8 +233,7 @@ export default {
             })
                 .then(response => { this.$handleSuccess(response.data.message); })
                 .fail(error => {
-                    const message = error?.responseJSON?.data?.message || 'Failed to save PayPal settings';
-                    this.$message.error(message);
+                    this.$handleError(error);
                 })
                 .always(() => { this.saving = false; });
         }

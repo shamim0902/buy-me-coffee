@@ -5,6 +5,7 @@ namespace BuyMeCoffee\Controllers;
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
 use BuyMeCoffee\Models\Buttons;
+use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Models\Transactions;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -46,7 +47,7 @@ class SubmissionHandler
         $paymentMethod = isset($_REQUEST['payment_method']) ? sanitize_text_field(wp_unslash($_REQUEST['payment_method'])) : '';
 
         $allMethods = PaymentHandler::getAllMethods();
-        if (!$paymentMethod || !isset($allMethods[$paymentMethod]) || empty($allMethods[$paymentMethod]['status'])) {
+        if (!$paymentMethod || !isset($allMethods[$paymentMethod]) || !PaymentHandler::isMethodEnabled($allMethods[$paymentMethod])) {
             wp_send_json_error([
                 'message' => __('Invalid or disabled payment method.', 'buy-me-coffee')
             ], 400);
@@ -69,12 +70,23 @@ class SubmissionHandler
             $recurringInterval = 'month';
         }
 
+        $membershipLevel = $this->bindMembershipCheckout(
+            $form_data,
+            $paymentMethod,
+            $paymentTotal,
+            $quantity,
+            $isRecurring,
+            $recurringInterval,
+            $currency,
+            $allMethods
+        );
+
         $supporterName = ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous');
         $supporterEmail = ArrayHelper::get($form_data, 'wpm-supporter-email');
         $supporterMessage = ArrayHelper::get($form_data, 'wpm-supporter-message');
 
         if ($isRecurring === 'yes') {
-            $this->validateRecurringRequest($paymentMethod, $template);
+            $this->validateRecurringRequest($paymentMethod, $template, (bool) $membershipLevel);
         }
 
         $form_data['payment_method']      = $paymentMethod;
@@ -175,7 +187,75 @@ class SubmissionHandler
         ];
     }
 
-    private function validateRecurringRequest($paymentMethod, $template)
+    private function bindMembershipCheckout(
+        array &$formData,
+        string &$paymentMethod,
+        int &$paymentTotal,
+        int &$quantity,
+        string &$isRecurring,
+        string &$recurringInterval,
+        string $currency,
+        array $allMethods
+    ): ?object {
+        $levelId = !empty($formData['bmc_level_id']) ? absint($formData['bmc_level_id']) : 0;
+        if (!$levelId) {
+            return null;
+        }
+
+        if (!MonetizationController::isMembershipActive()) {
+            wp_send_json_error([
+                'message' => __('New memberships are currently paused.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        if ($paymentMethod !== 'stripe') {
+            wp_send_json_error([
+                'message' => __('Membership checkout is only available with Stripe.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        if (empty($allMethods['stripe']) || !PaymentHandler::isMethodEnabled($allMethods['stripe'])) {
+            wp_send_json_error([
+                'message' => __('Stripe must be active for membership checkout.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        $level = (new MembershipLevel())->find($levelId);
+        if (!$level || $level->status !== 'active') {
+            wp_send_json_error([
+                'message' => __('Selected membership level is not available.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        $levelPrice = isset($level->price) ? absint($level->price) : 0;
+        if ($levelPrice <= 0) {
+            wp_send_json_error([
+                'message' => __('Selected membership level has an invalid price.', 'buy-me-coffee')
+            ], 400);
+        }
+
+        $interval = isset($level->interval_type) ? sanitize_text_field($level->interval_type) : 'month';
+        if (!in_array($interval, ['month', 'year'], true)) {
+            $interval = 'month';
+        }
+
+        $paymentTotal = $levelPrice;
+        $quantity = 1;
+        $isRecurring = 'yes';
+        $recurringInterval = $interval;
+
+        $formData['bmc_level_id'] = $levelId;
+        $formData['buymecoffee_amount'] = (string) ($levelPrice / 100);
+        $formData['buymecoffee_quantity'] = '1';
+        $formData['payment_total'] = $levelPrice;
+        $formData['currency'] = $currency;
+        $formData['is_recurring'] = 'yes';
+        $formData['recurring_interval'] = $interval;
+
+        return $level;
+    }
+
+    private function validateRecurringRequest($paymentMethod, $template, $isMembershipCheckout = false)
     {
         if ($paymentMethod !== 'stripe') {
             wp_send_json_error([
@@ -183,7 +263,7 @@ class SubmissionHandler
             ], 400);
         }
 
-        if (ArrayHelper::get($template, 'allow_recurring', 'no') !== 'yes') {
+        if (!$isMembershipCheckout && ArrayHelper::get($template, 'allow_recurring', 'no') !== 'yes') {
             wp_send_json_error([
                 'message' => __('Recurring donations are not enabled.', 'buy-me-coffee')
             ], 400);

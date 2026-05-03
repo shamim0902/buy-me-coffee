@@ -186,6 +186,8 @@ export default class BuyMeCoffee {
         let errorMessage = '';
         if (typeof response === 'string') {
             errorMessage = response;
+        } else if (response?.data?.message) {
+            errorMessage = response.data.message;
         } else if (response && response.message) {
             errorMessage = response.message;
         } else {

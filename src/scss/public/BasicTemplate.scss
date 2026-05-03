@@ -59,6 +59,20 @@ $bmc-radius: 16px;
     border: 2px solid rgba(0, 0, 0, 0.06);
   }
 
+  &__avatar-fallback {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #ede9fe;
+    color: #7c3aed;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
   &__name {
     font-size: 15px;
     font-weight: 700;
@@ -1104,4 +1118,45 @@ form.wpm_submitting_form {
   0%   { opacity: 0;    transform: translateY(0) scaleY(0.4); }
   25%  { opacity: 0.55; }
   100% { opacity: 0;    transform: translateY(-12px) scaleY(1.15); }
+}
+
+/* ─── Level-locked membership checkout ──── */
+.bmc-level-locked-info {
+  text-align: center;
+  padding: 12px 0 8px;
+}
+
+.bmc-level-locked-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #18181b;
+  margin-bottom: 2px;
+}
+
+.bmc-level-locked-pricing {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+}
+
+.bmc-level-locked-amount {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--bmc-accent, #0d9488);
+  letter-spacing: -0.5px;
+}
+
+.bmc-level-locked-interval {
+  font-size: 14px;
+  font-weight: 500;
+  color: #71717a;
+}
+
+.bmc-level-recurring-notice {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  text-align: center;
 }

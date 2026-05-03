@@ -14,6 +14,15 @@ class PaymentHandler
         return $methods;
     }
 
+    public static function isMethodEnabled($method)
+    {
+        if (empty($method) || !is_array($method) || !array_key_exists('status', $method)) {
+            return false;
+        }
+
+        return $method['status'] === true || $method['status'] === 'yes' || $method['status'] === 1 || $method['status'] === '1';
+    }
+
     public function saveSettings($method, $settings)
     {
         $settings = apply_filters('buymecoffee_before_save_' . $method, $settings);

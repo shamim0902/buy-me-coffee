@@ -3,9 +3,12 @@ node_modules
 .gitignore
 .gitattributes
 .github
+.claude
+plugin-audit.md
 .idea
 .dev-docs.txt
 /src
+/builds
 .git
 composer.lock
 package.json

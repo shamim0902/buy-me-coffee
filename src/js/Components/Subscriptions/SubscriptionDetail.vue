@@ -288,8 +288,39 @@ export default {
         this.loading = false;
       });
     },
-    cancelSubscription() {
+    async cancelSubscription() {
       this.moreOpen = false;
+
+      // Check if the membership recovery modal is enabled
+      try {
+        const settingsRes = await this.$post({
+          action: 'buymecoffee_admin_ajax',
+          route: 'get_membership_settings',
+          buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
+        });
+        const settings = settingsRes?.data?.settings || {};
+        if (settings.recovery_modal_enabled) {
+          const title = settings.recovery_modal_title || "Don't lose your benefits";
+          const body  = settings.recovery_modal_body  || '';
+          const message = body
+            ? `<strong>${title}</strong><br><br>${body.replace(/\n/g, '<br>')}`
+            : `<strong>${title}</strong>`;
+          try {
+            await window.ElMessageBox.confirm(message, 'Are you sure?', {
+              dangerouslyUseHTMLString: true,
+              confirmButtonText: 'Cancel anyway',
+              cancelButtonText:  'Keep membership',
+              type: 'warning',
+              confirmButtonClass: 'el-button--danger',
+            });
+          } catch {
+            return; // user chose "Keep membership"
+          }
+        }
+      } catch {
+        // If settings load fails, proceed without recovery modal
+      }
+
       this.cancelling = true;
       this.$post({
         action: 'buymecoffee_admin_ajax',

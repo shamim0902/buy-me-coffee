@@ -39,10 +39,10 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
-    if (!defined('BUYMECOFFEE_PRODUCTION')) {
-        define('BUYMECOFFEE_PRODUCTION', false);
+    if (!defined('BUYMECOFFEE_DEVELOPMENT')) {
+        define('BUYMECOFFEE_DEVELOPMENT', true);
     }
-    define('BUYMECOFFEE_DB_VERSION', '1.7');
+    define('BUYMECOFFEE_DB_VERSION', '1.9');
 
     // if (!defined('BUYMECOFFEE_DEBUG')) {
     //     define('BUYMECOFFEE_DEBUG', false);
@@ -88,6 +88,13 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             // Deactivation feedback popup
             require BUYMECOFFEE_DIR . 'includes/Classes/DeactivationFeedback.php';
             (new \BuyMeCoffee\Classes\DeactivationFeedback())->register();
+
+            // Membership AJAX + Post access meta box
+            require BUYMECOFFEE_DIR . 'includes/Classes/MembershipAjaxHandler.php';
+            (new \BuyMeCoffee\Classes\MembershipAjaxHandler())->register();
+
+            require BUYMECOFFEE_DIR . 'includes/Classes/PostAccessMetaBox.php';
+            (new \BuyMeCoffee\Classes\PostAccessMetaBox())->register();
         }
 
         public function registerShortcode()
@@ -156,6 +163,16 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogger.php';
             require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogHooks.php';
             (new \BuyMeCoffee\Classes\ActivityLogHooks())->register();
+
+            // Membership / Content Monetization
+            require_once BUYMECOFFEE_DIR . 'includes/Models/Model.php';
+            require BUYMECOFFEE_DIR . 'includes/Models/MembershipLevel.php';
+            require BUYMECOFFEE_DIR . 'includes/Controllers/MonetizationController.php';
+            (new \BuyMeCoffee\Controllers\MonetizationController())->register();
+
+            // Account page AJAX (frontend subscription cancel)
+            require_once BUYMECOFFEE_DIR . 'includes/Classes/AccountPage.php';
+            (new \BuyMeCoffee\Classes\AccountPage())->registerAjax();
         }
 
         public function registerIpnHooks()

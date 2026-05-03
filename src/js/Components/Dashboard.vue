@@ -632,7 +632,7 @@ export default {
   border: none;
   color: #fff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s ease;
 }
@@ -770,7 +770,7 @@ export default {
 }
 .bmc-payment-legend__value {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -831,7 +831,7 @@ export default {
 }
 .bmc-sub-item__name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -849,7 +849,7 @@ export default {
   padding: 2px 8px;
   border-radius: 9999px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   background: #dcfce7;
   color: #166534;
 }
@@ -883,7 +883,7 @@ export default {
 }
 .bmc-quick-stat__value {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -934,7 +934,7 @@ export default {
 }
 .bmc-setup-banner__title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   margin: 0;
 }
@@ -1003,7 +1003,7 @@ export default {
 }
 :deep(.bmc-supporters-table .el-table__header th) {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-tertiary);
@@ -1065,7 +1065,7 @@ export default {
 
 .bmc-supporter-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
@@ -1078,7 +1078,7 @@ export default {
 }
 .bmc-amount {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }

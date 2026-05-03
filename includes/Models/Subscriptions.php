@@ -13,6 +13,31 @@ class Subscriptions extends Model
         return $this->getQuery()->where('id', $id)->update($data);
     }
 
+    /**
+     * Check if a subscription still grants content access.
+     *
+     * Returns true when the subscription is active, or when it was cancelled
+     * but the already-paid billing period (current_period_end) hasn't expired yet.
+     *
+     * @param object $subscription Subscription row object.
+     * @return bool
+     */
+    public static function hasAccessValidity($subscription)
+    {
+        if (!$subscription) {
+            return false;
+        }
+
+        if ($subscription->status === 'active') {
+            return true;
+        }
+
+        return $subscription->status === 'cancelled'
+            && !empty($subscription->current_period_end)
+            && $subscription->current_period_end !== '0000-00-00 00:00:00'
+            && strtotime($subscription->current_period_end) > time();
+    }
+
     public function findByStripeId($stripeSubscriptionId)
     {
         return $this->getQuery()

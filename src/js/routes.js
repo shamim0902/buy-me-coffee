@@ -1,4 +1,6 @@
 const Dashboard = () => import('./Components/Dashboard.vue');
+const Memberships = () => import('./Components/Memberships/Memberships.vue');
+const LevelEdit = () => import('./Components/Memberships/LevelEdit.vue');
 const Settings = () => import('./Components/Settings.vue');
 const PayPal = () => import('./Components/PayPal.vue');
 const Stripe = () => import('./Components/Stripe.vue');
@@ -144,6 +146,33 @@ export default [
         meta: {
             active: 'activity-log',
             breadcrumb: 'Activity Log'
+        }
+    },
+    {
+        path: '/memberships',
+        name: 'Memberships',
+        component: Memberships,
+        meta: {
+            active: 'memberships',
+            breadcrumb: 'Memberships'
+        }
+    },
+    {
+        path: '/memberships/level/new',
+        name: 'LevelNew',
+        component: LevelEdit,
+        meta: {
+            active: 'memberships',
+            breadcrumb: 'New Level'
+        }
+    },
+    {
+        path: '/memberships/level/:id',
+        name: 'LevelEdit',
+        component: LevelEdit,
+        meta: {
+            active: 'memberships',
+            breadcrumb: 'Edit Level'
         }
     }
 ];

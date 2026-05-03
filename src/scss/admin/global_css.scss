@@ -5,6 +5,7 @@
 // App container
 div#buy-me-coffee_app {
     max-width: 100%;
+    font-weight: 400;
 }
 
 // WP admin sets svg:not(:root) { overflow: hidden } which clips Lucide icon strokes.

@@ -72,6 +72,7 @@ Settings stored in `wp_options` as `buymecoffee_payment_setting`.
 - Asset enqueueing goes through `Classes/Vite.php` which reads `manifest.json` in production or proxies to the dev server.
 - Admin AJAX uses nonce `buymecoffee_nonce` for all requests.
 - Payment amounts are stored as integers (cents).
+- Audit exceptions and accepted intentional behaviors are documented in `dev/AUDIT_RULES.md`; check that file before raising security findings.
 
 ## Adding a New Payment Gateway
 

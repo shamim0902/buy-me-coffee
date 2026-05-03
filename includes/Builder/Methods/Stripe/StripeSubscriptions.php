@@ -110,6 +110,7 @@ class StripeSubscriptions
 
             // Insert local subscription record
             $subscriptionModel = new Subscriptions();
+            $levelId = !empty($paymentArgs['bmc_level_id']) ? absint($paymentArgs['bmc_level_id']) : null;
             $localSubscriptionId = $subscriptionModel->getQuery()->insert([
                 'supporter_id'          => (int) $paymentArgs['supporter_id'],
                 'stripe_subscription_id' => sanitize_text_field($stripeSubscription['id']),
@@ -120,6 +121,7 @@ class StripeSubscriptions
                 'status'                => 'incomplete',
                 'payment_mode'          => $paymentMode,
                 'current_period_end'    => $periodEnd,
+                'level_id'              => $levelId,
                 'created_at'            => current_time('mysql'),
                 'updated_at'            => current_time('mysql'),
             ]);

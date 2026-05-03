@@ -129,6 +129,21 @@ class StripeCheckout {
             }
         }
 
+        // If coming from a gated post, offer a link back and auto-redirect
+        const returnUrl = this.form.find('input[name="bmc_return_url"]').val();
+        if (returnUrl) {
+            const safeReturnUrl = this.getSafeReceiptUrl(returnUrl);
+            if (safeReturnUrl) {
+                const returnLink = jQuery('<a></a>')
+                    .addClass('bmc-receipt-success__link bmc-receipt-success__link--primary')
+                    .attr('href', safeReturnUrl)
+                    .text('Return to article');
+                actions.prepend(returnLink);
+                // Auto-redirect after 3 seconds
+                setTimeout(() => { window.location.href = safeReturnUrl; }, 3000);
+            }
+        }
+
         if (actions.children().length) {
             receiptCard.append(actions);
         }
@@ -143,6 +158,8 @@ class StripeCheckout {
         this.loader.hide();
         this.form.prepend("<p class='complete_payment_instruction'>Please complete your donation with Stripe 👇</p>");
         this.form.find('.buymecoffee_payment_processor').append(payButton);
+        // Hide level info when card element is shown
+        this.form.find('[data-bmc-level-info]').hide();
     }
 
     getSafeReceiptUrl(url) {

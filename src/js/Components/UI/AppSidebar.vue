@@ -114,7 +114,7 @@ import {
     LayoutDashboard, Heart, Users, Receipt, Settings, Palette, Code2,
     CreditCard, Bell, ExternalLink, Sparkles, ArrowLeft,
     ChevronsLeft, ChevronsRight, ChevronDown, ChevronRight,
-    RefreshCw, ClipboardList, Coffee,
+    RefreshCw, ClipboardList, Coffee, Users2,
     Moon, Sun, Info, Maximize2,
 } from 'lucide-vue-next';
 import { useTheme } from '../../composables/useTheme';
@@ -144,6 +144,7 @@ const mainItems = [
     { label: 'Dashboard',           route: '/',                    icon: LayoutDashboard, activeNames: ['Dashboard'] },
     { label: 'Transactions',        route: '/recent-transactions', icon: Receipt,         activeNames: ['RecentTransactions'] },
     { label: 'Subscriptions',       route: '/subscriptions',       icon: RefreshCw,       activeNames: ['Subscriptions', 'SubscriptionDetail'] },
+    { label: 'Memberships',         route: '/memberships',         icon: Users2,          activeNames: ['Memberships', 'LevelNew', 'LevelEdit'] },
     { label: 'Supporters',          route: '/supporters',          icon: Users,           activeNames: ['Supporters', 'Supporter'] },
     { label: 'Activity Log',        route: '/activity-log',        icon: ClipboardList,   activeNames: ['ActivityLog'] },
 ];

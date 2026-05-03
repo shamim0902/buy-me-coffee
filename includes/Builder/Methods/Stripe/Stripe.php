@@ -24,6 +24,8 @@ class Stripe extends BaseMethods
             Vite::staticPath() . 'images/stripe.svg'
         );
 
+        $this->supports = ['one_time', 'subscription'];
+
         add_action('buymecoffee_make_payment_stripe', array($this, 'makePayment'), 10, 3);
         add_action("buymecoffee_ipn_endpoint_stripe", array($this, 'verifyIpn'), 10, 2);
         add_action('buymecoffee_get_payment_settings_stripe', array($this, 'getPaymentSettings'));
@@ -60,6 +62,11 @@ class Stripe extends BaseMethods
             'success_url' => $this->successUrl($supporter),
             'public_key' => $keys['public']
         );
+
+        // Pass membership level ID through to subscription creation
+        if (!empty($form_data['bmc_level_id'])) {
+            $paymentArgs['bmc_level_id'] = absint($form_data['bmc_level_id']);
+        }
 
         $isRecurring = isset($form_data['is_recurring']) && $form_data['is_recurring'] === 'yes';
         if ($isRecurring) {
@@ -155,6 +162,22 @@ class Stripe extends BaseMethods
             ->first();
 
         if (!$supporter) {
+            return false;
+        }
+
+        $intentAmount = (int) ArrayHelper::get($intent, 'amount', 0);
+        if ($intentAmount <= 0) {
+            $intentAmount = (int) ArrayHelper::get($intent, 'amount_received', 0);
+        }
+
+        $expectedAmount = (int) $localSubscription->amount;
+        if ($intentAmount > 0 && $expectedAmount > 0 && $intentAmount !== $expectedAmount) {
+            return false;
+        }
+
+        $intentCurrency = strtolower(sanitize_text_field(ArrayHelper::get($intent, 'currency', '')));
+        $expectedCurrency = strtolower(sanitize_text_field($localSubscription->currency));
+        if ($intentCurrency && $expectedCurrency && $intentCurrency !== $expectedCurrency) {
             return false;
         }
 

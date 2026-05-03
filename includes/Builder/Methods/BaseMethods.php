@@ -13,6 +13,7 @@ abstract class BaseMethods
     public $method = '';
     public $description = '';
     public $image = '';
+    protected $supports = ['one_time'];
 
     public static $methods = array();
 
@@ -38,6 +39,11 @@ abstract class BaseMethods
         add_filter('buymecoffee/payment/get_transaction_url_' . $this->method, array($this, 'getTransactionUrl'), 10, 2);
     }
 
+    public function getSupports()
+    {
+        return $this->supports;
+    }
+
     public function getAllMethods()
     {
         static::$methods[$this->method] = array(
@@ -45,7 +51,8 @@ abstract class BaseMethods
             'route' => $this->method,
             'description' => $this->description,
             'image' => $this->image,
-            "status" => $this->isEnabled(),
+            'status' => $this->isEnabled(),
+            'supports' => $this->getSupports(),
         );
         return static::$methods;
     }

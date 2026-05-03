@@ -45,6 +45,7 @@ class UserManager
 
         // Skip if already linked to a WP user
         if (!empty($supporter->wp_user_id)) {
+            $this->syncSubscriptionAccessMeta((int) $supporter->wp_user_id);
             return;
         }
 
@@ -61,6 +62,24 @@ class UserManager
 
         $this->linkUserToSupporter((int) $supporter->id, $userId);
         $this->syncSubscriptionAccessMeta($userId);
+
+        // Auto-login newly created users when the request comes from the browser (AJAX),
+        // not from a webhook (which has no browser session).
+        if (!empty($userData['created']) && !is_user_logged_in() && $this->isBrowserRequest()) {
+            wp_set_current_user($userId);
+            wp_set_auth_cookie($userId, true);
+        }
+    }
+
+    private function isBrowserRequest(): bool
+    {
+        // Webhook requests use the Stripe-Signature header; browser AJAX does not.
+        // Also check for the standard WP AJAX action which confirms it's a user-initiated request.
+        if (!empty($_SERVER['HTTP_STRIPE_SIGNATURE'])) {
+            return false;
+        }
+
+        return defined('DOING_AJAX') && DOING_AJAX;
     }
 
     public function handleSubscriptionCancelled($subscriptionId)
@@ -179,6 +198,10 @@ class UserManager
 
     private function syncSubscriptionAccessMeta(int $userId): void
     {
-        buymecoffee_user_has_active_subscription($userId, true);
+        // Invalidate level IDs cache — will be re-built on next access check
+        $supporterIds = buymecoffee_get_supporter_ids_for_user($userId);
+        if (!empty($supporterIds)) {
+            buymecoffee_delete_supporter_meta($supporterIds[0], 'active_level_ids');
+        }
     }
 }
