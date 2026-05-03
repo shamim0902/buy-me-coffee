@@ -40,7 +40,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
     define('BUYMECOFFEE_UPLOAD_DIR', '/buy-me-coffee');
     if (!defined('BUYMECOFFEE_DEVELOPMENT')) {
-        define('BUYMECOFFEE_DEVELOPMENT', true);
+        define('BUYMECOFFEE_DEVELOPMENT', false);
     }
     define('BUYMECOFFEE_DB_VERSION', '1.9');
 
@@ -238,12 +238,22 @@ if (!defined('BUYMECOFFEE_VERSION')) {
 
     // Handle Exterior Pages
     add_action('wp', function () {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Route detection only
+        if (!isset($_GET['share_coffee'])) {
+            return;
+        }
+
         $demoPage = new \BuyMeCoffee\Classes\DemoPage();
         $demoPage->register();
     });
 
     // Full-page admin app (outside WP admin chrome)
     add_action('wp', function () {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Route detection only
+        if (!isset($_GET['buymecoffee_admin'])) {
+            return;
+        }
+
         $adminPage = new \BuyMeCoffee\Classes\AdminPage();
         $adminPage->register();
     });

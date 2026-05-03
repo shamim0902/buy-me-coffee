@@ -35,15 +35,17 @@ class DemoPage
 
     public function handleExteriorPages()
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Route detection only
+        if (!isset($_GET['share_coffee'])) {
+            return;
+        }
+
         if (defined('CT_VERSION')) {
-            // oxygen page compatibility
+            // Oxygen page compatibility for the standalone Buy Me Coffee page only.
             remove_action('wp_head', 'oxy_print_cached_css', 999999);
         }
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if (isset($_GET['share_coffee'])) {
-            $this->renderBasicTemplate([], 'page');
-        }
+        $this->renderBasicTemplate([], 'page');
     }
 
     public function loadModalContent()
