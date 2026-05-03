@@ -70,8 +70,8 @@ class MonetizationController
     private function getPreviewWordCount($postId)
     {
         $postOverride = get_post_meta($postId, '_buymecoffee_preview_words', true);
-        if ($postOverride !== '' && $postOverride !== false && is_numeric($postOverride)) {
-            return max(1, (int) $postOverride);
+        if ($postOverride !== '' && $postOverride !== false && is_numeric($postOverride) && (int) $postOverride > 0) {
+            return (int) $postOverride;
         }
 
         $settings = self::getGlobalSettings();
