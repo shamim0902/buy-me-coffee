@@ -197,8 +197,6 @@ class UserManager
 
     private function syncSubscriptionAccessMeta(int $userId): void
     {
-        buymecoffee_user_has_active_subscription($userId, true);
-
         // Invalidate level IDs cache — will be re-built on next access check
         $supporterIds = buymecoffee_get_supporter_ids_for_user($userId);
         if (!empty($supporterIds)) {

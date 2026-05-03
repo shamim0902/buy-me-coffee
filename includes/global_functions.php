@@ -145,62 +145,6 @@ if (!function_exists('buymecoffee_subscription_access_where')) {
     }
 }
 
-if (!function_exists('buymecoffee_user_has_active_subscription')) {
-    /**
-     * Check whether a WP user currently has an active Buy Me Coffee subscription.
-     *
-     * A subscription counts as active if its status is 'active', or if it was
-     * cancelled but the paid billing period (current_period_end) hasn't expired yet.
-     *
-     * Caches result in buymecoffee_supporters_meta (key: has_active_subscription).
-     *
-     * @param int  $userId       WordPress user ID.
-     * @param bool $forceRefresh Recalculate from DB even when cached.
-     * @return bool
-     */
-    function buymecoffee_user_has_active_subscription($userId, $forceRefresh = false)
-    {
-        global $wpdb;
-
-        $userId = absint($userId);
-        if (!$userId) {
-            return false;
-        }
-
-        $supporterIds = buymecoffee_get_supporter_ids_for_user($userId);
-        if (empty($supporterIds)) {
-            return false;
-        }
-
-        $primarySupporterId = $supporterIds[0];
-
-        if (!$forceRefresh) {
-            $cached = buymecoffee_get_supporter_meta($primarySupporterId, 'has_active_subscription');
-            if ($cached === 'yes') {
-                return true;
-            }
-            if ($cached === 'no') {
-                return false;
-            }
-        }
-
-        $table        = $wpdb->prefix . 'buymecoffee_subscriptions';
-        $placeholders = implode(',', array_fill(0, count($supporterIds), '%d'));
-        $accessWhere  = buymecoffee_subscription_access_where($table);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name and access clause are hardcoded
-        $activeCount = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE supporter_id IN ({$placeholders}) AND {$accessWhere}",
-            ...$supporterIds
-        ));
-
-        $hasActive = $activeCount > 0;
-        buymecoffee_update_supporter_meta($primarySupporterId, 'has_active_subscription', $hasActive ? 'yes' : 'no');
-
-        return $hasActive;
-    }
-}
-
 if (!function_exists('buymecoffee_user_get_active_level_ids')) {
     /**
      * Return array of membership level IDs for which a WP user has access.
