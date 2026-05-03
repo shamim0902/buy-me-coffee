@@ -25,8 +25,8 @@ class PostAccessMetaBox
                 'single'        => true,
                 'type'          => 'string',
                 'default'       => 'free',
-                'auth_callback' => function () {
-                    return current_user_can('edit_posts');
+                'auth_callback' => function ($allowed, $metaKey, $postId) {
+                    return current_user_can('edit_post', (int) $postId);
                 },
             ]);
             register_post_meta($postType, '_buymecoffee_level_ids', [
@@ -39,8 +39,8 @@ class PostAccessMetaBox
                 'single'        => true,
                 'type'          => 'array',
                 'default'       => [],
-                'auth_callback' => function () {
-                    return current_user_can('edit_posts');
+                'auth_callback' => function ($allowed, $metaKey, $postId) {
+                    return current_user_can('edit_post', (int) $postId);
                 },
             ]);
             register_post_meta($postType, '_buymecoffee_preview_words', [
@@ -48,8 +48,8 @@ class PostAccessMetaBox
                 'single'        => true,
                 'type'          => 'integer',
                 'default'       => 0,
-                'auth_callback' => function () {
-                    return current_user_can('edit_posts');
+                'auth_callback' => function ($allowed, $metaKey, $postId) {
+                    return current_user_can('edit_post', (int) $postId);
                 },
             ]);
         }
