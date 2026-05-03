@@ -258,8 +258,9 @@ class MembershipAjaxHandler
         $supTable     = $wpdb->prefix . 'buymecoffee_supporters';
         $levelsTable  = $wpdb->prefix . 'buymecoffee_membership_levels';
 
-        // Build WHERE clause — show all members with a level (active, cancelled, etc.)
-        $where = "WHERE {$subsTable}.level_id IS NOT NULL";
+        // Build WHERE clause — show members whose subscription currently grants access.
+        $accessWhere = buymecoffee_subscription_access_where($subsTable);
+        $where = "WHERE {$subsTable}.level_id IS NOT NULL AND {$accessWhere}";
 
         if ($search) {
             $like = '%' . $wpdb->esc_like($search) . '%';
