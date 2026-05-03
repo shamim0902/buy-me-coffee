@@ -46,15 +46,25 @@ class MonetizationController
 
     private function userHasAccess($userId, $postId)
     {
-        $allowedLevelIds = get_post_meta($postId, '_buymecoffee_level_ids', true);
-        if (empty($allowedLevelIds) || !is_array($allowedLevelIds)) {
+        $userLevelIds = buymecoffee_user_get_active_level_ids($userId);
+        if (empty($userLevelIds)) {
             return false;
         }
 
-        $allowedLevelIds = array_map('absint', $allowedLevelIds);
-        $userLevelIds    = buymecoffee_user_get_active_level_ids($userId);
+        $allowedLevelIds = get_post_meta($postId, '_buymecoffee_level_ids', true);
+        if (!empty($allowedLevelIds) && is_array($allowedLevelIds)) {
+            $allowedLevelIds = array_map('absint', $allowedLevelIds);
+            return count(array_intersect($allowedLevelIds, $userLevelIds)) > 0;
+        }
 
-        return count(array_intersect($allowedLevelIds, $userLevelIds)) > 0;
+        $matchingLevels = $this->getMatchingLevelsForPost($postId, self::getActiveLevels(), true);
+        foreach ($matchingLevels as $level) {
+            if (in_array((int) $level->id, $userLevelIds, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function getPreviewWordCount($postId)
@@ -89,6 +99,11 @@ class MonetizationController
             return $levels;
         }
 
+        return $this->getMatchingLevelsForPost($postId, $levels, false);
+    }
+
+    private function getMatchingLevelsForPost($postId, $levels, $fullAccessOnly = false)
+    {
         $postType       = get_post_type($postId);
         $postCategories = wp_get_post_categories($postId, ['fields' => 'ids']);
 
@@ -97,6 +112,11 @@ class MonetizationController
             $rules     = $level->access_rules ?: [];
             $types     = !empty($rules['post_types']) ? (array) $rules['post_types'] : [];
             $cats      = !empty($rules['categories']) ? array_map('absint', (array) $rules['categories']) : [];
+            $access    = !empty($rules['access_level']) ? sanitize_text_field($rules['access_level']) : 'full';
+
+            if ($fullAccessOnly && $access !== 'full') {
+                continue;
+            }
 
             // If post_types is set and current post_type not in list, skip
             if (!empty($types) && !in_array($postType, $types, true)) {
@@ -111,8 +131,7 @@ class MonetizationController
             $filtered[] = $level;
         }
 
-        // Fall back to all levels if none match (show all options on paywall)
-        return !empty($filtered) ? $filtered : $levels;
+        return $filtered;
     }
 
     public function prePopulateFormFromLevel($args)
