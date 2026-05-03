@@ -145,3 +145,14 @@ No Critical findings confirmed.
   - File:line: includes/Builder/Methods/Stripe/StripeSubscriptions.php:22
   - Why uncertain: Static analysis confirms the server-side paths, but no live Stripe checkout/webhook was executed in this local audit.
   - Manual test to confirm: In a WordPress test site, create a paid level, tamper the hidden amount before checkout, complete Stripe test payment, and verify the resulting subscription `level_id`, amount, and gated-post access.
+
+## 6) Remediation Status
+
+- HIGH-01 fixed in `3004d0b` by binding membership checkout to active saved levels and validating Stripe confirmation amount/currency.
+- MEDIUM-01 fixed in `fe0274d` by enforcing paused membership state in paywall rendering, checkout prefill, and server-side checkout.
+- MEDIUM-02 fixed in `581b353` by making membership invites grant a selected active level.
+- MEDIUM-03 fixed in `2c70d1b` by applying level access rules to content authorization.
+- MEDIUM-04 fixed in `3a8fb0c` by treating zero preview words as the global default.
+- MEDIUM-05 fixed in `48b5695` by refreshing linked member access cache on subscription activation.
+- SUGGESTION-01 fixed in `2b4ece0` by checking `edit_post` for the target post meta.
+- SUGGESTION-02 fixed in `b7ff45e` by limiting the Members list to subscriptions that currently grant access.
