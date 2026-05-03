@@ -58,7 +58,7 @@
                   {{ getInitials(row.supporters_name) }}
                 </div>
                 <div class="min-w-0">
-                  <p class="bmc-name">{{ row.supporters_name || 'Anonymous' }}</p>
+                  <p class="bmc-name bmc-entity-link">{{ row.supporters_name || 'Anonymous' }}</p>
                   <p class="bmc-email" v-if="row.supporters_email">{{ row.supporters_email }}</p>
                 </div>
               </div>
@@ -263,7 +263,16 @@ export default {
   background: var(--color-primary-50); color: var(--color-primary-600);
   font-size: 13px; font-weight: 600; flex-shrink: 0;
 }
-.bmc-name { font-size: 14px; font-weight: 500; color: var(--text-primary); margin: 0; }
+.bmc-name { font-size: 14px; margin: 0; }
+.bmc-entity-link {
+  font-weight: var(--font-weight-link);
+  color: var(--text-link);
+  transition: color 0.15s ease;
+}
+:deep(.bmc-table-row--clickable:hover) .bmc-entity-link {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+}
 .bmc-email { font-size: 12px; color: var(--text-secondary); margin: 1px 0 0; }
 .bmc-amount { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .bmc-interval { font-size: 13px; color: var(--text-secondary); }

@@ -602,13 +602,17 @@ export default {
 
 .bmc-supporter-row__name {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--text-link);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: var(--font-weight-link);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.bmc-supporter-row:hover .bmc-supporter-row__name {
+  color: var(--text-link-hover);
+  text-decoration: underline;
 }
 
 .bmc-supporter-row__email {

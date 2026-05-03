@@ -1065,10 +1065,14 @@ export default {
 
 .bmc-supporter-name {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: var(--font-weight-link);
+  color: var(--text-link);
   margin: 0;
   line-height: 1.4;
+}
+:deep(.bmc-supporters-table__row:hover) .bmc-supporter-name {
+  color: var(--text-link-hover);
+  text-decoration: underline;
 }
 .bmc-supporter-email {
   font-size: 11px;

@@ -182,13 +182,13 @@ export default {
 }
 
 .bmc-supporter-name {
-  font-weight: 600;
-  color: var(--color-primary-600);
+  font-weight: var(--font-weight-link);
+  color: var(--text-link);
   cursor: pointer;
   transition: color var(--duration-fast) var(--ease-default);
 }
 .bmc-supporter-name:hover {
-  color: var(--color-primary-700);
+  color: var(--text-link-hover);
   text-decoration: underline;
 }
 

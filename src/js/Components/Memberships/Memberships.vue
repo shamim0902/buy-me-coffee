@@ -30,9 +30,11 @@
             />
           </div>
 
-          <el-table :data="members" style="width:100%" v-loading="membersLoading" empty-text="No members yet">
+          <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No members yet">
             <el-table-column prop="supporters_name" label="Name" min-width="130">
-              <template #default="{ row }">{{ row.supporters_name || 'Anonymous' }}</template>
+              <template #default="{ row }">
+                <span class="bmc-entity-link">{{ row.supporters_name || 'Anonymous' }}</span>
+              </template>
             </el-table-column>
             <el-table-column prop="supporters_email" label="Email" min-width="170" />
             <el-table-column prop="level_name" label="Level" min-width="120">
@@ -415,7 +417,7 @@ const membershipSettings = ref({
 const tabs = [
   { key: 'members',  label: 'Members' },
   { key: 'levels',   label: 'Levels' },
-  { key: 'recovery', label: 'Recovery' },
+  // { key: 'recovery', label: 'Recovery' }, // TODO: add back in when recovery modal is implemented
   { key: 'settings', label: 'Settings' },
   { key: 'guide',    label: 'Guide' },
 ];
@@ -596,6 +598,27 @@ onMounted(async () => {
 .bmc-pagination { display: flex; justify-content: center; margin-top: 16px; }
 .bmc-empty-state-inline { grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-secondary); background: var(--bg-primary); border: 1px dashed var(--border-secondary); border-radius: 12px; }
 .bmc-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+
+.bmc-table :deep(th .cell) {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-sans);
+}
+.bmc-table :deep(td .cell) {
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+}
+.bmc-entity-link {
+  font-weight: var(--font-weight-link);
+  color: var(--text-link);
+  transition: color .15s ease;
+}
+.bmc-table :deep(.el-table__row:hover) .bmc-entity-link {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+}
 
 .bmc-status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; text-transform: capitalize; }
 .bmc-status-badge--active { background: #dcfce7; color: #16a34a; }
