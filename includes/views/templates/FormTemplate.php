@@ -35,6 +35,10 @@ $bmcAccentBorder = SanitizeHelper::cssColor(Arr::get($template, 'advanced.border
 $bmcAccentSubtle = SanitizeHelper::rgbToRgba($bmcAccentColor, '2%');
 $bmcAccentRing   = SanitizeHelper::rgbToRgba($bmcAccentColor, '10%');
 $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' . $bmcAccentBg . '; --bmc-accent-subtle: ' . $bmcAccentSubtle . '; --bmc-accent-border: ' . $bmcAccentBorder . '; --bmc-accent-ring: ' . $bmcAccentRing . ';';
+$bmcBannerPositionX = max(0, min(100, (float) Arr::get($template, 'advanced.banner_position_x', 50)));
+$bmcBannerPositionY = max(0, min(100, (float) Arr::get($template, 'advanced.banner_position_y', 50)));
+$bmcBannerZoom      = max(1, min(3, (float) Arr::get($template, 'advanced.banner_zoom', 1)));
+$bmcBannerVars      = '--bmc-banner-position-x: ' . $bmcBannerPositionX . '%; --bmc-banner-position-y: ' . $bmcBannerPositionY . '%; --bmc-banner-zoom: ' . $bmcBannerZoom . ';';
 ?>
 
 <div id="bmc-page-wrapper" class="bmc-page-wrapper" style="<?php echo esc_attr($bmcAccentVars); ?>">
@@ -75,11 +79,17 @@ $bmcAccentVars   = '--bmc-accent: ' . $bmcAccentColor . '; --bmc-accent-soft: ' 
 
     <!-- ── Banner ── -->
     <div class="bmc-banner"
-         <?php if (!empty($banner_image)): ?>
-         style="background-image: url('<?php echo esc_url($banner_image); ?>')"
-         <?php endif; ?>
+         style="<?php echo esc_attr($bmcBannerVars); ?>"
+         data-banner-position-x="<?php echo esc_attr($bmcBannerPositionX); ?>"
+         data-banner-position-y="<?php echo esc_attr($bmcBannerPositionY); ?>"
+         data-banner-zoom="<?php echo esc_attr($bmcBannerZoom); ?>"
          data-field="banner_image">
-        <?php if (empty($banner_image)): ?>
+        <?php if (!empty($banner_image)): ?>
+        <img class="bmc-banner__image"
+             src="<?php echo esc_url($banner_image); ?>"
+             alt=""
+             draggable="false">
+        <?php else: ?>
         <div class="bmc-banner__gradient"></div>
         <?php endif; ?>
     </div>

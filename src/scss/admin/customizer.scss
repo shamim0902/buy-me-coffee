@@ -90,6 +90,80 @@ $bmc-accent: #0d9488;
   background: rgba(13, 148, 136, 0.5);
 }
 
+.bmc-banner--edit-active {
+  cursor: grab;
+}
+
+.bmc-banner--repositioning {
+  cursor: grabbing;
+}
+
+.bmc-banner--repositioning .bmc-banner__overlay {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.bmc-banner__controls {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 6;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.bmc-banner--edit-active .bmc-banner__controls {
+  display: inline-flex;
+}
+
+.bmc-banner__control-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 7px 10px;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.36);
+  }
+}
+
+.bmc-banner__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+
+  span {
+    line-height: 1;
+  }
+
+  input {
+    width: 150px;
+    accent-color: $bmc-accent;
+    cursor: pointer;
+  }
+}
+
 // ── Avatar overlay (hover) ─────────────────────
 .bmc-avatar__overlay {
   position: absolute;

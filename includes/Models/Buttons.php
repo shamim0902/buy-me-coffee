@@ -30,6 +30,9 @@ class Buttons
             "advanced" => array(
                 "image" => '',
                 "banner_image" => '',
+                "banner_position_x" => 50,
+                "banner_position_y" => 50,
+                "banner_zoom" => 1,
                 "enable" => 'yes',
                 "bgColor" => 'rgba(250, 212, 0, 1)',
                 "color" => 'rgba(0, 0, 0, 1)',

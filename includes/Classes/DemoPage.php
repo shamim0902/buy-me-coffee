@@ -139,6 +139,9 @@ class DemoPage
         $advancedFields = [
             'image' => ['type' => 'url', 'default' => ''],
             'banner_image' => ['type' => 'url', 'default' => ''],
+            'banner_position_x' => ['type' => 'float', 'default' => 50],
+            'banner_position_y' => ['type' => 'float', 'default' => 50],
+            'banner_zoom' => ['type' => 'float', 'default' => 1],
             'enable' => ['type' => 'text', 'default' => 'yes'],
             'bgColor' => ['type' => 'text', 'default' => ''],
             'color' => ['type' => 'text', 'default' => ''],
@@ -194,6 +197,8 @@ class DemoPage
         switch ($type) {
             case 'int':
                 return absint($data[$field]);
+            case 'float':
+                return (float) $data[$field];
             case 'url':
                 return esc_url_raw($data[$field]);
             case 'text':

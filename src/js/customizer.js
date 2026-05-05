@@ -1,7 +1,7 @@
 /**
  * Buy Me Coffee — Inline Page Editor (admin only)
  *
- * Banner: "Edit cover" button in corner → click to upload or drag image.
+ * Banner: "Edit cover" button in corner -> upload, drag crop, and zoom.
  * Avatar: hover overlay → click to upload or drag image.
  * Name & bio: click to edit inline.
  * Color panel: palette FAB toggle.
@@ -42,14 +42,27 @@ jQuery(document).ready(function ($) {
     const $bannerOverlay = $('<div class="bmc-banner__overlay">' +
         '<div class="bmc-banner__overlay-content">' +
         cameraSvg +
-        '<span>Click to upload cover</span>' +
-        '<span class="bmc-banner__overlay-sub">or drag an image here</span>' +
+        '<span>Drag to position cover</span>' +
+        '<span class="bmc-banner__overlay-sub">Drop an image here or use Change</span>' +
         '</div></div>');
+    const $bannerControls = $('<div class="bmc-banner__controls">' +
+        '<button type="button" class="bmc-banner__control-btn" data-bmc-banner-change>Change</button>' +
+        '<label class="bmc-banner__zoom"><span>Zoom</span><input type="range" min="1" max="3" step="0.01"></label>' +
+        '<button type="button" class="bmc-banner__control-btn" data-bmc-banner-reset>Reset</button>' +
+        '</div>');
 
     const $banner = $wrapper.find('.bmc-banner');
-    $banner.append($bannerBtn).append($bannerOverlay);
+    $banner.append($bannerBtn).append($bannerOverlay).append($bannerControls);
 
     let bannerEditActive = false;
+    let bannerDrag = null;
+    const bannerCrop = {
+        x: clampNumber(parseFloat($banner.data('bannerPositionX')), 0, 100, 50),
+        y: clampNumber(parseFloat($banner.data('bannerPositionY')), 0, 100, 50),
+        zoom: clampNumber(parseFloat($banner.data('bannerZoom')), 1, 3, 1),
+    };
+    const $bannerZoomInput = $bannerControls.find('input[type="range"]');
+    applyBannerCrop(false);
 
     $bannerBtn.on('click', function (e) {
         e.stopPropagation();
@@ -64,6 +77,7 @@ jQuery(document).ready(function ($) {
         bannerEditActive = true;
         $banner.addClass('bmc-banner--edit-active');
         $bannerBtn.addClass('bmc-banner__edit-btn--active').html(pencilSvg + ' Done');
+        $bannerZoomInput.val(String(bannerCrop.zoom));
     }
 
     function closeBannerEdit() {
@@ -72,16 +86,34 @@ jQuery(document).ready(function ($) {
         $bannerBtn.removeClass('bmc-banner__edit-btn--active').html(pencilSvg + ' Edit cover');
     }
 
-    // Click overlay → open media picker
+    // Click the empty placeholder -> open media picker.
     $bannerOverlay.on('click', function (e) {
+        if (hasBannerImage()) return;
         e.stopPropagation();
-        openMediaPicker('Select Cover Image', function (url) {
-            state.banner_image = url;
-            $banner.css('background-image', 'url(' + url + ')');
-            $banner.find('.bmc-banner__gradient').hide();
-            closeBannerEdit();
-            debounceSave();
-        });
+        pickBannerImage();
+    });
+
+    $bannerControls.find('[data-bmc-banner-change]').on('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pickBannerImage();
+    });
+
+    $bannerControls.find('[data-bmc-banner-reset]').on('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        bannerCrop.x = 50;
+        bannerCrop.y = 50;
+        bannerCrop.zoom = 1;
+        applyBannerCrop(true);
+        debounceSave();
+        showToast('Cover reset');
+    });
+
+    $bannerZoomInput.on('input', function () {
+        bannerCrop.zoom = clampNumber(parseFloat(this.value), 1, 3, 1);
+        applyBannerCrop(true);
+        debounceSave();
     });
 
     // Banner drag-and-drop (works when edit active)
@@ -105,14 +137,58 @@ jQuery(document).ready(function ($) {
         const files = e.originalEvent.dataTransfer.files;
         if (files.length && files[0].type.startsWith('image/')) {
             uploadFile(files[0], function (url) {
-                state.banner_image = url;
-                $banner.css('background-image', 'url(' + url + ')');
-                $banner.find('.bmc-banner__gradient').hide();
-                closeBannerEdit();
+                setBannerImage(url);
                 debounceSave();
                 showToast('Cover updated');
             });
         }
+    });
+
+    $banner.on('pointerdown', function (e) {
+        if (!bannerEditActive || !hasBannerImage()) return;
+        if ($(e.target).closest('.bmc-banner__edit-btn, .bmc-banner__controls').length) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = $banner[0].getBoundingClientRect();
+        bannerDrag = {
+            pointerId: e.originalEvent.pointerId,
+            startX: e.originalEvent.clientX,
+            startY: e.originalEvent.clientY,
+            startCropX: bannerCrop.x,
+            startCropY: bannerCrop.y,
+            width: rect.width || 1,
+            height: rect.height || 1,
+        };
+        $banner.addClass('bmc-banner--repositioning');
+        $banner[0].setPointerCapture(bannerDrag.pointerId);
+    });
+
+    $banner.on('pointermove', function (e) {
+        if (!bannerDrag) return;
+
+        e.preventDefault();
+        const dx = e.originalEvent.clientX - bannerDrag.startX;
+        const dy = e.originalEvent.clientY - bannerDrag.startY;
+        const zoomDragFactor = Math.max(1, bannerCrop.zoom);
+
+        bannerCrop.x = clampNumber(bannerDrag.startCropX - ((dx / bannerDrag.width) * 100 / zoomDragFactor), 0, 100, 50);
+        bannerCrop.y = clampNumber(bannerDrag.startCropY - ((dy / bannerDrag.height) * 100 / zoomDragFactor), 0, 100, 50);
+        applyBannerCrop(true);
+    });
+
+    $banner.on('pointerup pointercancel', function () {
+        if (!bannerDrag) return;
+
+        $banner.removeClass('bmc-banner--repositioning');
+        try {
+            $banner[0].releasePointerCapture(bannerDrag.pointerId);
+        } catch (err) {
+            // Pointer capture can already be released by the browser.
+        }
+        bannerDrag = null;
+        flushSave();
     });
 
     // ── Avatar: hover overlay ──────────────────
@@ -287,22 +363,91 @@ jQuery(document).ready(function ($) {
         frame.open();
     }
 
+    function pickBannerImage() {
+        openMediaPicker('Select Cover Image', function (url) {
+            setBannerImage(url);
+            debounceSave();
+            openBannerEdit();
+        });
+    }
+
+    function setBannerImage(url) {
+        state.banner_image = url;
+        bannerCrop.x = 50;
+        bannerCrop.y = 50;
+        bannerCrop.zoom = 1;
+        $banner.find('.bmc-banner__gradient').remove();
+
+        let $image = $banner.find('.bmc-banner__image');
+        if (!$image.length) {
+            $image = $('<img class="bmc-banner__image" alt="" draggable="false">');
+            $banner.prepend($image);
+        }
+
+        $image.attr('src', url);
+        applyBannerCrop(true);
+    }
+
+    function hasBannerImage() {
+        return Boolean($banner.find('.bmc-banner__image').attr('src') || state.banner_image);
+    }
+
+    function applyBannerCrop(shouldPersist) {
+        $banner.css({
+            '--bmc-banner-position-x': bannerCrop.x + '%',
+            '--bmc-banner-position-y': bannerCrop.y + '%',
+            '--bmc-banner-zoom': bannerCrop.zoom,
+        });
+        $banner.attr({
+            'data-banner-position-x': bannerCrop.x,
+            'data-banner-position-y': bannerCrop.y,
+            'data-banner-zoom': bannerCrop.zoom,
+        });
+        $bannerZoomInput.val(String(bannerCrop.zoom));
+
+        if (shouldPersist) {
+            state.banner_position_x = roundCropValue(bannerCrop.x);
+            state.banner_position_y = roundCropValue(bannerCrop.y);
+            state.banner_zoom = roundCropValue(bannerCrop.zoom);
+        }
+    }
+
+    function clampNumber(value, min, max, fallback) {
+        const number = Number.isFinite(value) ? value : fallback;
+        return Math.min(max, Math.max(min, number));
+    }
+
+    function roundCropValue(value) {
+        return Math.round(value * 100) / 100;
+    }
+
     // ── Auto-save ──────────────────────────────
     function debounceSave() {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(save, 1500);
     }
 
+    function flushSave() {
+        clearTimeout(saveTimer);
+        save();
+    }
+
     function save() {
         if (Object.keys(state).length === 0) return;
+        const payload = { ...state };
 
         $.post(ajaxUrl, {
             action: 'buymecoffee_admin_ajax',
             route: 'save_form_design',
             buymecoffee_nonce: nonce,
-            data: state,
+            data: payload,
         })
         .then(function () {
+            Object.keys(payload).forEach(function (key) {
+                if (state[key] === payload[key]) {
+                    delete state[key];
+                }
+            });
             showToast('Saved');
         })
         .catch(function (err) {

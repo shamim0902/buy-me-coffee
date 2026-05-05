@@ -558,6 +558,18 @@ class AdminAjaxHandler
             $settings['advanced']['banner_image'] = esc_url_raw($data['banner_image']);
         }
 
+        if (isset($data['banner_position_x'])) {
+            $settings['advanced']['banner_position_x'] = max(0, min(100, (float) $data['banner_position_x']));
+        }
+
+        if (isset($data['banner_position_y'])) {
+            $settings['advanced']['banner_position_y'] = max(0, min(100, (float) $data['banner_position_y']));
+        }
+
+        if (isset($data['banner_zoom'])) {
+            $settings['advanced']['banner_zoom'] = max(1, min(3, (float) $data['banner_zoom']));
+        }
+
         if (isset($data['image'])) {
             $settings['advanced']['image'] = esc_url_raw($data['image']);
         }
