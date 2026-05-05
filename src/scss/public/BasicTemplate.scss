@@ -2,8 +2,8 @@
 // Buy Me Coffee — Public Donation Page
 // ============================================================
 
-$bmc-max-width: 960px;
-$bmc-banner-height: 280px;
+$bmc-max-width: 1060px;
+$bmc-banner-height: 260px;
 $bmc-accent: var(--bmc-accent, #0d9488);
 $bmc-accent-soft: var(--bmc-accent-soft, rgba(13, 148, 136, 0.04));
 $bmc-accent-subtle: var(--bmc-accent-subtle, rgba(13, 148, 136, 0.02));
@@ -16,7 +16,8 @@ $bmc-radius: 16px;
 .bmc-page {
   margin: 0;
   padding: 0;
-  background: #fafaf9;
+  background:
+    linear-gradient(180deg, #fbfbfa 0%, #f4f7f5 46%, #fafaf9 100%);
   font-family: $bmc-font;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -28,6 +29,7 @@ $bmc-radius: 16px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 // ── Top Nav ────────────────────────────────────
@@ -36,14 +38,14 @@ $bmc-radius: 16px;
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
-  height: 60px;
-  background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  height: 64px;
+  border-bottom: 1px solid rgba(24, 24, 27, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
   backdrop-filter: blur(12px);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 10px 30px rgba(24, 24, 27, 0.04);
 
   &__left {
     display: flex;
@@ -56,7 +58,8 @@ $bmc-radius: 16px;
     height: 34px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid rgba(0, 0, 0, 0.06);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 5px 15px rgba(24, 24, 27, 0.12);
   }
 
   &__avatar-fallback {
@@ -77,7 +80,7 @@ $bmc-radius: 16px;
     font-size: 15px;
     font-weight: 700;
     color: #18181b;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 
   &__center {
@@ -122,7 +125,7 @@ $bmc-radius: 16px;
     border: none;
     border-radius: 50%;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s, transform 0.15s;
     text-decoration: none;
 
     svg {
@@ -132,6 +135,7 @@ $bmc-radius: 16px;
     &:hover {
       background: #f4f4f5;
       color: #18181b;
+      transform: translateY(-1px);
     }
 
     &--active {
@@ -144,7 +148,7 @@ $bmc-radius: 16px;
 .bmc-banner {
   width: 100%;
   height: $bmc-banner-height;
-  background-color: #18181b;
+  background-color: #1f2937;
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
@@ -155,10 +159,21 @@ $bmc-radius: 16px;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 44%;
+    height: 62%;
     pointer-events: none;
     z-index: 1;
-    background: linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.72) 70%, #fafaf9 100%);
+    background:
+      linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.78) 70%, #fafaf9 100%),
+      linear-gradient(90deg, rgba(17, 24, 39, 0.2), transparent 36%, rgba(17, 24, 39, 0.1));
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(9, 9, 11, 0.22) 0%, rgba(9, 9, 11, 0.04) 45%, rgba(250, 250, 249, 0) 100%);
   }
 
   &__image {
@@ -172,6 +187,7 @@ $bmc-radius: 16px;
     object-position: var(--bmc-banner-position-x, 50%) var(--bmc-banner-position-y, 50%);
     transform: scale(var(--bmc-banner-zoom, 1));
     transform-origin: center;
+    filter: saturate(1.05) contrast(1.02);
     user-select: none;
     pointer-events: none;
   }
@@ -182,21 +198,23 @@ $bmc-radius: 16px;
     z-index: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%);
+    background:
+      linear-gradient(135deg, #0f172a 0%, #164e63 45%, #52525b 100%);
   }
 }
 
 // ── Main Layout ────────────────────────────────
 .bmc-main {
   display: grid;
-  grid-template-columns: 5fr 6fr;
-  gap: 28px;
+  grid-template-columns: minmax(360px, 1fr) minmax(340px, 460px);
+  gap: 20px;
   max-width: $bmc-max-width;
   width: 100%;
-  margin: -48px auto 0;
-  padding: 0 28px 48px;
+  margin: -52px auto 0;
+  padding: 0 28px 40px;
   position: relative;
-  z-index: 2;
+  z-index: 3;
+  align-items: start;
 }
 
 .bmc-content--single {
@@ -214,32 +232,40 @@ $bmc-radius: 16px;
 .bmc-about-card {
   position: relative;
   z-index: 1;
-  background: #fff;
-  border-radius: $bmc-radius;
-  padding: 28px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94));
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 10px 28px rgba(24, 24, 27, 0.07);
+  border: 1px solid rgba(24, 24, 27, 0.06);
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+
+  &:hover {
+    border-color: $bmc-accent-border;
+    box-shadow: 0 14px 36px rgba(24, 24, 27, 0.09);
+    transform: translateY(-2px);
+  }
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   &__title {
-    font-size: 15px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 800;
     color: #18181b;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 
   &__bio {
     font-size: 14px;
-    color: #52525b;
+    color: #3f3f46;
     line-height: 1.7;
-    margin: 0 0 20px;
+    margin: 0 0 14px;
     word-wrap: break-word;
 
     &--empty {
@@ -250,15 +276,15 @@ $bmc-radius: 16px;
 
   &__divider {
     height: 1px;
-    background: #f4f4f5;
-    margin: 20px 0;
+    background: linear-gradient(90deg, transparent, #e4e4e7 12%, #e4e4e7 88%, transparent);
+    margin: 14px 0;
   }
 
   &__section-title {
     font-size: 13px;
     font-weight: 700;
-    color: #18181b;
-    margin: 0 0 16px;
+    color: #27272a;
+    margin: 0 0 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
@@ -266,7 +292,7 @@ $bmc-radius: 16px;
   &__empty {
     text-align: center;
     padding: 28px 0;
-    color: #a1a1aa;
+    color: #71717a;
     font-size: 13px;
 
     p {
@@ -287,26 +313,33 @@ $bmc-radius: 16px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 
   &__item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 0;
+    padding: 6px;
+    border-radius: 12px;
+    transition: background 0.15s, transform 0.15s;
+
+    &:hover {
+      background: #f8fafc;
+      transform: translateX(2px);
+    }
   }
 
   &__avatar {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    background: linear-gradient(135deg, $bmc-accent-soft 0%, #eff6ff 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
     font-weight: 700;
-    color: #059669;
+    color: $bmc-accent;
     flex-shrink: 0;
     border: 1px solid rgba(5, 150, 105, 0.1);
   }
@@ -336,28 +369,40 @@ $bmc-radius: 16px;
 // ── Form Column (right) ────────────────────────
 .bmc-form-col {
   min-width: 0;
+  width: 100%;
+  max-width: 460px;
+  justify-self: center;
+}
+
+@media (min-width: 900px) {
+  .bmc-form-col {
+    position: sticky;
+    top: 86px;
+  }
 }
 
 // ── Form Card ──────────────────────────────────
 .bmc-form-card {
   position: relative;
   z-index: 1;
-  background: #fff;
-  border-radius: $bmc-radius;
-  padding: 32px 28px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 12px 32px rgba(0, 0, 0, 0.07);
-  border: none;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7), $bmc-accent-border, rgba(37, 99, 235, 0.18)) border-box;
+  border-radius: 14px;
+  padding: 22px 20px;
+  box-shadow: 0 12px 36px rgba(24, 24, 27, 0.1);
+  border: 1px solid transparent;
 
   &--shadow {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03), 0 16px 40px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 15px 42px rgba(24, 24, 27, 0.12);
   }
 
   &__title {
-    font-size: 19px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 800;
     color: #18181b;
-    margin: 0 0 24px;
-    letter-spacing: -0.01em;
+    margin: 0 0 18px;
+    letter-spacing: 0;
 
     span {
       color: #18181b;
@@ -368,30 +413,30 @@ $bmc-radius: 16px;
 // ── Form Elements (class names from Render.php) ──
 .buymecoffee_form {
   .buymecoffee_payment_item {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .buymecoffee_payment_input_content {
-    border-radius: 14px;
+    border-radius: 16px;
     display: flex;
     justify-content: center;
     align-items: center;
     height: auto;
-    padding: 16px 18px;
+    padding: 11px 10px;
     margin-bottom: 0;
     box-sizing: border-box;
-    background: #fafaf9;
-    border: 1px solid #f4f4f5;
+    background: linear-gradient(180deg, #fbfbfb, #f6f7f5);
+    border: 1px solid rgba(24, 24, 27, 0.06);
   }
 
   .buymecoffee_coffee_selector {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 
     img {
-      width: 38px;
-      height: 38px;
+      width: 34px;
+      height: 34px;
       object-fit: contain;
       flex-shrink: 0;
       image-rendering: -webkit-optimize-contrast;
@@ -400,14 +445,14 @@ $bmc-radius: 16px;
 
     > span {
       color: #a1a1aa;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 500;
     }
   }
 
   .bmc_coffee {
     display: flex;
-    gap: 8px;
+    gap: 7px;
 
     input {
       max-width: 0;
@@ -418,18 +463,18 @@ $bmc-radius: 16px;
     label {
       cursor: pointer;
       border: 1.5px solid #e4e4e7;
-      border-radius: 12px;
-      width: 44px;
-      height: 44px;
+      border-radius: 14px;
+      width: 40px;
+      height: 38px;
       display: flex !important;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       color: #3f3f46;
       padding: 0 !important;
       margin: 0 !important;
-      transition: all 0.2s ease;
+      transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s, color 0.16s, background 0.16s;
       background: #fff;
     }
 
@@ -437,6 +482,8 @@ $bmc-radius: 16px;
       border-color: $bmc-accent;
       color: $bmc-accent;
       background: $bmc-accent-soft;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(24, 24, 27, 0.08);
     }
 
     input:checked + label {
@@ -444,28 +491,30 @@ $bmc-radius: 16px;
       border-color: $bmc-accent;
       color: #fff !important;
       font-weight: 700;
-      box-shadow: 0 2px 8px $bmc-accent-border;
+      box-shadow: 0 10px 24px $bmc-accent-border;
+      transform: translateY(-2px);
     }
   }
 
   input.buymecoffee_custom_quantity {
-    width: 54px !important;
-    height: 44px !important;
+    width: 46px !important;
+    height: 38px !important;
     border: 1.5px solid #e4e4e7 !important;
-    border-radius: 12px !important;
+    border-radius: 14px !important;
     text-align: center;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     background: #fff;
     box-shadow: none !important;
     padding: 0 !important;
     color: #3f3f46;
-    transition: all 0.2s;
+    transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
 
     &:focus {
       border-color: $bmc-accent !important;
       outline: none;
       box-shadow: 0 0 0 3px $bmc-accent-ring !important;
+      transform: translateY(-1px);
     }
   }
 
@@ -479,7 +528,7 @@ $bmc-radius: 16px;
   // Custom amount
   .buymecoffee_input_content_custom_pay {
     display: flex;
-    border-radius: 14px;
+    border-radius: 16px;
     overflow: hidden;
     border: 1.5px solid #e4e4e7;
     transition: border-color 0.15s;
@@ -528,30 +577,31 @@ $bmc-radius: 16px;
 
   // Text inputs
   .buymecoffee_form_item {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .buymecoffee_input_content {
     input,
     textarea {
       width: 100% !important;
-      padding: 12px 16px;
+      padding: 10px 14px;
       border: 1.5px solid #e4e4e7 !important;
-      border-radius: 12px;
+      border-radius: 14px;
       font-size: 14px;
       font-family: $bmc-font;
       background: #fff !important;
       color: #18181b;
       box-shadow: none !important;
       box-sizing: border-box;
-      min-height: 46px;
-      transition: all 0.2s;
+      min-height: 42px;
+      transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s, background 0.16s;
       resize: vertical;
 
       &:focus {
         outline: none;
         border-color: $bmc-accent !important;
         box-shadow: 0 0 0 3px $bmc-accent-ring !important;
+        transform: translateY(-1px);
       }
 
       &::placeholder {
@@ -561,7 +611,7 @@ $bmc-radius: 16px;
     }
 
     textarea {
-      min-height: 60px;
+      min-height: 52px;
     }
   }
 
@@ -573,7 +623,7 @@ $bmc-radius: 16px;
 
   .wpm_submit_button {
     width: 100%;
-    height: 50px;
+    height: 48px;
     font-family: $bmc-font;
     font-size: 15px;
     font-weight: 700;
@@ -581,19 +631,20 @@ $bmc-radius: 16px;
     color: #fff !important;
     background: $bmc-accent;
     border: none;
-    border-radius: 14px;
+    border-radius: 16px;
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 6px;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 3px $bmc-accent-border;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+    box-shadow: 0 10px 24px $bmc-accent-border;
     text-transform: none;
 
     &:hover {
-      box-shadow: 0 4px 14px $bmc-accent-border;
-      transform: translateY(-1px);
+      box-shadow: 0 14px 34px $bmc-accent-border;
+      filter: saturate(1.05);
+      transform: translateY(-2px);
     }
 
     &:active {
@@ -689,7 +740,7 @@ $bmc-radius: 16px;
   }
 
   label {
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1.5px solid #e4e4e7;
     min-width: 48px;
     padding: 10px 16px;
@@ -701,12 +752,14 @@ $bmc-radius: 16px;
     justify-content: center;
     gap: 4px;
     height: auto;
-    transition: all 0.2s;
+    transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s, background 0.16s;
     background: #fff;
 
     &:hover {
       border-color: $bmc-accent;
       background: $bmc-accent-subtle;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(24, 24, 27, 0.08);
       img {
         filter: grayscale(0);
         opacity: 1;
@@ -718,7 +771,7 @@ $bmc-radius: 16px;
     border-color: $bmc-accent;
     background: $bmc-accent-soft;
     width: auto;
-    box-shadow: 0 0 0 3px $bmc-accent-ring;
+    box-shadow: 0 0 0 3px $bmc-accent-ring, 0 10px 24px rgba(24, 24, 27, 0.08);
 
     img {
       filter: grayscale(0);
@@ -806,7 +859,7 @@ form.wpm_submitting_form {
     font-weight: 700;
     color: #18181b;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 
   &__subtitle {
@@ -868,7 +921,7 @@ form.wpm_submitting_form {
     font-size: 28px;
     font-weight: 800;
     color: #18181b;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 
   &__amount-coffees {
@@ -1036,13 +1089,13 @@ form.wpm_submitting_form {
 @media (max-width: 768px) {
   .bmc-main {
     grid-template-columns: 1fr;
-    margin-top: -28px;
-    padding: 0 16px 36px;
-    gap: 20px;
+    margin-top: -40px;
+    padding: 0 14px 30px;
+    gap: 14px;
   }
 
   .bmc-banner {
-    height: 200px;
+    height: 210px;
   }
 
   .bmc-nav {
@@ -1055,11 +1108,19 @@ form.wpm_submitting_form {
   }
 
   .bmc-form-card {
-    padding: 24px 20px;
+    padding: 20px 18px;
+  }
+
+  .bmc-form-col {
+    order: 2;
+  }
+
+  .bmc-sidebar-col {
+    order: 3;
   }
 
   .bmc-about-card {
-    padding: 22px;
+    padding: 18px;
   }
 
   .bmc-footer {
@@ -1069,7 +1130,13 @@ form.wpm_submitting_form {
 
 @media (max-width: 480px) {
   .bmc-banner {
-    height: 160px;
+    height: 180px;
+  }
+
+  .bmc-main {
+    margin-top: -34px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
   .bmc-form-card__title {
@@ -1176,7 +1243,7 @@ form.wpm_submitting_form {
   font-size: 28px;
   font-weight: 800;
   color: var(--bmc-accent, #0d9488);
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
 }
 
 .bmc-level-locked-interval {

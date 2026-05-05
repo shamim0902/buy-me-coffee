@@ -199,9 +199,7 @@ jQuery(document).ready(function ($) {
     $avatarOverlay.on('click', function (e) {
         e.stopPropagation();
         openMediaPicker('Select Profile Image', function (url) {
-            state.image = url;
-            $wrapper.find('.bmc-profile__avatar').attr('src', url);
-            $wrapper.find('.bmc-nav__avatar').attr('src', url);
+            setProfileImage(url);
             debounceSave();
         });
     });
@@ -222,9 +220,7 @@ jQuery(document).ready(function ($) {
         const files = e.originalEvent.dataTransfer.files;
         if (files.length && files[0].type.startsWith('image/')) {
             uploadFile(files[0], function (url) {
-                state.image = url;
-                $wrapper.find('.bmc-profile__avatar').attr('src', url);
-                $wrapper.find('.bmc-nav__avatar').attr('src', url);
+                setProfileImage(url);
                 debounceSave();
                 showToast('Photo updated');
             });
@@ -235,6 +231,7 @@ jQuery(document).ready(function ($) {
     const $name = $wrapper.find('.bmc-profile__name');
     const $bio = $wrapper.find('.bmc-about-card__bio').not('.bmc-about-card__bio--empty');
     const $navName = $wrapper.find('.bmc-nav__name');
+    const $aboutTitle = $wrapper.find('.bmc-about-card__title');
 
     $name.attr('contenteditable', 'true').attr('data-placeholder', 'Your name');
     if ($bio.length) {
@@ -244,6 +241,7 @@ jQuery(document).ready(function ($) {
     $name.on('input', function () {
         state.yourName = $(this).text().trim();
         $navName.text(state.yourName);
+        $aboutTitle.text('About ' + state.yourName);
         debounceSave();
     });
 
@@ -386,6 +384,24 @@ jQuery(document).ready(function ($) {
 
         $image.attr('src', url);
         applyBannerCrop(true);
+    }
+
+    function setProfileImage(url) {
+        state.image = url;
+        $wrapper.find('.bmc-profile__avatar').attr('src', url);
+
+        const name = $wrapper.find('.bmc-nav__name').first().text().trim();
+        const $navImage = $wrapper.find('.bmc-nav__avatar');
+        if ($navImage.length) {
+            $navImage.attr('src', url);
+        } else {
+            $wrapper.find('.bmc-nav__avatar-fallback').replaceWith($('<img>', {
+                class: 'bmc-nav__avatar',
+                src: url,
+                alt: name,
+                'data-field': 'image',
+            }));
+        }
     }
 
     function hasBannerImage() {
