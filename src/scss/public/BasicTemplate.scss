@@ -3,7 +3,8 @@
 // ============================================================
 
 $bmc-max-width: 1060px;
-$bmc-banner-height: 260px;
+$bmc-banner-height: 320px;
+$bmc-banner-blend-height: 150px;
 $bmc-accent: var(--bmc-accent, #0d9488);
 $bmc-accent-soft: var(--bmc-accent-soft, rgba(13, 148, 136, 0.04));
 $bmc-accent-subtle: var(--bmc-accent-subtle, rgba(13, 148, 136, 0.02));
@@ -13,6 +14,20 @@ $bmc-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helv
 $bmc-radius: 16px;
 
 // ── Page ───────────────────────────────────────
+html {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+body.bmc-page {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.bmc-page #wpadminbar {
+  display: none !important;
+}
+
 .bmc-page {
   margin: 0;
   padding: 0;
@@ -30,6 +45,19 @@ $bmc-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: calc(#{$bmc-banner-height} - #{$bmc-banner-blend-height});
+    left: 0;
+    right: 0;
+    height: $bmc-banner-blend-height;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.54) 52%, #fafaf9 100%);
+  }
 }
 
 // ── Top Nav ────────────────────────────────────
@@ -39,13 +67,14 @@ $bmc-radius: 16px;
   justify-content: space-between;
   padding: 0 32px;
   height: 64px;
-  border-bottom: 1px solid rgba(24, 24, 27, 0.06);
+  border-bottom: 0;
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 10px 30px rgba(24, 24, 27, 0.04);
+  margin-bottom: -64px;
+  backdrop-filter: none;
+  background: transparent;
+  box-shadow: none;
 
   &__left {
     display: flex;
@@ -79,7 +108,8 @@ $bmc-radius: 16px;
   &__name {
     font-size: 15px;
     font-weight: 700;
-    color: #18181b;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(9, 9, 11, 0.72);
     letter-spacing: 0;
   }
 
@@ -121,7 +151,7 @@ $bmc-radius: 16px;
     height: 36px;
     padding: 0;
     background: transparent;
-    color: #71717a;
+    color: rgba(255, 255, 255, 0.92);
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -133,8 +163,8 @@ $bmc-radius: 16px;
     }
 
     &:hover {
-      background: #f4f4f5;
-      color: #18181b;
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
       transform: translateY(-1px);
     }
 
@@ -159,21 +189,22 @@ $bmc-radius: 16px;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 62%;
+    height: 100%;
     pointer-events: none;
     z-index: 1;
     background:
-      linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.78) 70%, #fafaf9 100%),
-      linear-gradient(90deg, rgba(17, 24, 39, 0.2), transparent 36%, rgba(17, 24, 39, 0.1));
+      linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.2) 44%, rgba(250, 250, 249, 0.78) 78%, #fafaf9 100%),
+      linear-gradient(90deg, rgba(17, 24, 39, 0.14), transparent 36%, rgba(17, 24, 39, 0.08));
   }
 
   &::before {
     content: '';
     position: absolute;
-    inset: 0;
-    z-index: 1;
+    inset: 0 0 auto;
+    height: 96px;
+    z-index: 2;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(9, 9, 11, 0.22) 0%, rgba(9, 9, 11, 0.04) 45%, rgba(250, 250, 249, 0) 100%);
+    background: linear-gradient(180deg, rgba(9, 9, 11, 0.12) 0%, rgba(9, 9, 11, 0.04) 62%, rgba(9, 9, 11, 0) 100%);
   }
 
   &__image {
@@ -1087,6 +1118,10 @@ form.wpm_submitting_form {
 
 // ── Responsive ─────────────────────────────────
 @media (max-width: 768px) {
+  .bmc-page-wrapper::after {
+    top: calc(260px - #{$bmc-banner-blend-height});
+  }
+
   .bmc-main {
     grid-template-columns: 1fr;
     margin-top: -40px;
@@ -1095,7 +1130,7 @@ form.wpm_submitting_form {
   }
 
   .bmc-banner {
-    height: 210px;
+    height: 260px;
   }
 
   .bmc-nav {
@@ -1129,8 +1164,12 @@ form.wpm_submitting_form {
 }
 
 @media (max-width: 480px) {
+  .bmc-page-wrapper::after {
+    top: calc(220px - #{$bmc-banner-blend-height});
+  }
+
   .bmc-banner {
-    height: 180px;
+    height: 220px;
   }
 
   .bmc-main {
