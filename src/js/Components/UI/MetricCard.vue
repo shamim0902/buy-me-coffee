@@ -109,8 +109,8 @@ const iconComponent = computed(() => iconMap[props.icon] || DollarSign);
 
 .bmc-metric__value {
     font-family: var(--font-display);
-    font-size: 28px;
-    font-weight: 800;
+    font-size: 24px;
+    font-weight: 600;
     color: var(--text-primary);
     line-height: 1.1;
 }

@@ -87,21 +87,19 @@
             </div>
         </nav>
 
-        <!-- Utility icons row -->
-        <div class="bmc-sidebar__utils" v-show="!isCollapsed">
-            <button class="bmc-sidebar__util-btn" @click="toggleTheme" :title="isDark ? 'Light mode' : 'Dark mode'">
+        <!-- Bottom bar: theme toggle, fullscreen, collapse -->
+        <div class="bmc-sidebar__bottom-bar">
+            <button v-show="!isCollapsed" class="bmc-sidebar__util-btn" @click="toggleTheme" :title="isDark ? 'Light mode' : 'Dark mode'">
                 <Moon v-if="!isDark" :size="14" />
                 <Sun v-else :size="14" />
             </button>
-            <a v-if="isWpAdmin" :href="fullPageUrl" class="bmc-sidebar__util-btn" title="Open full-screen dashboard">
+            <a v-if="isWpAdmin && !isCollapsed" :href="fullPageUrl" class="bmc-sidebar__util-btn" title="Open full-screen dashboard">
                 <Maximize2 :size="14" />
             </a>
+            <button class="bmc-sidebar__util-btn bmc-sidebar__util-btn--collapse" @click="toggleCollapse" :title="isCollapsed ? 'Expand' : 'Collapse'">
+                <component :is="isCollapsed ? ChevronsRight : ChevronsLeft" :size="14" />
+            </button>
         </div>
-
-        <!-- Collapse toggle -->
-        <button class="bmc-sidebar__toggle" @click="toggleCollapse" :title="isCollapsed ? 'Expand' : 'Collapse'">
-            <component :is="isCollapsed ? ChevronsRight : ChevronsLeft" :size="16" />
-        </button>
     </aside>
 </template>
 
@@ -377,13 +375,14 @@ onBeforeUnmount(() => {
     color: var(--sidebar-active-text);
 }
 
-/* ── Utility icons ── */
-.bmc-sidebar__utils {
+/* ── Bottom bar (theme + collapse) ── */
+.bmc-sidebar__bottom-bar {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 6px 8px 8px;
+    padding: 8px;
+    border-top: 1px solid var(--sidebar-border);
 }
 .bmc-sidebar__util-btn {
     display: flex;
@@ -403,24 +402,8 @@ onBeforeUnmount(() => {
     background: var(--bg-sidebar-hover);
     color: var(--sidebar-text);
 }
-
-/* ── Collapse toggle ── */
-.bmc-sidebar__toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 6px;
-    padding: 6px;
-    border: 1px solid var(--sidebar-border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--sidebar-text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.bmc-sidebar__toggle:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--sidebar-text);
+.bmc-sidebar__util-btn--collapse {
+    margin-left: auto;
 }
 
 @media (max-width: 768px) {

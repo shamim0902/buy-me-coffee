@@ -43,7 +43,6 @@ jQuery(document).ready(function ($) {
         '<div class="bmc-banner__overlay-content">' +
         cameraSvg +
         '<span>Drag to position cover</span>' +
-        '<span class="bmc-banner__overlay-sub">Drop an image here or use Change</span>' +
         '</div></div>');
     const $bannerControls = $('<div class="bmc-banner__controls">' +
         '<button type="button" class="bmc-banner__control-btn" data-bmc-banner-change>Change</button>' +
@@ -56,6 +55,7 @@ jQuery(document).ready(function ($) {
 
     let bannerEditActive = false;
     let bannerDrag = null;
+    let bannerDragCount = 0;
     const bannerCrop = {
         x: clampNumber(parseFloat($banner.data('bannerPositionX')), 0, 100, 50),
         y: clampNumber(parseFloat($banner.data('bannerPositionY')), 0, 100, 50),
@@ -85,6 +85,18 @@ jQuery(document).ready(function ($) {
         $banner.removeClass('bmc-banner--edit-active');
         $bannerBtn.removeClass('bmc-banner__edit-btn--active').html(pencilSvg + '<span class="bmc-banner__edit-btn-label">Edit cover</span>');
     }
+
+    // Click outside banner closes edit mode
+    $(document).on('click', function () {
+        if (bannerEditActive) {
+            closeBannerEdit();
+            flushSave();
+        }
+    });
+
+    $banner.on('click', function (e) {
+        e.stopPropagation();
+    });
 
     // Click the empty placeholder -> open media picker.
     $bannerOverlay.on('click', function (e) {
@@ -116,23 +128,36 @@ jQuery(document).ready(function ($) {
         debounceSave();
     });
 
-    // Banner drag-and-drop (works when edit active)
+    // Banner drag-and-drop (counter prevents flicker from child elements)
+    $banner.on('dragenter', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        bannerDragCount++;
+        if (bannerDragCount === 1) {
+            if (!bannerEditActive) openBannerEdit();
+            $(this).addClass('bmc-banner--dragover');
+        }
+    });
+
     $banner.on('dragover', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        if (!bannerEditActive) openBannerEdit();
-        $(this).addClass('bmc-banner--dragover');
     });
 
     $banner.on('dragleave', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $(this).removeClass('bmc-banner--dragover');
+        bannerDragCount--;
+        if (bannerDragCount <= 0) {
+            bannerDragCount = 0;
+            $(this).removeClass('bmc-banner--dragover');
+        }
     });
 
     $banner.on('drop', function (e) {
         e.preventDefault();
         e.stopPropagation();
+        bannerDragCount = 0;
         $(this).removeClass('bmc-banner--dragover');
         const files = e.originalEvent.dataTransfer.files;
         if (files.length && files[0].type.startsWith('image/')) {

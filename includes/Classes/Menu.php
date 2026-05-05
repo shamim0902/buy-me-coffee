@@ -32,7 +32,26 @@ class Menu
             68
         );
 
+        add_submenu_page(
+            'buy-me-coffee.php',
+            __('App View', 'buy-me-coffee'),
+            __('App View', 'buy-me-coffee'),
+            'read',
+            'buymecoffee-app-view',
+            '__return_null'
+        );
+
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
+
+        // Redirect the "App View" submenu to the full-page frontend app.
+        add_action('admin_init', function () {
+            global $pagenow;
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            if ($pagenow === 'admin.php' && isset($_GET['page']) && $_GET['page'] === 'buymecoffee-app-view') {
+                wp_safe_redirect(site_url('?buymecoffee_admin#/'));
+                exit;
+            }
+        });
 
         // Tag the Buy Me Coffee admin page without changing the WordPress menu state.
         add_filter('admin_body_class', function ($classes) {
