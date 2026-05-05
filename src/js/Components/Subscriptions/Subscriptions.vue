@@ -274,7 +274,7 @@ export default {
   text-decoration: underline;
 }
 .bmc-email { font-size: 12px; color: var(--text-secondary); margin: 1px 0 0; }
-.bmc-amount { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.bmc-amount { font-size: 14px; font-weight: 400; color: var(--text-primary); }
 .bmc-interval { font-size: 13px; color: var(--text-secondary); }
 .bmc-date { font-size: 13px; color: var(--text-secondary); }
 

@@ -458,9 +458,17 @@ export default {
     prev() { if (this.active > 0) this.active--; },
     onMediaSelected(selected) { if (selected.length) this.template.advanced.image = selected[0].url; },
     fullPath(path) { return window.BuyMeCoffeeAdmin.assets_url + 'images/' + path; },
-    gotoPage() { window.open(this.previewUrl, '_blank'); },
-    openDashboard() { this.$saveData('buymecoffee_guided_tour', 'done'); this.$router.push('/'); },
-    skipSetup() { this.$saveData('buymecoffee_guided_tour', 'done'); this.$router.push('/'); },
+    gotoPage() { this.markGuidedTourDone(); window.open(this.previewUrl, '_blank'); },
+    openDashboard() { this.markGuidedTourDone(); this.$router.push('/'); },
+    skipSetup() { this.markGuidedTourDone(); this.$router.push('/'); },
+    markGuidedTourDone() {
+      if (this.$completeGuidedTour) {
+        this.$completeGuidedTour('done');
+        return;
+      }
+
+      this.$saveData('buymecoffee_guided_tour', 'done');
+    },
     copyLink() {
       if (navigator.clipboard) navigator.clipboard.writeText(this.previewUrl);
       this.linkCopied = true;
@@ -470,6 +478,7 @@ export default {
   watch: {
     active(val) {
       if (val === 3) this.loadGatewaySettings();
+      if (val === 4) this.markGuidedTourDone();
     },
   },
   mounted() {

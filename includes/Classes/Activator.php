@@ -10,6 +10,9 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
  */
 class Activator
 {
+    const INSTALLED_AT_OPTION = 'buymecoffee_installed_at';
+    const DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION = 'buymecoffee_default_membership_level_seeded';
+
     public function migrateDatabases($network_wide = false)
     {
         global $wpdb;
@@ -24,11 +27,11 @@ class Activator
             // Install the plugin for all these sites.
             foreach ($site_ids as $site_id) {
                 switch_to_blog($site_id);
-                $this->migrate();
+                $this->activateSite();
                 restore_current_blog();
             }
         } else {
-            $this->migrate();
+            $this->activateSite();
         }
     }
 
@@ -38,6 +41,10 @@ class Activator
         if (version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<')) {
             $this->migrate();
             update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
+        }
+
+        if (get_option(self::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION) !== 'yes') {
+            $this->seedDefaultMembershipLevel();
         }
     }
 
@@ -49,6 +56,31 @@ class Activator
         $this->createActivitiesTable();
         $this->createMembershipLevelsTable();
         $this->createSupportersMetaTable();
+        $this->seedDefaultMembershipLevel();
+    }
+
+    private function activateSite()
+    {
+        $isFreshInstall = $this->isFreshInstall();
+
+        $this->migrate();
+
+        if (!get_option(self::INSTALLED_AT_OPTION)) {
+            update_option(self::INSTALLED_AT_OPTION, current_time('mysql'), false);
+        }
+
+        if ($isFreshInstall && !class_exists('\BuyMeCoffee\Classes\GuidedTour')) {
+            require_once BUYMECOFFEE_DIR . 'includes/Classes/GuidedTour.php';
+        }
+
+        if ($isFreshInstall && class_exists('\BuyMeCoffee\Classes\GuidedTour')) {
+            GuidedTour::enableForFreshInstall();
+        }
+    }
+
+    private function isFreshInstall()
+    {
+        return !get_option(self::INSTALLED_AT_OPTION) && !get_option('buymecoffee_db_version');
     }
 
     public function createSupportersTable()
@@ -194,6 +226,73 @@ class Activator
         ) $charset_collate;";
 
         $this->runSQL($sql, $table_name);
+    }
+
+    private function seedDefaultMembershipLevel()
+    {
+        global $wpdb;
+
+        if (get_option(self::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION) === 'yes') {
+            return;
+        }
+
+        $tableName = $wpdb->prefix . 'buymecoffee_membership_levels';
+        $tableLike = $wpdb->esc_like($tableName);
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Activation/migration table existence check.
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tableLike));
+        if ($tableExists !== $tableName) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Seed guard during migration.
+        $levelCount = (int) $wpdb->get_var("SELECT COUNT(id) FROM {$tableName}");
+        if ($levelCount > 0) {
+            update_option(self::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION, 'yes', false);
+            return;
+        }
+
+        $now = current_time('mysql');
+        $inserted = $wpdb->insert(
+            $tableName,
+            [
+                'name'          => 'Supporter',
+                'description'   => 'A sample $10 monthly membership for supporters who want access to premium updates and bonus content.',
+                'price'         => 1000,
+                'interval_type' => 'month',
+                'status'        => 'active',
+                'rewards'       => wp_json_encode([
+                    'Access to members-only posts',
+                    'Monthly behind-the-scenes update',
+                    'Supporter badge on your account',
+                ]),
+                'access_rules'  => wp_json_encode([
+                    'post_types'    => [],
+                    'categories'    => [],
+                    'preview_words' => 50,
+                    'access_level'  => 'full',
+                ]),
+                'sort_order'    => 0,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ],
+            [
+                '%s',
+                '%s',
+                '%d',
+                '%s',
+                '%s',
+                '%s',
+                '%s',
+                '%d',
+                '%s',
+                '%s',
+            ]
+        );
+
+        if ($inserted) {
+            update_option(self::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION, 'yes', false);
+        }
     }
 
     public function createSupportersMetaTable()

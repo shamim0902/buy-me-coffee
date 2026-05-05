@@ -17,6 +17,7 @@ export default class BuyMeCoffee {
         this.applyFilters = applyFilters;
         this.removeAllActions = removeAllActions;
         this.appVars = window.BuyMeCoffeeAdmin || {};
+        this.guidedTourCompletionRequest = null;
         this.app = this.extendVueConstructor();
     }
 
@@ -46,6 +47,7 @@ export default class BuyMeCoffee {
                 $currencySymbol: getCurrencySymbol,
                 $saveData: self.saveData,
                 $getData: self.getData,
+                $completeGuidedTour: self.completeGuidedTour.bind(self),
                 convertToText: self.convertToText,
                 $setTitle(title) {
                     document.title = title;
@@ -118,20 +120,58 @@ export default class BuyMeCoffee {
         if (!existingData) {
             existingData = {};
         } else {
-            existingData = JSON.parse(existingData);
+            try {
+                existingData = JSON.parse(existingData) || {};
+            } catch (error) {
+                existingData = {};
+            }
         }
 
         existingData[key] = data;
 
         window.localStorage.setItem('__buymecoffee_data', JSON.stringify(existingData));
+
+        if (key === 'buymecoffee_guided_tour' && window.BuyMeCoffeeAdmin) {
+            window.BuyMeCoffeeAdmin.guided_tour_completed = true;
+            window.BuyMeCoffeeAdmin.show_guided_tour = false;
+        }
+
         window.dispatchEvent(new CustomEvent('buymecoffee:data-saved', {
             detail: { key, data }
         }));
     }
 
+    completeGuidedTour(status = 'done') {
+        if (window.BuyMeCoffeeAdmin?.guided_tour_completed && this.guidedTourCompletionRequest) {
+            return this.guidedTourCompletionRequest;
+        }
+
+        if (window.BuyMeCoffeeAdmin?.guided_tour_completed && !window.BuyMeCoffeeAdmin?.force_guided_tour) {
+            return Promise.resolve();
+        }
+
+        this.saveData('buymecoffee_guided_tour', status);
+
+        if (!window.BuyMeCoffeeAdmin?.ajaxurl || !window.BuyMeCoffeeAdmin?.buymecoffee_nonce) {
+            return Promise.resolve();
+        }
+
+        this.guidedTourCompletionRequest = window.jQuery.post(window.BuyMeCoffeeAdmin.ajaxurl, {
+            action: 'buymecoffee_admin_ajax',
+            route: 'complete_guided_tour',
+            buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce
+        });
+
+        return this.guidedTourCompletionRequest;
+    }
+
     getData(key, defaultValue = false) {
         let existingData = window.localStorage.getItem('__buymecoffee_data');
-        existingData = JSON.parse(existingData);
+        try {
+            existingData = JSON.parse(existingData);
+        } catch (error) {
+            existingData = null;
+        }
         if (!existingData) {
             return defaultValue;
         }

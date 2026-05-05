@@ -9,6 +9,7 @@
                 </Transition>
             </router-view>
         </main>
+        <GuidedTour />
         <WhatsNew />
         <ReviewPrompt />
     </div>
@@ -20,6 +21,7 @@ import AppSidebar from './AppSidebar.vue';
 import AppTopNav from './AppTopNav.vue';
 import WhatsNew from './WhatsNew.vue';
 import ReviewPrompt from './ReviewPrompt.vue';
+import GuidedTour from './GuidedTour.vue';
 
 const sidebarCollapsed = ref(false);
 const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);

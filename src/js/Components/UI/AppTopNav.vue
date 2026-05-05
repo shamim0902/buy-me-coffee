@@ -14,6 +14,7 @@
                         :to="item.route"
                         class="bmc-topnav__item"
                         :class="{ 'bmc-topnav__item--active': isActive(item) }"
+                        :data-bmc-tour="tourKey(item)"
                     >
                         <component :is="item.icon" :size="15" />
                         <span>{{ item.label }}</span>
@@ -32,6 +33,7 @@
                             :to="item.route"
                             class="bmc-topnav__item"
                             :class="{ 'bmc-topnav__item--active': isActive(item) }"
+                            :data-bmc-tour="tourKey(item)"
                         >
                             <component :is="item.icon" :size="15" />
                             <span>{{ item.label }}</span>
@@ -58,6 +60,7 @@
                         :to="item.route"
                         class="bmc-topnav__item"
                         :class="{ 'bmc-topnav__item--active': isActive(item) }"
+                        :data-bmc-tour="tourKey(item)"
                     >
                         <component :is="item.icon" :size="15" />
                         <span>{{ item.label }}</span>
@@ -69,6 +72,7 @@
                         to="/quick-setup"
                         class="bmc-topnav__item bmc-topnav__item--setup"
                         :class="{ 'bmc-topnav__item--active': isActive({ activeNames: ['Onboarding'] }) }"
+                        data-bmc-tour="quick-setup"
                     >
                         <Sparkles :size="15" />
                         <span>Quick Setup</span>
@@ -101,6 +105,7 @@
                     :to="item.route"
                     class="bmc-topnav__compact-item"
                     :class="{ 'bmc-topnav__compact-item--active': isActive(item) }"
+                    :data-bmc-tour="tourKey(item)"
                     @click="isCompactOpen = false"
                 >
                     <component :is="item.icon" :size="15" />
@@ -115,6 +120,7 @@
                         :to="getChildRoute(topConfigItems[0], child)"
                         class="bmc-topnav__compact-item"
                         :class="{ 'bmc-topnav__compact-item--active': isChildActive(child) }"
+                        :data-bmc-tour="tourKey(child)"
                         @click="isCompactOpen = false"
                     >
                         <component :is="child.icon" :size="15" />
@@ -127,6 +133,7 @@
                     to="/quick-setup"
                     class="bmc-topnav__compact-item bmc-topnav__compact-item--setup"
                     :class="{ 'bmc-topnav__compact-item--active': isActive({ activeNames: ['Onboarding'] }) }"
+                    data-bmc-tour="quick-setup"
                     @click="isCompactOpen = false"
                 >
                     <Sparkles :size="15" />
@@ -140,7 +147,7 @@
                 <Moon v-if="!isDark" :size="15" />
                 <Sun v-else :size="15" />
             </button>
-            <a class="bmc-topnav__icon-btn" :href="previewUrl" target="_blank" rel="noopener" title="Preview Page">
+            <a class="bmc-topnav__icon-btn" :href="previewUrl" target="_blank" rel="noopener" title="Preview Page" data-bmc-tour="preview">
                 <ExternalLink :size="15" />
             </a>
             <a class="bmc-topnav__icon-btn bmc-topnav__icon-btn--primary" :href="fullPageUrl" title="Open full-screen dashboard">
@@ -173,7 +180,7 @@ const closedMenuRoute = ref(null);
 const { isDark, toggleTheme } = useTheme();
 
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
-const showQuickSetup = computed(() => !window.BuyMeCoffeeAdmin?.setup_completed && !quickSetupDismissed.value);
+const showQuickSetup = computed(() => window.BuyMeCoffeeAdmin?.force_guided_tour || (!window.BuyMeCoffeeAdmin?.setup_completed && !quickSetupDismissed.value));
 const fullPageUrl = computed(() => `${window.location.origin}/?buymecoffee_admin`);
 const topConfigItems = computed(() => {
     const settings = configItems[0];
@@ -218,12 +225,24 @@ function getChildRoute(parent, child) {
     return { path: parent.route, query: child.query };
 }
 
+function tourKey(item) {
+    const label = (item?.label || '').toLowerCase();
+    if (label === 'dashboard') return 'dashboard-nav';
+    if (label === 'settings') return 'settings';
+    if (label === 'gateways') return 'gateways';
+    return null;
+}
+
 function hideDesktopSubmenu(route, event) {
     closedMenuRoute.value = route;
     event?.currentTarget?.blur?.();
 }
 
 function hasQuickSetupDismissed() {
+    if (window.BuyMeCoffeeAdmin?.guided_tour_completed) {
+        return true;
+    }
+
     try {
         const stored = JSON.parse(localStorage.getItem('__buymecoffee_data') || '{}');
         return !!stored.buymecoffee_guided_tour;

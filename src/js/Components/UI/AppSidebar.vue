@@ -14,7 +14,7 @@
                 <span v-show="!isCollapsed" class="bmc-sidebar__section-label">Main</span>
                 <ul class="bmc-sidebar__list" role="list">
                     <li v-for="item in mainItems" :key="item.route">
-                        <router-link :to="item.route" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive(item) }">
+                        <router-link :to="item.route" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive(item) }" :data-bmc-tour="tourKey(item)">
                             <component :is="item.icon" :size="16" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
                         </router-link>
@@ -32,6 +32,7 @@
                                 :to="item.route"
                                 class="bmc-sidebar__item"
                                 :class="{ 'bmc-sidebar__item--active': isActive(item) && !item.children }"
+                                :data-bmc-tour="tourKey(item)"
                             >
                                 <component :is="item.icon" :size="16" class="bmc-sidebar__icon" />
                                 <span v-show="!isCollapsed" class="bmc-sidebar__label">{{ item.label }}</span>
@@ -65,13 +66,13 @@
             <div class="bmc-sidebar__section bmc-sidebar__section--bottom">
                 <ul class="bmc-sidebar__list" role="list">
                     <li>
-                        <a :href="previewUrl" target="_blank" rel="noopener" class="bmc-sidebar__item">
+                        <a :href="previewUrl" target="_blank" rel="noopener" class="bmc-sidebar__item" data-bmc-tour="preview">
                             <ExternalLink :size="14" class="bmc-sidebar__icon" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Preview Page</span>
                         </a>
                     </li>
                     <li v-if="showQuickSetup">
-                        <router-link to="/quick-setup" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive({ activeNames: ['Onboarding'] }) }">
+                        <router-link to="/quick-setup" class="bmc-sidebar__item" :class="{ 'bmc-sidebar__item--active': isActive({ activeNames: ['Onboarding'] }) }" data-bmc-tour="quick-setup">
                             <Sparkles :size="14" class="bmc-sidebar__icon bmc-sidebar__icon--sparkle" />
                             <span v-show="!isCollapsed" class="bmc-sidebar__label">Quick Setup</span>
                         </router-link>
@@ -131,7 +132,7 @@ watch(isCollapsed, (val) => emit('update:collapsed', val));
 const previewUrl = computed(() => window.BuyMeCoffeeAdmin?.preview_url || '#');
 const wpAdminUrl = computed(() => (window.BuyMeCoffeeAdmin?.wp_admin_url || '/wp-admin/') + 'admin.php?page=buy-me-coffee.php');
 const isWpAdmin = computed(() => !!window.BuyMeCoffeeAdmin?.is_wp_admin);
-const showQuickSetup = computed(() => !window.BuyMeCoffeeAdmin?.setup_completed && !quickSetupDismissed.value);
+const showQuickSetup = computed(() => window.BuyMeCoffeeAdmin?.force_guided_tour || (!window.BuyMeCoffeeAdmin?.setup_completed && !quickSetupDismissed.value));
 const fullPageUrl = computed(() => {
     const base = window.location.origin;
     return base + '/?buymecoffee_admin';
@@ -146,12 +147,24 @@ function isSubActive(child) {
     return currentTab === child.query.tab;
 }
 
+function tourKey(item) {
+    const label = (item?.label || '').toLowerCase();
+    if (label === 'dashboard') return 'dashboard-nav';
+    if (label === 'settings') return 'settings';
+    if (label === 'gateways') return 'gateways';
+    return null;
+}
+
 function toggleCollapse() {
     isCollapsed.value = !isCollapsed.value;
     localStorage.setItem(COLLAPSE_KEY, String(isCollapsed.value));
 }
 
 function hasQuickSetupDismissed() {
+    if (window.BuyMeCoffeeAdmin?.guided_tour_completed) {
+        return true;
+    }
+
     try {
         const stored = JSON.parse(localStorage.getItem('__buymecoffee_data') || '{}');
         return !!stored.buymecoffee_guided_tour;

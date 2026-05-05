@@ -58,9 +58,8 @@ const visible = ref(false);
 const version = window.BuyMeCoffeeAdmin?.plugin_version || '';
 
 onMounted(() => {
-  const forceShow = new URLSearchParams(window.location.search).get('bmc_whats_new') === '1';
   const showFlag = window.BuyMeCoffeeAdmin?.show_whats_new;
-  const shouldShow = forceShow || showFlag === true || showFlag === 1 || showFlag === '1';
+  const shouldShow = showFlag === true || showFlag === 1 || showFlag === '1';
   if (!shouldShow) return;
   // Slight delay so the dashboard finishes rendering first
   setTimeout(() => { visible.value = true; }, 1400);

@@ -657,7 +657,7 @@ export default {
 .bmc-supporter-row__metric-value {
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .bmc-supporter-row__actions {

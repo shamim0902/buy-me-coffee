@@ -199,7 +199,7 @@ export default {
 
 .bmc-amount {
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 400;
   font-size: var(--text-base);
   color: var(--text-primary);
 }

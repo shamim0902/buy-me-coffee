@@ -3,7 +3,7 @@
     <CoffeeLoader :loading="fetching" />
 
     <!-- Header -->
-    <div class="bmc-dash-header">
+    <div class="bmc-dash-header" data-bmc-tour="dashboard-header">
       <div class="bmc-dash-header__left">
         <h1 class="bmc-dash-header__greeting">Good morning, {{ userName }}</h1>
         <p class="bmc-dash-header__subtitle">Here's what's happening with your donations today</p>
@@ -61,7 +61,7 @@
     </div>
 
     <!-- Metric Cards (4-column) -->
-    <div class="bmc-metrics-grid">
+    <div class="bmc-metrics-grid" data-bmc-tour="metrics">
       <MetricCard
         label="Total Revenue"
         :value="primaryRevenue"
@@ -93,7 +93,7 @@
     <!-- Middle Row: Chart + Payment Breakdown -->
     <div class="bmc-dash-row">
       <!-- Revenue Chart -->
-      <div class="bmc-card bmc-card--flex" v-loading="chartLoading">
+      <div class="bmc-card bmc-card--flex" v-loading="chartLoading" data-bmc-tour="revenue-chart">
         <div class="bmc-card__header">
           <div>
             <h2 class="bmc-card__title">Revenue Overview</h2>
@@ -149,7 +149,7 @@
     <!-- Bottom Row: Table + Sidebar -->
     <div class="bmc-dash-row">
       <!-- Recent Supporters -->
-      <div class="bmc-card bmc-card--flex bmc-card--no-pad">
+      <div class="bmc-card bmc-card--flex bmc-card--no-pad" data-bmc-tour="transactions">
         <div class="bmc-card__header bmc-card__header--padded">
           <div>
             <h2 class="bmc-card__title">Recent Transactions</h2>
@@ -482,6 +482,11 @@ export default {
     },
     setStore() {
       this.guidedTour = true;
+      if (this.$completeGuidedTour) {
+        this.$completeGuidedTour('done');
+        return;
+      }
+
       this.$saveData('buymecoffee_guided_tour', 'done');
     },
     getSupporters() {
@@ -571,7 +576,7 @@ export default {
     this.getWeeklyRevenue();
     this.getSubscriptionStats();
     if (window.localStorage) {
-      this.guidedTour = !!this.$getData('buymecoffee_guided_tour');
+      this.guidedTour = !!window.BuyMeCoffeeAdmin?.guided_tour_completed || !!this.$getData('buymecoffee_guided_tour');
     }
   }
 };

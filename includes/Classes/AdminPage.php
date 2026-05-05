@@ -80,8 +80,12 @@ class AdminPage
             BUYMECOFFEE_VERSION
         );
 
+        $setupCompleted = $this->isSetupCompleted();
+        $forceGuidedTour = GuidedTour::isForcedForCurrentRequest();
+        $showGuidedTour = GuidedTour::shouldShowForCurrentUser($setupCompleted);
         $seenVersion  = get_user_meta(get_current_user_id(), 'buymecoffee_whats_new_seen', true);
-        $showWhatsNew = version_compare((string) $seenVersion, BUYMECOFFEE_VERSION, '<');
+        $hasSeenOlderVersion = !empty($seenVersion) && version_compare((string) $seenVersion, BUYMECOFFEE_VERSION, '<');
+        $showWhatsNew = ($hasSeenOlderVersion || (empty($seenVersion) && $this->isLegacyUpgradeInstall())) && !$showGuidedTour;
 
         $adminVars = apply_filters('buymecoffee_admin_app_vars', array_merge(array(
             'assets_url'        => Vite::staticPath(),
@@ -93,7 +97,10 @@ class AdminPage
             'user_name'         => wp_get_current_user()->display_name,
             'show_whats_new'    => $showWhatsNew,
             'plugin_version'    => BUYMECOFFEE_VERSION,
-            'setup_completed'   => $this->isSetupCompleted(),
+            'setup_completed'   => $setupCompleted,
+            'guided_tour_completed' => $forceGuidedTour ? false : GuidedTour::isCompletedForCurrentUser(),
+            'force_guided_tour' => $forceGuidedTour,
+            'show_guided_tour'  => $showGuidedTour,
         ), \BuyMeCoffee\Helpers\PaymentHelper::getFrontendFormattingConfig()));
 
         wp_localize_script('buy-me-coffee_boot', 'BuyMeCoffeeAdmin', $adminVars);
@@ -119,5 +126,11 @@ class AdminPage
         }
 
         return false;
+    }
+
+    private function isLegacyUpgradeInstall()
+    {
+        return !get_option(\BuyMeCoffee\Classes\Activator::INSTALLED_AT_OPTION)
+            && (bool) get_option('buymecoffee_db_version');
     }
 }

@@ -90,6 +90,7 @@ class AdminAjaxHandler
 
             'get_activities'    => 'getActivities',
             'dismiss_whats_new' => 'dismissWhatsNew',
+            'complete_guided_tour' => 'completeGuidedTour',
             'get_review_prompt' => 'getReviewPrompt',
             'review_prompt_action' => 'reviewPromptAction',
         );
@@ -1038,6 +1039,12 @@ class AdminAjaxHandler
         wp_send_json_success([], 200);
     }
 
+    public function completeGuidedTour($request = [])
+    {
+        GuidedTour::markCompletedForCurrentUser();
+        wp_send_json_success([], 200);
+    }
+
     public function getReviewPrompt($request = [])
     {
         $routeName = sanitize_text_field(Arr::get($request, 'route_name', ''));
@@ -1183,6 +1190,7 @@ class AdminAjaxHandler
         $menuOnlyRoutes = [
             'get_review_prompt',
             'dismiss_whats_new',
+            'complete_guided_tour',
             'review_prompt_action',
         ];
 

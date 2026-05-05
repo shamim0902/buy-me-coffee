@@ -81,6 +81,8 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             $menu = new \BuyMeCoffee\Classes\Menu();
             $menu->register();
 
+            (new \BuyMeCoffee\Classes\GuidedTour())->register();
+
             // Top Level Ajax Handlers
             $ajaxHandler = new \BuyMeCoffee\Classes\AdminAjaxHandler();
             $ajaxHandler->registerEndpoints();
