@@ -555,7 +555,9 @@ class AdminAjaxHandler
         }
 
         if (isset($data['banner_image'])) {
-            $settings['advanced']['banner_image'] = esc_url_raw($data['banner_image']);
+            $settings['advanced']['banner_image'] = $data['banner_image'] === 'none'
+                ? 'none'
+                : esc_url_raw($data['banner_image']);
         }
 
         if (isset($data['banner_position_x'])) {

@@ -77,6 +77,11 @@ class DemoPage
             }
 
             $bannerImage = ArrayHelper::get($template, 'advanced.banner_image', '');
+            if ($bannerImage === '' || $bannerImage === null) {
+                $bannerImage = Vite::staticPath() . 'images/banner-default.jpg';
+            } elseif ($bannerImage === 'none') {
+                $bannerImage = '';
+            }
 
             //escaped in template, ignoring phpcs here now
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -138,7 +143,7 @@ class DemoPage
         // Define sanitization rules for advanced fields
         $advancedFields = [
             'image' => ['type' => 'url', 'default' => ''],
-            'banner_image' => ['type' => 'url', 'default' => ''],
+            'banner_image' => ['type' => 'text', 'default' => ''],
             'banner_position_x' => ['type' => 'float', 'default' => 50],
             'banner_position_y' => ['type' => 'float', 'default' => 50],
             'banner_zoom' => ['type' => 'float', 'default' => 1],

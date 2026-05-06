@@ -41,7 +41,7 @@ $bmcBannerZoom      = max(1, min(3, (float) Arr::get($template, 'advanced.banner
 $bmcBannerVars      = '--bmc-banner-position-x: ' . $bmcBannerPositionX . '%; --bmc-banner-position-y: ' . $bmcBannerPositionY . '%; --bmc-banner-zoom: ' . $bmcBannerZoom . ';';
 ?>
 
-<div id="bmc-page-wrapper" class="bmc-page-wrapper" style="<?php echo esc_attr($bmcAccentVars); ?>">
+<div id="bmc-page-wrapper" class="bmc-page-wrapper<?php echo empty($banner_image) ? ' bmc-banner--empty' : ''; ?>" style="<?php echo esc_attr($bmcAccentVars); ?>">
 
     <!-- ── Top Nav ── -->
     <nav class="bmc-nav">
@@ -89,8 +89,6 @@ $bmcBannerVars      = '--bmc-banner-position-x: ' . $bmcBannerPositionX . '%; --
              src="<?php echo esc_url($banner_image); ?>"
              alt=""
              draggable="false">
-        <?php else: ?>
-        <div class="bmc-banner__gradient"></div>
         <?php endif; ?>
     </div>
 

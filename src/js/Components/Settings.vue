@@ -315,12 +315,12 @@
                   <!-- Banner image -->
                   <div class="bmc-field-row" style="margin-bottom: 0">
                     <label class="bmc-label">Cover / Banner Image</label>
-                    <div v-if="template.advanced.banner_image" class="bmc-banner-preview">
+                    <div v-if="template.advanced.banner_image && template.advanced.banner_image !== 'none'" class="bmc-banner-preview">
                       <img :src="template.advanced.banner_image" alt="Banner preview" />
                       <button
                         type="button"
                         class="bmc-text-btn bmc-text-btn--danger"
-                        @click="template.advanced.banner_image = ''"
+                        @click="template.advanced.banner_image = 'none'"
                       >
                         Remove
                       </button>

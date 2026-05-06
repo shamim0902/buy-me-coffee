@@ -174,37 +174,56 @@ body.bmc-page {
   }
 }
 
+// ── Nav dark icons when no banner image ────────
+.bmc-banner--empty {
+  .bmc-nav__name {
+    color: #18181b;
+    text-shadow: none;
+  }
+
+  .bmc-nav__icon-btn {
+    color: #52525b;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+      color: #18181b;
+    }
+  }
+}
+
 // ── Banner ─────────────────────────────────────
 .bmc-banner {
   width: 100%;
   height: $bmc-banner-height;
-  background-color: #1f2937;
+  background-color: #ffffff;
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
 
-  &::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
-    background:
-      linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.2) 44%, rgba(250, 250, 249, 0.78) 78%, #fafaf9 100%),
-      linear-gradient(90deg, rgba(17, 24, 39, 0.14), transparent 36%, rgba(17, 24, 39, 0.08));
-  }
+  &:has(.bmc-banner__image) {
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      background:
+        linear-gradient(180deg, rgba(250, 250, 249, 0) 0%, rgba(250, 250, 249, 0.2) 44%, rgba(250, 250, 249, 0.78) 78%, #fafaf9 100%),
+        linear-gradient(90deg, rgba(17, 24, 39, 0.14), transparent 36%, rgba(17, 24, 39, 0.08));
+    }
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto;
-    height: 96px;
-    z-index: 2;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(9, 9, 11, 0.12) 0%, rgba(9, 9, 11, 0.04) 62%, rgba(9, 9, 11, 0) 100%);
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 96px;
+      z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(9, 9, 11, 0.12) 0%, rgba(9, 9, 11, 0.04) 62%, rgba(9, 9, 11, 0) 100%);
+    }
   }
 
   &__image {
@@ -221,16 +240,6 @@ body.bmc-page {
     filter: saturate(1.05) contrast(1.02);
     user-select: none;
     pointer-events: none;
-  }
-
-  &__gradient {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    width: 100%;
-    height: 100%;
-    background:
-      linear-gradient(135deg, #0f172a 0%, #164e63 45%, #52525b 100%);
   }
 }
 
