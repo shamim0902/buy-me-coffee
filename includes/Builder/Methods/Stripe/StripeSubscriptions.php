@@ -627,6 +627,10 @@ class StripeSubscriptions
             }
         }
 
+        if ($newTransactions > 0) {
+            Supporters::flushPublicSupportersCache();
+        }
+
         // 4. Update local subscription record
         (new Subscriptions())->updateData($subscription->id, $subscriptionUpdate);
 

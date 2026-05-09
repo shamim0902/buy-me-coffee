@@ -11,6 +11,12 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 class Supporters extends Model
 {
     protected $table = "buymecoffee_supporters";
+
+    const PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION = 'buymecoffee_public_supporters_cache_version';
+    const PUBLIC_SUPPORTERS_CACHE_PREFIX = 'bmc_public_supporters_';
+    const PUBLIC_SUPPORTERS_CACHE_TTL = 900;
+    const PUBLIC_SUPPORTERS_MAX_LIMIT = 100;
+
     public function index($args)
     {
         global $wpdb;
@@ -136,6 +142,7 @@ class Supporters extends Model
     public function updateData($entryId, $data)
     {
         $supporters = $this->getQuery()->where('id', $entryId)->update($data);
+        self::flushPublicSupportersCache();
         return $supporters;
     }
 
@@ -548,14 +555,22 @@ class Supporters extends Model
     public function getPublicSupporters($settings = [])
     {
         global $wpdb;
+
+        $settings = self::normalizePublicSupportersSettings($settings);
+        $cacheKey = self::getPublicSupportersCacheKey($settings);
+        $cached   = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
 
-        $limit       = isset($settings['max_supporters']) ? (int) $settings['max_supporters'] : 20;
-        $showName    = ($settings['show_name'] ?? 'yes') === 'yes';
-        $showAmount  = ($settings['show_amount'] ?? 'no') === 'yes';
-        $showMessage = ($settings['show_message'] ?? 'yes') === 'yes';
-        $showAvatar  = ($settings['show_avatar'] ?? 'yes') === 'yes';
+        $limit      = $settings['max_supporters'];
+        $showName   = $settings['show_name'] === 'yes';
+        $showAmount = $settings['show_amount'] === 'yes';
+        $showAvatar = $settings['show_avatar'] === 'yes';
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned public wall aggregate query with fixed table identifiers.
         $sql = "SELECT
@@ -588,6 +603,44 @@ class Supporters extends Model
             $result[] = $item;
         }
 
+        set_transient($cacheKey, $result, self::PUBLIC_SUPPORTERS_CACHE_TTL);
+
         return $result;
+    }
+
+    public static function flushPublicSupportersCache()
+    {
+        $version = absint(get_option(self::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, 1));
+        update_option(self::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, $version + 1, false);
+    }
+
+    private static function normalizePublicSupportersSettings($settings)
+    {
+        if (!is_array($settings)) {
+            $settings = [];
+        }
+
+        return [
+            'show_name'      => self::normalizeYesNo($settings['show_name'] ?? 'yes'),
+            'show_avatar'    => self::normalizeYesNo($settings['show_avatar'] ?? 'yes'),
+            'show_amount'    => self::normalizeYesNo($settings['show_amount'] ?? 'no'),
+            'show_message'   => self::normalizeYesNo($settings['show_message'] ?? 'yes'),
+            'max_supporters' => max(1, min(self::PUBLIC_SUPPORTERS_MAX_LIMIT, absint($settings['max_supporters'] ?? 20))),
+        ];
+    }
+
+    private static function normalizeYesNo($value)
+    {
+        return $value === 'no' ? 'no' : 'yes';
+    }
+
+    private static function getPublicSupportersCacheKey($settings)
+    {
+        $version = absint(get_option(self::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, 1));
+
+        return self::PUBLIC_SUPPORTERS_CACHE_PREFIX . md5(wp_json_encode([
+            'version'  => $version,
+            'settings' => $settings,
+        ]));
     }
 }
