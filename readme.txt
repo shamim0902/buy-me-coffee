@@ -1,4 +1,4 @@
-=== Buy Me a Coffee - Membership, Paywall, Donations with Stripe & PayPal ===
+=== Buy Me a Coffee – Membership, Paywall & Fundraiser with Stripe & PayPal ===
 Contributors: wpminers, hasanuzzamanshamim
 Tags: membership, paywall, donations, subscriptions, stripe payments
 Requires at least: 5.7
