@@ -158,7 +158,7 @@ class Menu
         $showGuidedTour = GuidedTour::shouldShowForCurrentUser($setupCompleted);
         $seenVersion  = get_user_meta(get_current_user_id(), 'buymecoffee_whats_new_seen', true);
         $hasSeenOlderVersion = !empty($seenVersion) && version_compare((string) $seenVersion, BUYMECOFFEE_VERSION, '<');
-        $showWhatsNew = ($hasSeenOlderVersion || (empty($seenVersion) && $this->isLegacyUpgradeInstall())) && !$showGuidedTour;
+        $showWhatsNew = ($hasSeenOlderVersion || empty($seenVersion)) && !$showGuidedTour;
 
         $adminVars = apply_filters('buymecoffee_admin_app_vars', array_merge(array(
             'assets_url'        => Vite::staticPath(),
@@ -200,12 +200,6 @@ class Menu
         }
 
         return false;
-    }
-
-    private function isLegacyUpgradeInstall()
-    {
-        return !get_option(\BuyMeCoffee\Classes\Activator::INSTALLED_AT_OPTION)
-            && (bool) get_option('buymecoffee_db_version');
     }
 
     public function render()

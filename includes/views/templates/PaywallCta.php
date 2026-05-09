@@ -95,7 +95,7 @@ $ctaSubtext = !empty($settings['cta_subtext'])
 <style>
 .bmc-paywall{position:relative;margin:1.5em 0;padding-top:1px}
 .bmc-paywall__fade{position:absolute;top:-60px;left:0;right:0;height:60px;background:linear-gradient(to bottom,transparent,var(--bmc-paywall-bg,#fff));pointer-events:none}
-.bmc-paywall__box{background:var(--bmc-paywall-bg,#fff);border:1px solid #e5e7eb;border-radius:16px;padding:2rem;text-align:center}
+.bmc-paywall__box{background:var(--bmc-paywall-bg,#fff);border:1px solid #e5e7eb;border-radius:16px;padding:1.25rem;text-align:center}
 .bmc-paywall__lock{display:flex;align-items:center;justify-content:center;width:48px;height:48px;background:#f3f4f6;border-radius:50%;margin:0 auto 1rem;color:#6b7280}
 .bmc-paywall__lock svg{width:22px;height:22px}
 .bmc-paywall__title{font-size:1.25rem;font-weight:700;margin:0 0 .5rem;color:#111}
