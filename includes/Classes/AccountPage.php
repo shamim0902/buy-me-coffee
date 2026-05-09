@@ -14,6 +14,9 @@ class AccountPage
     public function registerAjax()
     {
         add_action('wp_ajax_buymecoffee_cancel_subscription', [$this, 'handleCancelSubscription']);
+        add_action('admin_bar_menu', [$this, 'addAccountAdminBarLink'], 999);
+        add_action('admin_init', [$this, 'redirectDonorFromWpAdmin'], 1);
+        add_filter('login_redirect', [$this, 'redirectDonorAfterLogin'], 10, 3);
     }
 
     public function handleCancelSubscription()
@@ -79,6 +82,152 @@ class AccountPage
     {
         $settings = get_option('buymecoffee_payment_setting', []);
         return !empty($settings['enable_account']) && $settings['enable_account'] === 'yes';
+    }
+
+    public function addAccountAdminBarLink($adminBar)
+    {
+        if (!$this->isRestrictedDonorUser()) {
+            return;
+        }
+
+        $accountUrl = $this->getDonorAccountUrl();
+        if (!$accountUrl) {
+            return;
+        }
+
+        $adminBar->remove_node('dashboard');
+        $adminBar->remove_node('wp-logo');
+        $adminBar->remove_node('site-name');
+        $adminBar->remove_node('user-info');
+        $adminBar->remove_node('edit-profile');
+        $adminBar->remove_node('updates');
+        $adminBar->remove_node('comments');
+        $adminBar->remove_node('new-content');
+        $adminBar->remove_node('search');
+
+        $adminBar->add_node([
+            'id'     => 'buymecoffee_account',
+            'title'  => __('Donor Account', 'buy-me-coffee'),
+            'href'   => $accountUrl,
+            'meta'   => [
+                'class' => 'buymecoffee-account-admin-bar-link',
+            ],
+        ]);
+
+        $accountNode = $adminBar->get_node('my-account');
+        if ($accountNode) {
+            $adminBar->add_node([
+                'id'    => 'my-account',
+                'title' => $accountNode->title,
+                'href'  => $accountUrl,
+            ]);
+        }
+
+        $adminBar->add_node([
+            'id'     => 'buymecoffee_account_user_menu',
+            'parent' => 'user-actions',
+            'title'  => __('Donor Account', 'buy-me-coffee'),
+            'href'   => $accountUrl,
+        ]);
+    }
+
+    public function redirectDonorFromWpAdmin()
+    {
+        if ($this->shouldAllowAdminRequest() || !$this->isRestrictedDonorUser()) {
+            return;
+        }
+
+        $accountUrl = $this->getDonorAccountUrl();
+        if (!$accountUrl) {
+            return;
+        }
+
+        wp_safe_redirect($accountUrl);
+        exit;
+    }
+
+    public function redirectDonorAfterLogin($redirectTo, $requestedRedirectTo, $user)
+    {
+        if (!$user instanceof \WP_User || !$this->isRestrictedDonorUser((int) $user->ID)) {
+            return $redirectTo;
+        }
+
+        $accountUrl = $this->getDonorAccountUrl();
+        return $accountUrl ?: $redirectTo;
+    }
+
+    private function isRestrictedDonorUser(int $userId = 0): bool
+    {
+        $userId = $userId ?: get_current_user_id();
+        if (!$userId) {
+            return false;
+        }
+
+        if (user_can($userId, 'manage_options') || user_can($userId, 'buy-me-coffee_full_access') || user_can($userId, 'buy-me-coffee_can_view_menus')) {
+            return false;
+        }
+
+        $shouldRestrict = $this->hasSupporterRecordForUser($userId) || $this->isSubscriberDonorAccount($userId);
+
+        return (bool) apply_filters('buymecoffee_restrict_donor_wp_admin', $shouldRestrict, $userId);
+    }
+
+    private function shouldAllowAdminRequest(): bool
+    {
+        if (wp_doing_ajax() || wp_doing_cron() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return true;
+        }
+
+        global $pagenow;
+        return in_array($pagenow, ['admin-ajax.php', 'admin-post.php'], true);
+    }
+
+    private function hasSupporterRecordForUser(int $userId): bool
+    {
+        $user = get_userdata($userId);
+        $email = $user instanceof \WP_User ? sanitize_email($user->user_email) : '';
+
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where(function ($query) use ($userId, $email) {
+                $query->where('wp_user_id', $userId);
+
+                if ($email) {
+                    $query->orWhere('supporters_email', $email);
+                }
+            })
+            ->select('id')
+            ->first();
+
+        return !empty($supporter);
+    }
+
+    private function isSubscriberDonorAccount(int $userId): bool
+    {
+        $user = get_userdata($userId);
+        if (!$user instanceof \WP_User) {
+            return false;
+        }
+
+        return in_array('subscriber', (array) $user->roles, true);
+    }
+
+    private function getDonorAccountUrl(): string
+    {
+        $accountUrl = $this->getAccountPageUrl();
+        return $accountUrl ?: home_url('/');
+    }
+
+    private function getAccountPageUrl(): string
+    {
+        $settings = get_option('buymecoffee_payment_setting', []);
+        $accountPageId = !empty($settings['account_page_id']) ? (int) $settings['account_page_id'] : 0;
+        if (!$accountPageId) {
+            return '';
+        }
+
+        $url = get_permalink($accountPageId);
+        return $url ? (string) $url : '';
     }
 
     public function render(): string

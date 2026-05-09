@@ -19,8 +19,7 @@ if (!$isAdmin && is_user_logged_in()) {
         $bmcNavEnabled  = !empty($bmcNavSettings['enable_account']) && $bmcNavSettings['enable_account'] === 'yes';
         $bmcNavPageId   = $bmcNavEnabled && !empty($bmcNavSettings['account_page_id']) ? (int) $bmcNavSettings['account_page_id'] : 0;
 
-        // Prefer dedicated account page when configured, otherwise fallback to WP profile.
-        $bmcNavAccountUrl = $bmcNavPageId ? get_permalink($bmcNavPageId) : admin_url('profile.php');
+        $bmcNavAccountUrl = $bmcNavPageId ? get_permalink($bmcNavPageId) : '';
     }
 }
 $recentSupporters = [];
