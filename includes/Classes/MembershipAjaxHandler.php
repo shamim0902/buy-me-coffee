@@ -25,6 +25,8 @@ class MembershipAjaxHandler
         switch ($route) {
             case 'get_membership_levels':
                 return $this->getMembershipLevels();
+            case 'get_membership_level':
+                return $this->getMembershipLevel($data);
             case 'save_membership_level':
                 return $this->saveMembershipLevel($data);
             case 'delete_membership_level':
@@ -48,8 +50,25 @@ class MembershipAjaxHandler
 
     private function getMembershipLevels()
     {
-        $levels = (new MembershipLevel())->getActive();
+        $levels = (new MembershipLevel())->getForAdmin();
         wp_send_json_success(['levels' => $levels]);
+    }
+
+    private function getMembershipLevel($data)
+    {
+        $id = isset($data['id']) ? absint($data['id']) : 0;
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid level ID.', 'buy-me-coffee')]);
+            return;
+        }
+
+        $level = (new MembershipLevel())->findForAdmin($id);
+        if (!$level) {
+            wp_send_json_error(['message' => __('Level not found.', 'buy-me-coffee')], 404);
+            return;
+        }
+
+        wp_send_json_success(['level' => $level]);
     }
 
     private function saveMembershipLevel($data)
@@ -124,7 +143,7 @@ class MembershipAjaxHandler
         $id    = isset($data['id']) ? absint($data['id']) : 0;
 
         if ($id) {
-            $existing = $model->find($id);
+            $existing = $model->findForAdmin($id);
             if (!$existing) {
                 wp_send_json_error(['message' => __('Level not found.', 'buy-me-coffee')]);
                 return;
@@ -255,8 +274,6 @@ class MembershipAjaxHandler
             $data = [];
         }
 
-        $this->maybeBackfillMembershipLevelIds();
-
         $page          = isset($data['page']) ? max(0, absint($data['page'])) : 0;
         $postsPerPage  = 20;
         $search        = isset($data['search']) ? sanitize_text_field($data['search']) : '';
@@ -318,57 +335,6 @@ class MembershipAjaxHandler
         }
 
         return $query;
-    }
-
-    private function maybeBackfillMembershipLevelIds()
-    {
-        $rows = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->select(
-                'buymecoffee_subscriptions.id',
-                'buymecoffee_subscriptions.supporter_id',
-                'buymecoffee_supporters.form_data_raw'
-            )
-            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
-            ->whereNull('buymecoffee_subscriptions.level_id')
-            ->whereNotNull('buymecoffee_supporters.form_data_raw')
-            ->limit(200)
-            ->get();
-
-        if (empty($rows)) {
-            return;
-        }
-
-        $levelModel = new MembershipLevel();
-
-        foreach ($rows as $row) {
-            $formData = maybe_unserialize($row->form_data_raw);
-            if (!is_array($formData) || empty($formData['bmc_level_id'])) {
-                continue;
-            }
-
-            $levelId = absint($formData['bmc_level_id']);
-            if (!$levelId) {
-                continue;
-            }
-
-            $level = $levelModel->find($levelId);
-            if (!$level || $level->status === 'deleted') {
-                continue;
-            }
-
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_subscriptions')
-                ->where('id', (int) $row->id)
-                ->update([
-                    'level_id'    => $levelId,
-                    'updated_at'  => current_time('mysql'),
-                ]);
-
-            if (function_exists('buymecoffee_delete_supporter_meta')) {
-                buymecoffee_delete_supporter_meta((int) $row->supporter_id, 'active_level_ids');
-            }
-        }
     }
 
     private function sendMembershipInvite($data)

@@ -166,6 +166,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
             require BUYMECOFFEE_DIR . 'includes/Classes/ActivityLogHooks.php';
             (new \BuyMeCoffee\Classes\ActivityLogHooks())->register();
             add_action('buymecoffee_payment_status_updated', ['\BuyMeCoffee\Models\Supporters', 'flushPublicSupportersCache'], 5, 0);
+            add_action('buymecoffee_payment_status_updated', ['\BuyMeCoffee\Models\Supporters', 'flushAdminReportCache'], 5, 0);
 
             // Membership / Content Monetization
             require_once BUYMECOFFEE_DIR . 'includes/Models/Model.php';

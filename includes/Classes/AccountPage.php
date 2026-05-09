@@ -97,7 +97,7 @@ class AccountPage
         // Subscribers can only see their own linked account — never anyone else's.
         $currentUserId = get_current_user_id();
         $supportersModel = new Supporters();
-        $supporters = $supportersModel->findAllByWpUser($currentUserId);
+        $supporters = $supportersModel->findAllByWpUser($currentUserId, 20);
 
         if (empty($supporters)) {
             return View::make('templates.AccountNoRecord', []);
@@ -112,6 +112,7 @@ class AccountPage
             ->table('buymecoffee_subscriptions')
             ->whereIn('supporter_id', $supporterIds)
             ->orderBy('created_at', 'DESC')
+            ->limit(20)
             ->get();
 
         $transactions = buyMeCoffeeQuery()

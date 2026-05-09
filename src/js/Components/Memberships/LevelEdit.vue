@@ -228,8 +228,8 @@ async function loadCategories() {
 
 async function loadLevel() {
   if (isNew.value) return;
-  const res = await adminGet('get_membership_levels');
-  const found = (res?.data?.levels || []).find(l => l.id == vm?.$route?.params?.id);
+  const res = await adminGet('get_membership_level', { id: vm?.$route?.params?.id });
+  const found = res?.data?.level;
   if (!found) {
     vm?.$router?.push({ name: 'Memberships', query: { tab: 'levels' } });
     return;

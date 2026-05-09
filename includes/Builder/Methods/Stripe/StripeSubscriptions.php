@@ -629,6 +629,7 @@ class StripeSubscriptions
 
         if ($newTransactions > 0) {
             Supporters::flushPublicSupportersCache();
+            Supporters::flushAdminReportCache();
         }
 
         // 4. Update local subscription record

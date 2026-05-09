@@ -18,6 +18,26 @@ class MembershipLevel extends Model
         return array_map([$this, 'decodeJsonFields'], $rows ?: []);
     }
 
+    public function getForAdmin()
+    {
+        $rows = $this->getQuery()
+            ->where('status', '!=', 'deleted')
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+
+        return array_map([$this, 'decodeJsonFields'], $rows ?: []);
+    }
+
+    public function findForAdmin($id)
+    {
+        $row = $this->getQuery()
+            ->where('id', absint($id))
+            ->where('status', '!=', 'deleted')
+            ->first();
+
+        return $this->decodeJsonFields($row);
+    }
+
     public function updateData($id, $data)
     {
         return $this->getQuery()->where('id', $id)->update($data);

@@ -111,7 +111,10 @@
             class="bmc-level-card"
           >
             <div class="bmc-level-card__body">
-              <h4 class="bmc-level-card__name">{{ level.name }}</h4>
+              <div class="bmc-level-card__title-row">
+                <h4 class="bmc-level-card__name">{{ level.name }}</h4>
+                <span v-if="level.status !== 'active'" class="bmc-status-badge bmc-status-badge--inactive">{{ level.status }}</span>
+              </div>
               <p class="bmc-level-card__price">
                 <span class="bmc-level-card__price-icon">$</span>
                 {{ formatPrice(level.price) }} per {{ level.interval_type === 'year' ? 'year' : 'month' }}
@@ -307,13 +310,13 @@
             <el-input v-model="inviteEmail" placeholder="Enter email address" style="flex:1" />
             <el-select v-model="inviteLevelId" placeholder="Select level" style="width:220px">
               <el-option
-                v-for="level in levels"
+                v-for="level in activeLevels"
                 :key="level.id"
                 :label="level.name"
                 :value="level.id"
               />
             </el-select>
-            <el-button type="primary" :loading="inviting" :disabled="!levels.length" @click="sendInvite">Grant Access</el-button>
+            <el-button type="primary" :loading="inviting" :disabled="!activeLevels.length" @click="sendInvite">Grant Access</el-button>
           </div>
         </div>
 
@@ -432,6 +435,7 @@ const tabs = [
 const previewUrl = window.BuyMeCoffeeAdmin?.preview_url || '#';
 const assetsUrl = window.BuyMeCoffeeAdmin?.assets_url || '';
 const active = computed(() => vm?.$route?.query?.tab || 'members');
+const activeLevels = computed(() => levels.value.filter(level => level.status === 'active'));
 
 function setTab(key) {
   vm?.$router?.push({ name: 'Memberships', query: { tab: key } });
@@ -454,8 +458,8 @@ function formatPrice(cents) {
 async function fetchLevels() {
   const res = await adminGet('get_membership_levels');
   levels.value = res?.data?.levels || [];
-  if (!inviteLevelId.value && levels.value.length) {
-    inviteLevelId.value = levels.value[0].id;
+  if (!activeLevels.value.some(level => level.id === inviteLevelId.value)) {
+    inviteLevelId.value = activeLevels.value[0]?.id || '';
   }
 }
 
@@ -577,7 +581,8 @@ onMounted(async () => {
 
 .bmc-level-card { background: var(--bg-primary); border: 1px solid var(--border-secondary); border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
 .bmc-level-card__body { flex: 1; padding: 20px 20px 12px; }
-.bmc-level-card__name { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary); }
+.bmc-level-card__title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.bmc-level-card__name { font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary); }
 .bmc-level-card__price { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; display: flex; align-items: center; gap: 4px; }
 .bmc-level-card__price-icon { font-size: 12px; color: var(--text-tertiary); }
 .bmc-level-card__desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; border-top: 1px solid var(--border-secondary); padding-top: 10px; }
@@ -644,6 +649,7 @@ onMounted(async () => {
 
 .bmc-status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; text-transform: capitalize; }
 .bmc-status-badge--active { background: #dcfce7; color: #16a34a; }
+.bmc-status-badge--inactive { background: #f3f4f6; color: #4b5563; }
 .bmc-status-badge--cancelled, .bmc-status-badge--canceled { background: #fee2e2; color: #dc2626; }
 .bmc-status-badge--incomplete { background: #e0e7ff; color: #4338ca; }
 .bmc-status-badge--pending { background: #fef9c3; color: #a16207; }

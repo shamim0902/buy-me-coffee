@@ -420,97 +420,16 @@ class AdminAjaxHandler
             ], 400);
         }
 
-        $testTransactionIds = $this->idsFromRows(
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_transactions')
-                ->where('payment_mode', 'test')
-                ->select('id')
-                ->get()
-        );
+        $batchSize = 500;
 
-        $testSubscriptionIds = $this->idsFromRows(
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_subscriptions')
-                ->where('payment_mode', 'test')
-                ->select('id')
-                ->get()
-        );
+        $supporterDeletion = $this->deleteTestSupportersInBatches($batchSize);
+        $transactionDeletion = $this->deleteTestRowsInBatches('buymecoffee_transactions', 'payment', $batchSize);
+        $subscriptionDeletion = $this->deleteTestRowsInBatches('buymecoffee_subscriptions', 'subscription', $batchSize);
 
-        $candidateSupporterIds = $this->normalizeIds(array_merge(
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_supporters')
-                    ->where('payment_mode', 'test')
-                    ->select('id')
-                    ->get()
-            ),
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_transactions')
-                    ->where('payment_mode', 'test')
-                    ->where('entry_id', '>', 0)
-                    ->selectDistinct('entry_id')
-                    ->get(),
-                'entry_id'
-            ),
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_subscriptions')
-                    ->where('payment_mode', 'test')
-                    ->where('supporter_id', '>', 0)
-                    ->selectDistinct('supporter_id')
-                    ->get(),
-                'supporter_id'
-            )
-        ));
-
-        $liveSupporterIds = $this->normalizeIds(array_merge(
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_transactions')
-                    ->where('entry_id', '>', 0)
-                    ->where(function ($whereQuery) {
-                        $whereQuery->whereNull('payment_mode')
-                            ->orWhere('payment_mode', '<>', 'test');
-                    })
-                    ->selectDistinct('entry_id')
-                    ->get(),
-                'entry_id'
-            ),
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_subscriptions')
-                    ->where('supporter_id', '>', 0)
-                    ->where(function ($whereQuery) {
-                        $whereQuery->whereNull('payment_mode')
-                            ->orWhere('payment_mode', '<>', 'test');
-                    })
-                    ->selectDistinct('supporter_id')
-                    ->get(),
-                'supporter_id'
-            ),
-            $this->idsFromRows(
-                buyMeCoffeeQuery()
-                    ->table('buymecoffee_supporters')
-                    ->whereNotNull('payment_mode')
-                    ->where('payment_mode', '<>', '')
-                    ->where('payment_mode', '<>', 'test')
-                    ->select('id')
-                    ->get()
-            )
-        ));
-
-        $supporterIdsToDelete = array_values(array_diff($candidateSupporterIds, $liveSupporterIds));
-
-        $deletedActivities = 0;
-        $deletedActivities += $this->deleteActivityRowsByObjectIds('payment', $testTransactionIds);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds('subscription', $testSubscriptionIds);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds('submission', $supporterIdsToDelete);
-        $deletedActivities += $this->deleteActivityRowsByObjectIds('email', $supporterIdsToDelete);
-
-        $deletedTransactions = $this->deleteRowsByIds('buymecoffee_transactions', $testTransactionIds);
-        $deletedSubscriptions = $this->deleteRowsByIds('buymecoffee_subscriptions', $testSubscriptionIds);
-        $deletedSupporters = $this->deleteRowsByIds('buymecoffee_supporters', $supporterIdsToDelete);
+        $deletedSupporters    = $supporterDeletion['rows'];
+        $deletedTransactions  = $transactionDeletion['rows'];
+        $deletedSubscriptions = $subscriptionDeletion['rows'];
+        $deletedActivities    = $supporterDeletion['activities'] + $transactionDeletion['activities'] + $subscriptionDeletion['activities'];
 
         do_action('buymecoffee_test_data_deleted', [
             'transactions'  => $deletedTransactions,
@@ -1236,6 +1155,7 @@ class AdminAjaxHandler
             'get_settings',
             'get_email_notifications',
             'get_membership_levels',
+            'get_membership_level',
             'save_membership_level',
             'delete_membership_level',
             'reorder_membership_levels',
@@ -1329,6 +1249,126 @@ class AdminAjaxHandler
             ->where('object_type', $objectType)
             ->whereIn('object_id', $ids)
             ->delete();
+    }
+
+    private function deleteTestRowsInBatches($table, $activityObjectType, $batchSize)
+    {
+        $deletedRows = 0;
+        $deletedActivities = 0;
+
+        do {
+            $ids = $this->getTestRowIds($table, $batchSize);
+            if (empty($ids)) {
+                break;
+            }
+
+            $deletedActivities += $this->deleteActivityRowsByObjectIds($activityObjectType, $ids);
+            $deletedRows += $this->deleteRowsByIds($table, $ids);
+        } while (count($ids) === $batchSize);
+
+        return [
+            'rows'       => $deletedRows,
+            'activities' => $deletedActivities,
+        ];
+    }
+
+    private function deleteTestSupportersInBatches($batchSize)
+    {
+        $deletedRows = 0;
+        $deletedActivities = 0;
+
+        do {
+            $ids = $this->getDeletableTestSupporterIds($batchSize);
+            if (empty($ids)) {
+                break;
+            }
+
+            $deletedActivities += $this->deleteActivityRowsByObjectIds('submission', $ids);
+            $deletedActivities += $this->deleteActivityRowsByObjectIds('email', $ids);
+            $deletedRows += $this->deleteRowsByIds('buymecoffee_supporters', $ids);
+        } while (count($ids) === $batchSize);
+
+        return [
+            'rows'       => $deletedRows,
+            'activities' => $deletedActivities,
+        ];
+    }
+
+    private function getTestRowIds($table, $limit)
+    {
+        global $wpdb;
+
+        $allowedTables = [
+            'buymecoffee_transactions'  => $wpdb->prefix . 'buymecoffee_transactions',
+            'buymecoffee_subscriptions' => $wpdb->prefix . 'buymecoffee_subscriptions',
+        ];
+
+        if (!isset($allowedTables[$table])) {
+            return [];
+        }
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned cleanup query with a fixed allowlisted table name.
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT id FROM {$allowedTables[$table]} WHERE payment_mode = %s ORDER BY id ASC LIMIT %d",
+            'test',
+            max(1, absint($limit))
+        ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        return $this->idsFromRows($rows);
+    }
+
+    private function getDeletableTestSupporterIds($limit)
+    {
+        global $wpdb;
+
+        $supportersTable    = $wpdb->prefix . 'buymecoffee_supporters';
+        $transactionsTable  = $wpdb->prefix . 'buymecoffee_transactions';
+        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned cleanup query with fixed table identifiers and bounded LIMIT.
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT s.id
+            FROM {$supportersTable} s
+            WHERE (
+                s.payment_mode = %s
+                OR EXISTS (
+                    SELECT 1 FROM {$transactionsTable} test_tx
+                    WHERE test_tx.entry_id = s.id AND test_tx.payment_mode = %s
+                )
+                OR EXISTS (
+                    SELECT 1 FROM {$subscriptionsTable} test_sub
+                    WHERE test_sub.supporter_id = s.id AND test_sub.payment_mode = %s
+                )
+            )
+            AND NOT (
+                s.payment_mode IS NOT NULL
+                AND s.payment_mode <> ''
+                AND s.payment_mode <> %s
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM {$transactionsTable} live_tx
+                WHERE live_tx.entry_id = s.id
+                AND (live_tx.payment_mode IS NULL OR live_tx.payment_mode <> %s)
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM {$subscriptionsTable} live_sub
+                WHERE live_sub.supporter_id = s.id
+                AND (live_sub.payment_mode IS NULL OR live_sub.payment_mode <> %s)
+            )
+            ORDER BY s.id ASC
+            LIMIT %d",
+            'test',
+            'test',
+            'test',
+            'test',
+            'test',
+            'test',
+            max(1, absint($limit))
+        ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        return $this->idsFromRows($rows);
     }
 
     private function getReviewPromptSignals()

@@ -16,6 +16,9 @@ class Supporters extends Model
     const PUBLIC_SUPPORTERS_CACHE_PREFIX = 'bmc_public_supporters_';
     const PUBLIC_SUPPORTERS_CACHE_TTL = 900;
     const PUBLIC_SUPPORTERS_MAX_LIMIT = 100;
+    const ADMIN_REPORT_CACHE_VERSION_OPTION = 'buymecoffee_admin_report_cache_version';
+    const ADMIN_REPORT_CACHE_PREFIX = 'bmc_admin_report_';
+    const ADMIN_REPORT_CACHE_TTL = 300;
 
     public function index($args)
     {
@@ -43,15 +46,7 @@ class Supporters extends Model
                 ->orWhere('buymecoffee_supporters.payment_status', 'paid-initially')
                 ->orderBy('buymecoffee_supporters.payment_total', 'DESC');
 
-            $currencyTotalPending = $this->getQuery()
-                ->groupBy('currency')
-                ->where('payment_status', 'pending')
-                ->select($this->raw('SUM(payment_total) as total_amount, currency'))
-                ->get();
-
-            foreach ($currencyTotalPending as $currency) {
-                $currency->formatted_total = PaymentHelper::getFormattedAmount($currency->total_amount, $currency->currency);
-            }
+            $currencyTotalPending = $this->getCachedCurrencyTotalsBySupporterStatus('pending');
         } else {
             $query->orderBy('buymecoffee_supporters.id', 'DESC');
         }
@@ -82,24 +77,8 @@ class Supporters extends Model
             $supporter->amount_formatted = PaymentHelper::getFormattedAmount($supporter->payment_total, $supporter->currency);
         }
 
-        $count = $this->getQuery()
-            ->where('payment_status', 'paid')
-            ->orWhere('payment_status', 'paid-initially')
-            ->select($this->raw('SUM(coffee_count) as total_coffee'))
-            ->first();
-
-        // Sum revenue from the transactions table (includes renewals),
-        // not from the supporters table (which only has the initial amount).
-        $currencyTotal = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->groupBy('currency')
-            ->where('status', 'paid')
-            ->select($this->raw('SUM(payment_total) as total_amount, currency'))
-            ->get();
-
-        foreach ($currencyTotal as $currency) {
-            $currency->formatted_total = PaymentHelper::getFormattedAmount($currency->total_amount, $currency->currency);
-        }
+        $totalCoffee = $this->getCachedTotalCoffee();
+        $currencyTotal = $this->getCachedPaidCurrencyTotals();
         $total = $query->count();
         $lastPage = ceil($total / $postsPerPage);
 
@@ -110,7 +89,7 @@ class Supporters extends Model
                 'last_page' => $lastPage,
                 'reports' => array(
                     'total_supporters' => $total,
-                    'total_coffee' => $count->total_coffee,
+                    'total_coffee' => $totalCoffee,
                     'currency_total' => $currencyTotal,
                     'currency_total_pending' => $currencyTotalPending??[],
                 )
@@ -143,6 +122,7 @@ class Supporters extends Model
     {
         $supporters = $this->getQuery()->where('id', $entryId)->update($data);
         self::flushPublicSupportersCache();
+        self::flushAdminReportCache();
         return $supporters;
     }
 
@@ -305,6 +285,14 @@ class Supporters extends Model
 
     public function getWeeklyRevenue($dateFrom = '')
     {
+        $dateFrom = sanitize_text_field($dateFrom);
+        $cacheKey = self::getAdminReportCacheKey('weekly_revenue', ['date_from' => $dateFrom]);
+        $cached = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            wp_send_json_success($cached, 200);
+        }
+
         $query = $this->getQuery()->select(
             'currency',
             'payment_status',
@@ -348,12 +336,16 @@ class Supporters extends Model
             }
         }
 
-        wp_send_json_success([
+        $payload = [
             'data' => $group,
             'options' => $groupSelect,
             'chartData' => $chartData,
             'topPaidCurrency' => $topPaidCurrency,
-        ], 200);
+        ];
+
+        set_transient($cacheKey, $payload, self::ADMIN_REPORT_CACHE_TTL);
+
+        wp_send_json_success($payload, 200);
     }
 
     public function findByWpUser(int $wpUserId)
@@ -363,11 +355,12 @@ class Supporters extends Model
             ->first();
     }
 
-    public function findAllByWpUser(int $wpUserId)
+    public function findAllByWpUser(int $wpUserId, int $limit = 20)
     {
         return $this->getQuery()
             ->where('wp_user_id', $wpUserId)
             ->orderBy('created_at', 'DESC')
+            ->limit(max(1, min(100, $limit)))
             ->get();
     }
 
@@ -476,6 +469,13 @@ class Supporters extends Model
      */
     public function getSupporterStats()
     {
+        $cacheKey = self::getAdminReportCacheKey('supporter_stats');
+        $cached = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         global $wpdb;
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
@@ -497,12 +497,16 @@ class Supporters extends Model
         $avgDonation     = $totalSupporters > 0 ? (int) round($lifetimeRevenue / $totalSupporters) : 0;
         $currency        = $stats->currency ?: 'USD';
 
-        return [
+        $statsPayload = [
             'total_supporters'   => $totalSupporters,
             'lifetime_revenue'   => PaymentHelper::getFormattedAmount($lifetimeRevenue, $currency),
             'active_subscribers' => (int) ($stats->active_subscribers ?? 0),
             'avg_donation'       => PaymentHelper::getFormattedAmount($avgDonation, $currency),
         ];
+
+        set_transient($cacheKey, $statsPayload, self::ADMIN_REPORT_CACHE_TTL);
+
+        return $statsPayload;
     }
 
     /**
@@ -510,6 +514,14 @@ class Supporters extends Model
      */
     public function getTopSupportersList($limit = 10)
     {
+        $limit = max(1, min(100, absint($limit)));
+        $cacheKey = self::getAdminReportCacheKey('top_supporters', ['limit' => $limit]);
+        $cached = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         global $wpdb;
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
@@ -544,6 +556,8 @@ class Supporters extends Model
             $supporter->total_formatted  = PaymentHelper::getFormattedAmount($supporter->total_paid, $supporter->currency ?: 'USD');
             $supporter->avatar           = get_avatar_url($supporter->supporters_email);
         }
+
+        set_transient($cacheKey, $results, self::ADMIN_REPORT_CACHE_TTL);
 
         return $results;
     }
@@ -614,6 +628,88 @@ class Supporters extends Model
         update_option(self::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, $version + 1, false);
     }
 
+    public static function flushAdminReportCache()
+    {
+        $version = absint(get_option(self::ADMIN_REPORT_CACHE_VERSION_OPTION, 1));
+        update_option(self::ADMIN_REPORT_CACHE_VERSION_OPTION, $version + 1, false);
+    }
+
+    private function getCachedTotalCoffee()
+    {
+        $cacheKey = self::getAdminReportCacheKey('total_coffee');
+        $cached = get_transient($cacheKey);
+
+        if ($cached !== false) {
+            return (int) $cached;
+        }
+
+        $count = $this->getQuery()
+            ->where('payment_status', 'paid')
+            ->orWhere('payment_status', 'paid-initially')
+            ->select($this->raw('SUM(coffee_count) as total_coffee'))
+            ->first();
+
+        $totalCoffee = (int) ($count->total_coffee ?? 0);
+        set_transient($cacheKey, $totalCoffee, self::ADMIN_REPORT_CACHE_TTL);
+
+        return $totalCoffee;
+    }
+
+    private function getCachedPaidCurrencyTotals()
+    {
+        $cacheKey = self::getAdminReportCacheKey('paid_currency_totals');
+        $cached = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        // Sum revenue from the transactions table (includes renewals),
+        // not from the supporters table (which only has the initial amount).
+        $currencyTotal = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->groupBy('currency')
+            ->where('status', 'paid')
+            ->select($this->raw('SUM(payment_total) as total_amount, currency'))
+            ->get();
+
+        $currencyTotal = $this->formatCurrencyTotals($currencyTotal);
+        set_transient($cacheKey, $currencyTotal, self::ADMIN_REPORT_CACHE_TTL);
+
+        return $currencyTotal;
+    }
+
+    private function getCachedCurrencyTotalsBySupporterStatus($status)
+    {
+        $status = sanitize_key($status);
+        $cacheKey = self::getAdminReportCacheKey('supporter_currency_totals', ['status' => $status]);
+        $cached = get_transient($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $currencyTotals = $this->getQuery()
+            ->groupBy('currency')
+            ->where('payment_status', $status)
+            ->select($this->raw('SUM(payment_total) as total_amount, currency'))
+            ->get();
+
+        $currencyTotals = $this->formatCurrencyTotals($currencyTotals);
+        set_transient($cacheKey, $currencyTotals, self::ADMIN_REPORT_CACHE_TTL);
+
+        return $currencyTotals;
+    }
+
+    private function formatCurrencyTotals($currencyTotals)
+    {
+        foreach ($currencyTotals as $currency) {
+            $currency->formatted_total = PaymentHelper::getFormattedAmount($currency->total_amount, $currency->currency);
+        }
+
+        return $currencyTotals;
+    }
+
     private static function normalizePublicSupportersSettings($settings)
     {
         if (!is_array($settings)) {
@@ -641,6 +737,17 @@ class Supporters extends Model
         return self::PUBLIC_SUPPORTERS_CACHE_PREFIX . md5(wp_json_encode([
             'version'  => $version,
             'settings' => $settings,
+        ]));
+    }
+
+    private static function getAdminReportCacheKey($name, $args = [])
+    {
+        $version = absint(get_option(self::ADMIN_REPORT_CACHE_VERSION_OPTION, 1));
+
+        return self::ADMIN_REPORT_CACHE_PREFIX . md5(wp_json_encode([
+            'version' => $version,
+            'name'    => sanitize_key($name),
+            'args'    => $args,
         ]));
     }
 }
