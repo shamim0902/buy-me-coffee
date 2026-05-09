@@ -365,7 +365,13 @@ class AdminAjaxHandler
 
     public function getPaymentSettings($request)
     {
-        $method = Arr::get($request, 'method');
+        $method = PaymentHandler::normalizeRegisteredMethod(Arr::get($request, 'method'));
+        if (!$method) {
+            wp_send_json_error([
+                'message' => __('Invalid payment method.', 'buy-me-coffee'),
+            ], 400);
+        }
+
         do_action('buymecoffee_get_payment_settings_' . $method);
     }
 

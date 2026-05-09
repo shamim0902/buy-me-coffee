@@ -23,8 +23,27 @@ class PaymentHandler
         return $method['status'] === true || $method['status'] === 'yes' || $method['status'] === 1 || $method['status'] === '1';
     }
 
+    public static function normalizeRegisteredMethod($method)
+    {
+        $method = sanitize_key($method);
+        $methods = self::getAllMethods();
+
+        if (!$method || empty($methods[$method])) {
+            return '';
+        }
+
+        return $method;
+    }
+
     public function saveSettings($method, $settings)
     {
+        $method = self::normalizeRegisteredMethod($method);
+        if (!$method) {
+            wp_send_json_error([
+                'message' => __('Invalid payment method.', 'buy-me-coffee'),
+            ], 400);
+        }
+
         $settings = apply_filters('buymecoffee_before_save_' . $method, $settings);
 
         update_option('buymecoffee_payment_settings_' . $method, $settings, false);
