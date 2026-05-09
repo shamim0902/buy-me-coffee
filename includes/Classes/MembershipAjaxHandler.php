@@ -40,7 +40,7 @@ class MembershipAjaxHandler
             case 'get_post_types_for_membership':
                 return $this->getPostTypesForMembership();
             case 'get_categories_for_membership':
-                return $this->getCategoriesForMembership();
+                return $this->getCategoriesForMembership($data);
             case 'get_membership_members':
                 return $this->getMembershipMembers($data);
             case 'send_membership_invite':
@@ -253,19 +253,69 @@ class MembershipAjaxHandler
         wp_send_json_success(['post_types' => $result]);
     }
 
-    private function getCategoriesForMembership()
+    private function getCategoriesForMembership($data = [])
     {
-        $terms = get_terms(['taxonomy' => 'category', 'hide_empty' => false]);
+        $page    = isset($data['page']) ? max(0, absint($data['page'])) : 0;
+        $perPage = isset($data['per_page']) ? max(1, min(100, absint($data['per_page']))) : 50;
+        $search  = isset($data['search']) ? sanitize_text_field($data['search']) : '';
+        $include = [];
+
+        if (!empty($data['include']) && is_array($data['include'])) {
+            $include = array_values(array_filter(array_map('absint', $data['include'])));
+        }
+
+        $args = [
+            'taxonomy'   => 'category',
+            'hide_empty' => false,
+            'number'     => $perPage,
+            'offset'     => $page * $perPage,
+        ];
+
+        if ($search !== '') {
+            $args['search'] = $search;
+        }
+
+        $terms = get_terms($args);
         $result = [];
         if (!is_wp_error($terms)) {
             foreach ($terms as $term) {
-                $result[] = [
-                    'id'   => (int) $term->term_id,
-                    'name' => $term->name,
-                ];
+                $result[(int) $term->term_id] = $this->formatCategoryTerm($term);
             }
         }
-        wp_send_json_success(['categories' => $result]);
+
+        if (!empty($include)) {
+            $includedTerms = get_terms([
+                'taxonomy'   => 'category',
+                'hide_empty' => false,
+                'include'    => $include,
+            ]);
+
+            if (!is_wp_error($includedTerms)) {
+                foreach ($includedTerms as $term) {
+                    $result[(int) $term->term_id] = $this->formatCategoryTerm($term);
+                }
+            }
+        }
+
+        $countArgs = $args;
+        unset($countArgs['number'], $countArgs['offset']);
+        $countArgs['fields'] = 'count';
+        $total = get_terms($countArgs);
+
+        wp_send_json_success([
+            'categories' => array_values($result),
+            'total'      => is_wp_error($total) ? count($result) : (int) $total,
+            'page'       => $page,
+            'per_page'   => $perPage,
+        ]);
+    }
+
+    private function formatCategoryTerm($term)
+    {
+        return [
+            'id'   => (int) $term->term_id,
+            'name' => $term->name,
+        ];
     }
 
     private function getMembershipMembers($data)

@@ -116,13 +116,17 @@
 
               <div class="bmc-sr bmc-sr--field">
                 <label class="bmc-label">Categories</label>
-                <el-select
-                  v-model="form.access_rules.categories"
-                  multiple
-                  filterable
-                  placeholder="All categories"
-                  style="width:100%"
-                >
+	                <el-select
+	                  v-model="form.access_rules.categories"
+	                  multiple
+	                  filterable
+	                  remote
+	                  reserve-keyword
+	                  :remote-method="searchCategories"
+	                  :loading="categoriesLoading"
+	                  placeholder="All categories"
+	                  style="width:100%"
+	                >
                   <el-option
                     v-for="cat in categories"
                     :key="cat.id"
@@ -183,6 +187,7 @@ const saving     = ref(false);
 const showAccess = ref(false);
 const postTypes  = ref([]);
 const categories = ref([]);
+const categoriesLoading = ref(false);
 
 const isNew = computed(() => !vm?.$route?.params?.id);
 
@@ -221,9 +226,23 @@ async function loadPostTypes() {
   postTypes.value = res?.data?.post_types || [];
 }
 
-async function loadCategories() {
-  const res = await adminGet('get_categories_for_membership');
-  categories.value = res?.data?.categories || [];
+async function loadCategories(search = '', include = []) {
+  categoriesLoading.value = true;
+  try {
+    const res = await adminGet('get_categories_for_membership', {
+      search,
+      include,
+      page: 0,
+      per_page: 50,
+    });
+    categories.value = res?.data?.categories || [];
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+
+function searchCategories(search) {
+  loadCategories(search, form.value.access_rules.categories);
 }
 
 async function loadLevel() {
@@ -234,7 +253,7 @@ async function loadLevel() {
     vm?.$router?.push({ name: 'Memberships', query: { tab: 'levels' } });
     return;
   }
-  form.value = {
+	  form.value = {
     id:            found.id,
     name:          found.name,
     description:   found.description || '',
@@ -248,8 +267,9 @@ async function loadLevel() {
       preview_words: found.access_rules?.preview_words || 50,
       access_level:  found.access_rules?.access_level || 'full',
     },
-  };
-}
+	  };
+	  await loadCategories('', form.value.access_rules.categories);
+	}
 
 async function save() {
   if (!form.value.name.trim()) {
