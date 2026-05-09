@@ -1152,8 +1152,17 @@ class AdminAjaxHandler
 
         $settingsRoutes = [
             'get_data',
+            'save_payment_settings',
+            'validate_stripe_keys',
             'get_settings',
+            'save_settings',
+            'reset_template_settings',
+            'save_form_design',
             'get_email_notifications',
+            'save_email_notification',
+            'send_test_email',
+            'get_supporter_settings',
+            'save_supporter_settings',
             'get_membership_levels',
             'get_membership_level',
             'save_membership_level',

@@ -22,6 +22,8 @@ $ctaHeading = !empty($settings['cta_heading'])
 $ctaSubtext = !empty($settings['cta_subtext'])
     ? sanitize_text_field($settings['cta_subtext'])
     : __('Join to get full access to all posts and exclusive content.', 'buy-me-coffee');
+
+$currency = PaymentHelper::getCurrency() ?: 'USD';
 ?>
 <div class="bmc-paywall">
     <div class="bmc-paywall__fade"></div>
@@ -55,7 +57,7 @@ $ctaSubtext = !empty($settings['cta_subtext'])
                 <div class="bmc-paywall__level-header">
                     <h4 class="bmc-paywall__level-name"><?php echo esc_html($level->name); ?></h4>
                     <div class="bmc-paywall__level-price">
-                        <?php echo esc_html(PaymentHelper::getFormattedAmount($price, 'USD')); ?>
+                        <?php echo esc_html(PaymentHelper::getFormattedAmount($price, $currency)); ?>
                         <span class="bmc-paywall__level-interval">/ <?php echo esc_html($interval); ?></span>
                     </div>
                 </div>

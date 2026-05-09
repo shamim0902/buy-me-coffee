@@ -152,11 +152,15 @@ class Render
         // Pre-populate form from membership level when arriving via paywall CTA
         $bmcLevelId = 0;
         $bmcLevelName = '';
+        $bmcLevelPrice = 0;
+        $bmcLevelFormattedAmount = '';
         if (!empty($args['bmc_level'])) {
             $bmcLevel   = $args['bmc_level'];
             $bmcLevelId = absint($bmcLevel->id);
             $bmcLevelName = sanitize_text_field($bmcLevel->name);
-            $defaultAmount    = (int) round($bmcLevel->price / 100);
+            $bmcLevelPrice = (int) $bmcLevel->price;
+            $bmcLevelFormattedAmount = PaymentHelper::getFormattedAmount($bmcLevelPrice, $currency);
+            $defaultAmount = $bmcLevelPrice / 100;
             $customCoffeeDefault = $defaultAmount;
             $allowRecurring   = true;
             $recurringInterval = sanitize_text_field($bmcLevel->interval_type ?: 'month');
@@ -180,13 +184,13 @@ class Render
             <?php if ($bmcLevelId): ?>
             <!-- Level-locked: show level name + fixed amount, hide coffee selector -->
             <div class="buymecoffee_input_content">
-                <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr($defaultAmount); ?>"
-                       data-price="<?php echo esc_attr($defaultAmount * 100); ?>"/>
+                <input type="hidden" style="display: none!important;" name="buymecoffee_amount" class="buymecoffee_payment" value="<?php echo esc_attr(number_format($defaultAmount, 2, '.', '')); ?>"
+                       data-price="<?php echo esc_attr($bmcLevelPrice); ?>"/>
             </div>
             <div class="bmc-level-locked-info" data-bmc-level-info>
                 <span class="bmc-level-locked-name"><?php echo esc_html($bmcLevelName); ?></span>
                 <div class="bmc-level-locked-pricing">
-                    <span class="bmc-level-locked-amount"><?php echo esc_html($symbool . $defaultAmount); ?></span>
+                    <span class="bmc-level-locked-amount"><?php echo esc_html($bmcLevelFormattedAmount); ?></span>
                     <span class="bmc-level-locked-interval">/<?php echo esc_html($recurringInterval === 'year' ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee')); ?></span>
                 </div>
             </div>
