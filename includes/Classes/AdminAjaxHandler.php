@@ -170,8 +170,8 @@ class AdminAjaxHandler
 
     public function updatePaymentStatus($request)
     {
-        $id = intval($request['id']);
-        $status = sanitize_text_field($request['status']);
+        $id = absint(Arr::get($request, 'id'));
+        $status = sanitize_text_field(Arr::get($request, 'status', ''));
         $allowedStatuses = apply_filters('buymecoffee_allowed_payment_statuses', [
             'pending',
             'processing',
@@ -188,21 +188,41 @@ class AdminAjaxHandler
             ], 400);
         }
 
-        $supporter = (new Supporters())->getQuery()->where('id', $id)->update(['payment_status' => $status]);
-        (new Transactions())->getQuery()->where('entry_id', $id)->update(['status' => $status]);
+        $supporterModel = new Supporters();
+        $this->getSupporterForAdmin($id);
+
+        $transactions = (new Transactions())->getQuery()
+            ->where('entry_id', $id)
+            ->select('id')
+            ->get();
+
+        $supporter = $supporterModel->updateData($id, [
+            'payment_status' => $status,
+            'updated_at'     => current_time('mysql'),
+        ]);
+
+        (new Transactions())->getQuery()
+            ->where('entry_id', $id)
+            ->update([
+                'status'     => $status,
+                'updated_at' => current_time('mysql'),
+            ]);
+
+        foreach ($transactions as $transaction) {
+            do_action('buymecoffee_payment_status_updated', (int) $transaction->id, $status);
+        }
+
         wp_send_json_success($supporter, 200);
     }
 
     public function getSupporter($request)
     {
-        $id = intval($request['id']);
-        $supporter = (new Supporters())->find($id);
+        $id = absint(Arr::get($request, 'id'));
+        $supporter = $this->getSupporterForAdmin($id, true);
 
         $supporter->supporters_image = get_avatar_url($supporter->supporters_email);
 
-        if ($supporter) {
-            wp_send_json_success($supporter, 200);
-        }
+        wp_send_json_success($supporter, 200);
     }
 
     public function getSupporters($request)
@@ -294,13 +314,9 @@ class AdminAjaxHandler
 
     public function deleteSupporter($request)
     {
-        $id = intval(Arr::get($request, 'id'));
+        $id = absint(Arr::get($request, 'id'));
         $supporterModel = new Supporters();
-        $supporter = $supporterModel->find($id);
-
-        if (!$supporter) {
-            wp_send_json_error(['message' => __('Supporter not found', 'buy-me-coffee')], 404);
-        }
+        $this->getSupporterForAdmin($id);
 
         // Collect transaction IDs before deleting them (needed for activity log cleanup)
         $transactionIds = buyMeCoffeeQuery()
@@ -1202,6 +1218,29 @@ class AdminAjaxHandler
         }
 
         return AccessControl::hasFinancialPermission();
+    }
+
+    private function getSupporterForAdmin($id, $withDetails = false)
+    {
+        $id = absint($id);
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid supporter ID', 'buy-me-coffee')], 400);
+        }
+
+        if (!$withDetails) {
+            $supporter = (new Supporters())->getQuery()->where('id', $id)->first();
+            if (!$supporter) {
+                wp_send_json_error(['message' => __('Supporter not found', 'buy-me-coffee')], 404);
+            }
+
+            return $supporter;
+        }
+
+        try {
+            return (new Supporters())->find($id);
+        } catch (\Exception $exception) {
+            wp_send_json_error(['message' => __('Supporter not found', 'buy-me-coffee')], 404);
+        }
     }
 
     private function normalizeIds($ids)
