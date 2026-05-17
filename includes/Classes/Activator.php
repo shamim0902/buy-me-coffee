@@ -38,7 +38,10 @@ class Activator
     public function maybeRunMigrations()
     {
         $installedVersion = get_option('buymecoffee_db_version', '1.0');
-        if (version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<')) {
+        if (
+            version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<') ||
+            !$this->verifyMigrationState()
+        ) {
             if ($this->migrate()) {
                 update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
             }

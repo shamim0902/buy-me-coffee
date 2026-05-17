@@ -157,13 +157,13 @@
 
         <!-- Gateway selector -->
         <div class="grid grid-cols-2 gap-3 max-w-lg mb-5">
-          <button class="bmc-gw-card" :class="{ 'bmc-gw-card--active': selectedGateway === 'stripe' }" @click="selectedGateway = 'stripe'">
+          <button class="bmc-gw-card" :class="{ 'bmc-gw-card--active': selectedGateway === 'stripe' }" @click="selectGateway('stripe')">
             <img :src="fullPath('stripe.svg')" alt="Stripe" class="bmc-gw-card__logo" />
             <span class="bmc-gw-card__title">Stripe</span>
             <span class="bmc-gw-card__desc">Cards, Apple Pay, Google Pay</span>
             <span class="bmc-gw-card__badge">One-time + Recurring</span>
           </button>
-          <button class="bmc-gw-card" :class="{ 'bmc-gw-card--active': selectedGateway === 'paypal' }" @click="selectedGateway = 'paypal'">
+          <button class="bmc-gw-card" :class="{ 'bmc-gw-card--active': selectedGateway === 'paypal' }" @click="selectGateway('paypal')">
             <img :src="fullPath('PayPal.svg')" alt="PayPal" class="bmc-gw-card__logo" />
             <span class="bmc-gw-card__title">PayPal</span>
             <span class="bmc-gw-card__desc">PayPal balance, cards</span>
@@ -173,6 +173,13 @@
 
         <!-- Stripe config -->
         <div v-if="selectedGateway === 'stripe'" class="max-w-lg">
+          <div class="bmc-gateway-enable mb-4">
+            <div>
+              <span class="bmc-toggle-row__label">Enable Stripe</span>
+              <span class="bmc-toggle-row__desc">Use Stripe for one-time and recurring payments.</span>
+            </div>
+            <el-switch v-model="stripeSettings.enable" active-value="yes" inactive-value="no" />
+          </div>
           <div class="flex items-center gap-3 mb-4">
             <el-radio-group v-model="stripeSettings.payment_mode" size="small">
               <el-radio-button value="test">Test</el-radio-button>
@@ -185,12 +192,12 @@
           <div class="space-y-3">
             <div>
               <label class="bmc-label">Publishable Key</label>
-              <el-input v-model="stripePublishableKey" type="password" :placeholder="stripeSettings.payment_mode === 'live' ? 'pk_live_...' : 'pk_test_...'" size="large" show-password @input="errors.stripeKey = ''" />
+              <el-input v-model="stripePublishableKey" type="password" :placeholder="stripeSettings.payment_mode === 'live' ? 'pk_live_...' : 'pk_test_...'" size="large" show-password @input="markGatewayConfigured('stripe')" />
               <p v-if="errors.stripeKey" class="bmc-field-error">{{ errors.stripeKey }}</p>
             </div>
             <div>
               <label class="bmc-label">Secret Key</label>
-              <el-input v-model="stripeSecretKey" type="password" :placeholder="stripeSettings.payment_mode === 'live' ? 'sk_live_...' : 'sk_test_...'" size="large" show-password @input="errors.stripeKey = ''" />
+              <el-input v-model="stripeSecretKey" type="password" :placeholder="stripeSecretKeyPlaceholder" size="large" show-password @input="markGatewayConfigured('stripe')" />
             </div>
           </div>
           <div class="flex items-center gap-3 mt-3">
@@ -204,6 +211,13 @@
 
         <!-- PayPal config -->
         <div v-if="selectedGateway === 'paypal'" class="max-w-lg">
+          <div class="bmc-gateway-enable mb-4">
+            <div>
+              <span class="bmc-toggle-row__label">Enable PayPal</span>
+              <span class="bmc-toggle-row__desc">Use PayPal Standard for one-time payments.</span>
+            </div>
+            <el-switch v-model="paypalSettings.enable" active-value="yes" inactive-value="no" />
+          </div>
           <div class="flex items-center gap-3 mb-4">
             <el-radio-group v-model="paypalSettings.payment_mode" size="small">
               <el-radio-button value="test">Test</el-radio-button>
@@ -216,12 +230,12 @@
           <div class="space-y-3">
             <div>
               <label class="bmc-label">Client ID</label>
-              <el-input v-model="paypalPublicKey" type="password" placeholder="Client ID" size="large" show-password @input="errors.paypalKey = ''" />
+              <el-input v-model="paypalPublicKey" type="password" placeholder="Client ID" size="large" show-password @input="markGatewayConfigured('paypal')" />
               <p v-if="errors.paypalKey" class="bmc-field-error">{{ errors.paypalKey }}</p>
             </div>
             <div>
               <label class="bmc-label">Secret Key</label>
-              <el-input v-model="paypalSecretKey" type="password" placeholder="Secret Key" size="large" show-password @input="errors.paypalKey = ''" />
+              <el-input v-model="paypalSecretKey" type="password" :placeholder="paypalSecretKeyPlaceholder" size="large" show-password @input="markGatewayConfigured('paypal')" />
             </div>
           </div>
           <p class="mt-3 text-xs text-[var(--text-tertiary)]">
@@ -247,11 +261,11 @@
 
         <!-- Gateway status -->
         <div class="flex items-center justify-center gap-3 mb-5">
-          <span class="bmc-gw-status" :class="stripeSettings.enable === 'yes' && stripeSecretKey ? 'bmc-gw-status--ok' : 'bmc-gw-status--off'">
-            Stripe: {{ stripeSettings.enable === 'yes' && stripeSecretKey ? 'Connected (' + stripeSettings.payment_mode + ')' : 'Not configured' }}
+          <span class="bmc-gw-status" :class="isStripeConfigured ? 'bmc-gw-status--ok' : 'bmc-gw-status--off'">
+            Stripe: {{ isStripeConfigured ? 'Connected (' + stripeSettings.payment_mode + ')' : 'Not configured' }}
           </span>
-          <span class="bmc-gw-status" :class="paypalSettings.enable === 'yes' && paypalSecretKey ? 'bmc-gw-status--ok' : 'bmc-gw-status--off'">
-            PayPal: {{ paypalSettings.enable === 'yes' && paypalSecretKey ? 'Connected (' + paypalSettings.payment_mode + ')' : 'Not configured' }}
+          <span class="bmc-gw-status" :class="isPayPalConfigured ? 'bmc-gw-status--ok' : 'bmc-gw-status--off'">
+            PayPal: {{ isPayPalConfigured ? 'Connected (' + paypalSettings.payment_mode + ')' : 'Not configured' }}
           </span>
         </div>
 
@@ -324,8 +338,8 @@ export default {
       errors: {},
       template: { advanced: {}, currency: 'USD', defaultAmount: 5, enableName: 'yes', enableEmail: 'no', enableMessage: 'yes', allow_recurring: 'no' },
       currencies: {},
-      stripeSettings: { enable: 'yes', payment_mode: 'test', test_pub_key: '', test_secret_key: '', live_pub_key: '', live_secret_key: '' },
-      paypalSettings: { enable: 'no', payment_mode: 'test', test_pub_key: '', test_secret_key: '', live_pub_key: '', live_secret_key: '' },
+      stripeSettings: { enable: 'no', payment_mode: 'test', test_pub_key: '', test_secret_key: '', live_pub_key: '', live_secret_key: '', has_test_secret_key: false, has_live_secret_key: false },
+      paypalSettings: { enable: 'no', payment_mode: 'test', payment_type: 'standard', test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '', paypal_email: '', disable_ipn_verification: 'no', has_test_secret_key: false, has_live_secret_key: false },
     };
   },
   computed: {
@@ -338,12 +352,40 @@ export default {
       set(v) { if (this.stripeSettings.payment_mode === 'live') this.stripeSettings.live_secret_key = v; else this.stripeSettings.test_secret_key = v; },
     },
     paypalPublicKey: {
-      get() { return this.paypalSettings.payment_mode === 'live' ? this.paypalSettings.live_pub_key : this.paypalSettings.test_pub_key; },
-      set(v) { if (this.paypalSettings.payment_mode === 'live') this.paypalSettings.live_pub_key = v; else this.paypalSettings.test_pub_key = v; },
+      get() { return this.paypalSettings.payment_mode === 'live' ? this.paypalSettings.live_public_key : this.paypalSettings.test_public_key; },
+      set(v) { if (this.paypalSettings.payment_mode === 'live') this.paypalSettings.live_public_key = v; else this.paypalSettings.test_public_key = v; },
     },
     paypalSecretKey: {
       get() { return this.paypalSettings.payment_mode === 'live' ? this.paypalSettings.live_secret_key : this.paypalSettings.test_secret_key; },
       set(v) { if (this.paypalSettings.payment_mode === 'live') this.paypalSettings.live_secret_key = v; else this.paypalSettings.test_secret_key = v; },
+    },
+    hasActiveStripeSecret() {
+      return this.stripeSettings.payment_mode === 'live'
+        ? !!(this.stripeSettings.live_secret_key || this.stripeSettings.has_live_secret_key)
+        : !!(this.stripeSettings.test_secret_key || this.stripeSettings.has_test_secret_key);
+    },
+    hasActivePayPalSecret() {
+      return this.paypalSettings.payment_mode === 'live'
+        ? !!(this.paypalSettings.live_secret_key || this.paypalSettings.has_live_secret_key)
+        : !!(this.paypalSettings.test_secret_key || this.paypalSettings.has_test_secret_key);
+    },
+    stripeSecretKeyPlaceholder() {
+      if (this.hasActiveStripeSecret && !this.stripeSecretKey) {
+        return 'Saved secret key (leave blank to keep)';
+      }
+      return this.stripeSettings.payment_mode === 'live' ? 'sk_live_...' : 'sk_test_...';
+    },
+    paypalSecretKeyPlaceholder() {
+      if (this.hasActivePayPalSecret && !this.paypalSecretKey) {
+        return 'Saved secret key (leave blank to keep)';
+      }
+      return 'Secret key from PayPal dashboard';
+    },
+    isStripeConfigured() {
+      return this.stripeSettings.enable === 'yes' && !!this.stripePublishableKey && this.hasActiveStripeSecret;
+    },
+    isPayPalConfigured() {
+      return this.paypalSettings.enable === 'yes' && !!this.paypalPublicKey && this.hasActivePayPalSecret;
     },
   },
   methods: {
@@ -366,12 +408,12 @@ export default {
       this.$get({
         action: 'buymecoffee_admin_ajax', route: 'get_data', data: { method: 'stripe' },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
-      }).then((res) => { this.stripeSettings = { ...this.stripeSettings, ...res.data.settings }; }).always(done);
+      }).then((res) => { this.stripeSettings = { ...this.stripeSettings, ...(res.data?.settings || {}) }; }).always(done);
 
       this.$get({
         action: 'buymecoffee_admin_ajax', route: 'get_data', data: { method: 'paypal' },
         buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
-      }).then((res) => { this.paypalSettings = { ...this.paypalSettings, ...res.data.settings }; }).always(done);
+      }).then((res) => { this.paypalSettings = { ...this.paypalSettings, ...(res.data?.settings || {}) }; }).always(done);
     },
     validate() {
       this.errors = {};
@@ -384,6 +426,10 @@ export default {
       if (this.active === 3) {
         if (this.selectedGateway === 'stripe' && this.stripeSettings.enable === 'yes') {
           const prefix = this.stripeSettings.payment_mode === 'live' ? '_live_' : '_test_';
+          if (!this.stripePublishableKey || !this.hasActiveStripeSecret) {
+            this.errors.stripeKey = 'Publishable Key and Secret Key are required to enable Stripe.';
+            return false;
+          }
           if (this.stripePublishableKey && !this.stripePublishableKey.startsWith('pk' + prefix)) {
             this.errors.stripeKey = 'Publishable key should start with pk' + prefix;
             return false;
@@ -394,7 +440,7 @@ export default {
           }
         }
         if (this.selectedGateway === 'paypal' && this.paypalSettings.enable === 'yes') {
-          if (!this.paypalPublicKey || !this.paypalSecretKey) {
+          if (!this.paypalPublicKey || !this.hasActivePayPalSecret) {
             this.errors.paypalKey = 'Both Client ID and Secret Key are required.';
             return false;
           }
@@ -416,14 +462,14 @@ export default {
         }
         if (this.active === 3) {
           const saves = [];
-          if (this.stripeSettings.enable === 'yes' && this.stripeSecretKey) {
+          if (this.isStripeConfigured) {
             saves.push(this.$post({
               action: 'buymecoffee_admin_ajax', route: 'save_payment_settings',
               data: { method: 'stripe', settings: this.stripeSettings },
               buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
             }));
           }
-          if (this.paypalSettings.enable === 'yes' && this.paypalSecretKey) {
+          if (this.isPayPalConfigured) {
             saves.push(this.$post({
               action: 'buymecoffee_admin_ajax', route: 'save_payment_settings',
               data: { method: 'paypal', settings: this.paypalSettings },
@@ -438,6 +484,21 @@ export default {
         this.$message.error(message);
       } finally {
         this.saving = false;
+      }
+    },
+    selectGateway(gateway) {
+      this.selectedGateway = gateway;
+      this.markGatewayConfigured(gateway);
+    },
+    markGatewayConfigured(gateway) {
+      if (gateway === 'stripe') {
+        this.errors.stripeKey = '';
+        this.stripeSettings.enable = 'yes';
+      }
+
+      if (gateway === 'paypal') {
+        this.errors.paypalKey = '';
+        this.paypalSettings.enable = 'yes';
       }
     },
     verifyStripeKey() {
@@ -550,6 +611,17 @@ export default {
 .bmc-toggle-row:last-child { border-bottom: none; }
 .bmc-toggle-row__label { display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); }
 .bmc-toggle-row__desc { display: block; font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+.bmc-gateway-enable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+}
 
 /* ── Gateway cards ── */
 .bmc-gw-card {

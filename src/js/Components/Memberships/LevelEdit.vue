@@ -292,17 +292,22 @@ async function save() {
     return;
   }
   saving.value = true;
-  const payload = {
-    ...form.value,
-    rewards: form.value.rewards.filter(r => r.trim()),
-  };
-  const res = await adminPost('save_membership_level', payload);
-  saving.value = false;
-  if (res?.success) {
-    toast.success(res.data?.message || 'Level saved.');
-    vm?.$router?.push({ name: 'Memberships', query: { tab: 'levels' } });
-  } else {
-    toast.error(res?.data?.message || 'Failed to save.');
+  try {
+    const payload = {
+      ...form.value,
+      rewards: form.value.rewards.filter(r => r.trim()),
+    };
+    const res = await adminPost('save_membership_level', payload);
+    if (res?.success) {
+      toast.success(res.data?.message || 'Level saved.');
+      vm?.$router?.push({ name: 'Memberships', query: { tab: 'levels' } });
+    } else {
+      toast.error(res?.data?.message || 'Failed to save.');
+    }
+  } catch (error) {
+    toast.error(error?.message || 'Failed to save.');
+  } finally {
+    saving.value = false;
   }
 }
 
