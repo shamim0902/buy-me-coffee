@@ -47,18 +47,23 @@ $currency = PaymentHelper::getCurrency() ?: 'USD';
         <div class="bmc-paywall__levels">
             <?php foreach ($levels as $level):
                 $price    = (int) $level->price;
+                $paymentType = !empty($level->payment_type) && $level->payment_type === 'one_time' ? 'one_time' : 'subscription';
+                $isLevelActive = !empty($level->status) && $level->status === 'active';
+                $buttonText = $paymentType === 'one_time' ? __('Join', 'buy-me-coffee') : __('Subscribe', 'buy-me-coffee');
                 $interval = ($level->interval_type === 'year') ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee');
                 $rewards  = !empty($level->rewards) ? (array) $level->rewards : [];
                 $levelUrl = add_query_arg('bmc_level_id', absint($level->id), $redirectUrl);
                 $levelUrl = add_query_arg('bmc_return_url', rawurlencode(get_permalink($postId)), $levelUrl);
                 $levelUrl = esc_url($levelUrl);
             ?>
-            <div class="bmc-paywall__level">
+            <div class="bmc-paywall__level<?php echo $isLevelActive ? '' : ' bmc-paywall__level--inactive'; ?>">
                 <div class="bmc-paywall__level-header">
                     <h4 class="bmc-paywall__level-name"><?php echo esc_html($level->name); ?></h4>
                     <div class="bmc-paywall__level-price">
                         <?php echo esc_html(PaymentHelper::getFormattedAmount($price, $currency)); ?>
+                        <?php if ($paymentType === 'subscription'): ?>
                         <span class="bmc-paywall__level-interval">/ <?php echo esc_html($interval); ?></span>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -79,9 +84,15 @@ $currency = PaymentHelper::getCurrency() ?: 'USD';
                 </ul>
                 <?php endif; ?>
 
+                <?php if ($isLevelActive): ?>
                 <a href="<?php echo esc_url($levelUrl); ?>" class="bmc-paywall__btn">
-                    <?php esc_html_e('Join', 'buy-me-coffee'); ?>
+                    <?php echo esc_html($buttonText); ?>
                 </a>
+                <?php else: ?>
+                <button type="button" class="bmc-paywall__btn bmc-paywall__btn--disabled" disabled>
+                    <?php esc_html_e('Unavailable', 'buy-me-coffee'); ?>
+                </button>
+                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         </div>
@@ -104,6 +115,7 @@ $currency = PaymentHelper::getCurrency() ?: 'USD';
 .bmc-paywall__subtext{color:#6b7280;margin:0 0 1.5rem;font-size:.95rem}
 .bmc-paywall__levels{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center}
 .bmc-paywall__level{flex:1;min-width:200px;max-width:280px;border:1px solid #e5e7eb;border-radius:12px;padding:1.25rem;text-align:left}
+.bmc-paywall__level--inactive{opacity:.68}
 .bmc-paywall__level-header{margin-bottom:.75rem}
 .bmc-paywall__level-name{font-size:1rem;font-weight:700;margin:0 0 .25rem;color:#111}
 .bmc-paywall__level-price{font-size:1.35rem;font-weight:800;color:#111}
@@ -114,5 +126,6 @@ $currency = PaymentHelper::getCurrency() ?: 'USD';
 .bmc-paywall__reward-icon{width:15px;height:15px;flex-shrink:0;margin-top:1px;color:#22c55e}
 .bmc-paywall__btn{display:block;width:100%;padding:.65rem 1rem;background:#111;color:#fff;border-radius:8px;text-align:center;text-decoration:none;font-size:.9rem;font-weight:600;transition:background .15s}
 .bmc-paywall__btn:hover{background:#374151;color:#fff}
+.bmc-paywall__btn--disabled,.bmc-paywall__btn--disabled:hover{background:#d1d5db;color:#6b7280;cursor:not-allowed;border:0}
 .bmc-paywall__no-levels .bmc-paywall__btn{display:inline-block;width:auto;padding:.75rem 2rem}
 </style>

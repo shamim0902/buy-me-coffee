@@ -57,7 +57,7 @@
             </el-table-column>
             <el-table-column prop="interval_type" label="Billing" width="90">
               <template #default="{ row }">
-                <span class="bmc-text-muted">{{ row.interval_type === 'year' ? 'Yearly' : 'Monthly' }}</span>
+                <span class="bmc-text-muted">{{ row.interval_type === 'one_time' ? 'One-time' : (row.interval_type === 'year' ? 'Yearly' : 'Monthly') }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="status" label="Status" width="100">
@@ -73,8 +73,8 @@
                   </button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="view_subscription">View subscription</el-dropdown-item>
-                      <el-dropdown-item v-if="row.status === 'active'" command="cancel" divided style="color:#dc2626">Cancel membership</el-dropdown-item>
+                      <el-dropdown-item command="view_subscription">{{ row.interval_type === 'one_time' ? 'View access' : 'View subscription' }}</el-dropdown-item>
+                      <el-dropdown-item v-if="row.status === 'active' && row.interval_type !== 'one_time'" command="cancel" divided style="color:#dc2626">Cancel membership</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
@@ -117,7 +117,7 @@
               </div>
               <p class="bmc-level-card__price">
                 <span class="bmc-level-card__price-icon">$</span>
-                {{ formatPrice(level.price) }} per {{ level.interval_type === 'year' ? 'year' : 'month' }}
+                {{ formatPrice(level.price) }}{{ level.payment_type === 'one_time' ? ' one-time' : ' per ' + (level.interval_type === 'year' ? 'year' : 'month') }}
               </p>
 
               <div v-if="level.description" class="bmc-level-card__desc">{{ level.description }}</div>

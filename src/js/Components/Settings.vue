@@ -193,6 +193,9 @@
                   <p class="bmc-toggle-row__desc">
                     Create a WordPress account for subscribers automatically after payment, and allow them to view their subscriptions
                   </p>
+                  <p class="bmc-hint">
+                    Membership payments always create or link a WordPress user account so members can access protected content.
+                  </p>
                 </div>
                 <el-switch v-model="template.enable_account" active-value="yes" inactive-value="no" />
               </div>

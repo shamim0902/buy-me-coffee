@@ -21,6 +21,14 @@
           <div class="bmc-card">
             <h3 class="bmc-sc__title" style="margin-bottom:16px">Level Details</h3>
 
+            <div class="bmc-sr">
+              <div class="bmc-toggle-row__text">
+                <p class="bmc-toggle-row__label">Active</p>
+                <p class="bmc-toggle-row__desc">Inactive levels won't be shown on paywall CTAs.</p>
+              </div>
+              <el-switch v-model="form.status" active-value="active" inactive-value="inactive" />
+            </div>
+
             <div class="bmc-sr bmc-sr--field">
               <label class="bmc-label">Level name <span class="bmc-required">*</span></label>
               <el-input v-model="form.name" placeholder="e.g. Community Member" />
@@ -31,29 +39,34 @@
               <el-input v-model="form.description" type="textarea" :rows="3" placeholder="Briefly describe this level…" />
             </div>
 
-            <div class="bmc-2col">
-              <div class="bmc-sr bmc-sr--field">
-                <label class="bmc-label">Price</label>
-                <el-input-number v-model="displayPrice" :min="0" :precision="2" :step="1" style="width:100%" />
-                <p class="bmc-hint">Amount in your account currency.</p>
-              </div>
-
-              <div class="bmc-sr bmc-sr--field">
-                <label class="bmc-label">Billing interval</label>
-                <el-radio-group v-model="form.interval_type">
-                  <el-radio-button value="month">Monthly</el-radio-button>
-                  <el-radio-button value="year">Yearly</el-radio-button>
+            <div class="bmc-pricing-block">
+              <div class="bmc-pricing-field">
+                <label class="bmc-label">Payment type</label>
+                <el-radio-group v-model="form.payment_type" class="bmc-payment-radios">
+                  <el-radio value="subscription">Subscription</el-radio>
+                  <el-radio value="one_time">One-time</el-radio>
                 </el-radio-group>
+                <p class="bmc-hint">{{ form.payment_type === 'one_time' ? 'Members pay once and keep access.' : 'Members are billed on a recurring schedule.' }}</p>
+              </div>
+
+              <div class="bmc-pricing-grid">
+                <div class="bmc-pricing-field">
+                  <label class="bmc-label">Price</label>
+                  <el-input-number v-model="displayPrice" :min="0" :precision="2" :step="1" class="bmc-price-input" />
+                  <p class="bmc-hint">Amount in your account currency.</p>
+                </div>
+
+                <div v-if="form.payment_type === 'subscription'" class="bmc-pricing-field">
+                  <label class="bmc-label">Billing interval</label>
+                  <el-select v-model="form.interval_type" class="bmc-interval-select">
+                    <el-option label="Monthly" value="month" />
+                    <el-option label="Yearly" value="year" />
+                  </el-select>
+                  <p class="bmc-hint">Choose how often this membership renews.</p>
+                </div>
               </div>
             </div>
 
-            <div class="bmc-sr">
-              <div class="bmc-toggle-row__text">
-                <p class="bmc-toggle-row__label">Active</p>
-                <p class="bmc-toggle-row__desc">Inactive levels won't be shown on paywall CTAs.</p>
-              </div>
-              <el-switch v-model="form.status" active-value="active" inactive-value="inactive" />
-            </div>
           </div>
 
           <!-- Rewards -->
@@ -149,14 +162,14 @@
               <div class="bmc-level-preview__header">
                 <span class="bmc-level-preview__name">{{ form.name || 'Level name' }}</span>
                 <span class="bmc-level-preview__price">
-                  ${{ displayPrice }}<span class="bmc-level-preview__interval">/{{ form.interval_type === 'year' ? 'yr' : 'mo' }}</span>
+                  ${{ displayPrice }}<span v-if="form.payment_type === 'subscription'" class="bmc-level-preview__interval">/{{ form.interval_type === 'year' ? 'yr' : 'mo' }}</span>
                 </span>
               </div>
               <p v-if="form.description" class="bmc-level-preview__desc">{{ form.description }}</p>
               <ul v-if="form.rewards.length" class="bmc-level-preview__rewards">
                 <li v-for="(r, i) in form.rewards.filter(x=>x)" :key="i">✓ {{ r }}</li>
               </ul>
-              <div class="bmc-level-preview__cta">Join</div>
+              <div class="bmc-level-preview__cta">{{ form.payment_type === 'one_time' ? 'Pay and Join' : 'Subscribe' }}</div>
             </div>
           </div>
 
@@ -196,6 +209,7 @@ const form = ref({
   name:          '',
   description:   '',
   price:         500,    // cents
+  payment_type:  'subscription',
   interval_type: 'month',
   status:        'active',
   rewards:       [''],
@@ -258,6 +272,7 @@ async function loadLevel() {
     name:          found.name,
     description:   found.description || '',
     price:         found.price,
+    payment_type:  found.payment_type || 'subscription',
     interval_type: found.interval_type || 'month',
     status:        found.status,
     rewards:       Array.isArray(found.rewards) && found.rewards.length ? found.rewards : [''],
@@ -304,6 +319,20 @@ onMounted(async () => {
 @media (max-width: 900px) { .bmc-level-edit-layout { grid-template-columns: 1fr; } }
 .bmc-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .bmc-required { color: #ef4444; }
+
+.bmc-pricing-block { display: flex; flex-direction: column; gap: 16px; padding: 16px 0 18px; border-bottom: 1px solid var(--border-secondary); }
+.bmc-pricing-grid { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+.bmc-pricing-field { min-width: 0; }
+.bmc-price-input { width: 100%; max-width: 360px; }
+.bmc-interval-select { width: 100%; max-width: 260px; }
+.bmc-payment-radios { display: inline-flex; align-items: center; gap: 18px; }
+.bmc-payment-radios :deep(.el-radio) { height: auto; margin-right: 0; font-weight: 600; color: var(--text-secondary); }
+.bmc-payment-radios :deep(.el-radio__label) { padding-left: 6px; }
+@media (max-width: 760px) {
+  .bmc-pricing-grid { grid-template-columns: 1fr; gap: 14px; }
+  .bmc-price-input { max-width: none; }
+  .bmc-interval-select { max-width: none; }
+}
 
 .bmc-rewards-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .bmc-reward-row { display: flex; align-items: center; gap: 8px; }

@@ -52,7 +52,7 @@ $statusLabels = [
                     <tbody>
                         <?php foreach ($subscriptions as $sub) :
                             $amount = $sub->amount ? html_entity_decode(PaymentHelper::getFormattedAmount($sub->amount, $sub->currency), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '--';
-                            $interval = ($sub->interval_type === 'year') ? __('Yearly', 'buy-me-coffee') : __('Monthly', 'buy-me-coffee');
+                            $interval = $sub->interval_type === 'one_time' ? __('One-time', 'buy-me-coffee') : (($sub->interval_type === 'year') ? __('Yearly', 'buy-me-coffee') : __('Monthly', 'buy-me-coffee'));
                             $status = isset($statusLabels[$sub->status]) ? $statusLabels[$sub->status] : ucfirst($sub->status);
                             $hasFutureAccess = $sub->status === 'cancelled' && Subscriptions::hasAccessValidity($sub);
                             $periodEnd = (!empty($sub->current_period_end) && $sub->current_period_end !== '0000-00-00 00:00:00')
@@ -74,7 +74,7 @@ $statusLabels = [
                             <td><?php echo esc_html($sub->status === 'active' ? $periodEnd : '--'); ?></td>
                             <td><?php echo esc_html($startedAt); ?></td>
                             <td>
-                                <?php if ($sub->status === 'active') : ?>
+                                <?php if ($sub->status === 'active' && $sub->interval_type !== 'one_time') : ?>
                                 <div class="bmc-sub-actions">
                                     <button type="button" class="bmc-sub-actions__trigger" aria-label="<?php esc_attr_e('Actions', 'buy-me-coffee'); ?>">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>

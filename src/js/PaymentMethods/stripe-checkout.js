@@ -90,12 +90,13 @@ class StripeCheckout {
 
     afterPaymentSuccess() {
         const isSubscription = !!this.data?.is_subscription;
+        const isMembership = !!this.data?.is_membership;
         const messageTitle = isSubscription
             ? "Recurring donation set up successfully"
-            : "Thanks for your contribution";
+            : (isMembership ? "Membership activated" : "Thanks for your contribution");
         const messageSubtitle = isSubscription
             ? "Your subscription is active. You can manage everything from your account."
-            : "Your payment was successful. You can view your receipt below.";
+            : (isMembership ? "Your membership access is active. You can manage everything from your account." : "Your payment was successful. You can view your receipt below.");
 
         const receiptContainer = jQuery("<div class='buymecoffee_form_receipt'></div>");
         const receiptCard = jQuery("<div class='bmc-receipt-success'></div>");

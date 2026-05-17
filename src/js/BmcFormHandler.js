@@ -81,8 +81,13 @@ class BmcFormHandler {
 
         const noSignup = this.form.find('.buymecoffee_no_signup');
         if (noSignup.length) {
-            noSignup.text(isChecked ? noSignup.data('recurring') : noSignup.data('default'));
+            const checkedMessage = this.form.data('bmc-payment-type') === 'one_time'
+                ? noSignup.data('membership')
+                : noSignup.data('recurring');
+            noSignup.text(isChecked ? checkedMessage : noSignup.data('default'));
         }
+
+        this.updateSubmitButtonLabel();
     }
 
     isRecurring(form) {
@@ -90,13 +95,13 @@ class BmcFormHandler {
     }
 
     handleFormSubmit(form) {
-        // Validate email is present when recurring is selected
-        if (this.isRecurring(form)) {
+        // Validate email is present when recurring or membership access is selected
+        if (this.isRecurring(form) || form.hasClass('bmc-level-locked')) {
             const emailVal = form.find('input.wpm-supporter-email').val()?.trim();
             if (!emailVal) {
                 const emailField = form.find('[data-element_type="email"]');
                 emailField.addClass('bmc_field_error');
-                emailField.find('input').attr('placeholder', 'Email is required for recurring donations');
+                emailField.find('input').attr('placeholder', form.hasClass('bmc-level-locked') ? 'Email is required for membership access' : 'Email is required for recurring donations');
                 form.find('button.wpm_submit_button').removeAttr('disabled');
                 emailField.find('input').one('input', () => emailField.removeClass('bmc_field_error'));
                 return;
@@ -233,6 +238,28 @@ class BmcFormHandler {
         const currency = this.form.data('wpm_currency') || window.buymecoffee_general?.default_currency || 'USD';
         const displayTotal = Number.isFinite(amount) ? formatAmount(amountCents, currency) : formatAmount(0, currency);
         this.form.find('.wpm_submit_button .wpm_payment_total_amount').text(displayTotal);
+        this.updateSubmitButtonLabel();
+    }
+
+    updateSubmitButtonLabel() {
+        const button = this.form.find('button.wpm_submit_button');
+        const label = button.find('.wpm_submit_button_label');
+        if (!button.length || !label.length) {
+            return;
+        }
+
+        const isLevelLocked = this.form.hasClass('bmc-level-locked');
+        const isRecurring = this.isRecurring(this.form);
+        const defaultLabel = button.data('default-label') || 'Support';
+        const recurringLabel = button.data('recurring-label') || 'Subscribe';
+        const membershipLabel = button.data('membership-label') || recurringLabel;
+
+        if (isLevelLocked) {
+            label.text(membershipLabel);
+            return;
+        }
+
+        label.text(isRecurring ? recurringLabel : defaultLabel);
     }
 
     getSafeRedirectUrl(url) {
