@@ -178,7 +178,7 @@
               <span class="bmc-toggle-row__label">Enable Stripe</span>
               <span class="bmc-toggle-row__desc">Use Stripe for one-time and recurring payments.</span>
             </div>
-            <el-switch v-model="stripeSettings.enable" active-value="yes" inactive-value="no" />
+            <el-switch v-model="stripeSettings.enable" active-value="yes" inactive-value="no" @change="markGatewayTouched('stripe')" />
           </div>
           <div class="flex items-center gap-3 mb-4">
             <el-radio-group v-model="stripeSettings.payment_mode" size="small">
@@ -216,7 +216,7 @@
               <span class="bmc-toggle-row__label">Enable PayPal</span>
               <span class="bmc-toggle-row__desc">Use PayPal Standard for one-time payments.</span>
             </div>
-            <el-switch v-model="paypalSettings.enable" active-value="yes" inactive-value="no" />
+            <el-switch v-model="paypalSettings.enable" active-value="yes" inactive-value="no" @change="markGatewayTouched('paypal')" />
           </div>
           <div class="flex items-center gap-3 mb-4">
             <el-radio-group v-model="paypalSettings.payment_mode" size="small">
@@ -340,6 +340,7 @@ export default {
       currencies: {},
       stripeSettings: { enable: 'no', payment_mode: 'test', test_pub_key: '', test_secret_key: '', live_pub_key: '', live_secret_key: '', has_test_secret_key: false, has_live_secret_key: false },
       paypalSettings: { enable: 'no', payment_mode: 'test', payment_type: 'standard', test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '', paypal_email: '', disable_ipn_verification: 'no', has_test_secret_key: false, has_live_secret_key: false },
+      touchedGateways: { stripe: false, paypal: false },
     };
   },
   computed: {
@@ -462,14 +463,14 @@ export default {
         }
         if (this.active === 3) {
           const saves = [];
-          if (this.isStripeConfigured) {
+          if (this.shouldSaveGateway('stripe')) {
             saves.push(this.$post({
               action: 'buymecoffee_admin_ajax', route: 'save_payment_settings',
               data: { method: 'stripe', settings: this.stripeSettings },
               buymecoffee_nonce: window.BuyMeCoffeeAdmin.buymecoffee_nonce,
             }));
           }
-          if (this.isPayPalConfigured) {
+          if (this.shouldSaveGateway('paypal')) {
             saves.push(this.$post({
               action: 'buymecoffee_admin_ajax', route: 'save_payment_settings',
               data: { method: 'paypal', settings: this.paypalSettings },
@@ -488,9 +489,30 @@ export default {
     },
     selectGateway(gateway) {
       this.selectedGateway = gateway;
-      this.markGatewayConfigured(gateway);
+    },
+    shouldSaveGateway(gateway) {
+      if (gateway === 'stripe') {
+        return this.touchedGateways.stripe || this.isStripeConfigured;
+      }
+
+      if (gateway === 'paypal') {
+        return this.touchedGateways.paypal || this.isPayPalConfigured;
+      }
+
+      return false;
+    },
+    markGatewayTouched(gateway) {
+      if (gateway === 'stripe') {
+        this.touchedGateways.stripe = true;
+      }
+
+      if (gateway === 'paypal') {
+        this.touchedGateways.paypal = true;
+      }
     },
     markGatewayConfigured(gateway) {
+      this.markGatewayTouched(gateway);
+
       if (gateway === 'stripe') {
         this.errors.stripeKey = '';
         this.stripeSettings.enable = 'yes';
