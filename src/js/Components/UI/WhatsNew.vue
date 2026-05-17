@@ -21,7 +21,7 @@
         <div class="wn-header">
           <div class="wn-version-badge">Version {{ version }}</div>
           <h2 id="wn-title" class="wn-title">What's New</h2>
-          <p class="wn-subtitle">Memberships and content monetization are here.</p>
+          <p class="wn-subtitle">Memberships, paid content, and access management are here.</p>
         </div>
 
         <!-- Changelog -->
@@ -31,11 +31,12 @@
               <span class="wn-release__version">What's New in 1.2.6</span>
             </div>
             <ul class="wn-release__list">
-              <li>Create paid membership levels with monthly or yearly pricing, descriptions, rewards, and active status controls.</li>
-              <li>Protect premium posts and pages from the editor with allowed membership levels and custom preview word counts.</li>
-              <li>Show non-members a teaser plus a built-in paywall CTA with level pricing, reward bullets, and join buttons.</li>
-              <li>Manage active members with search, renewal dates, billing intervals, subscription status, and quick subscription actions.</li>
-              <li>Improves the admin experience with top navigation, safer supporter links, and production route guards.</li>
+              <li>Create paid membership levels for one-time lifetime access or recurring monthly/yearly subscriptions.</li>
+              <li>Protect premium posts and pages from the editor with allowed levels and custom teaser word counts.</li>
+              <li>Show a built-in paywall CTA with level pricing, reward bullets, and checkout links that return members to the content.</li>
+              <li>Track every member from the new access system, including one-time, manual, active, cancelled, and renewing access records.</li>
+              <li>Automatically create WordPress user accounts for membership payments so members can manage access from their account page.</li>
+              <li>Keep subscription access synced with renewal dates while one-time purchases receive lifetime access.</li>
             </ul>
           </section>
         </div>

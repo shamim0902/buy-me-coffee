@@ -6,25 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 ---
 
-## [1.2.6] — 2026-05-03
+## [1.2.6] — 2026-05-17
 
 ### Added
 - Added **Memberships** as the plugin's primary content monetization feature.
-- Added membership levels with monthly or yearly pricing, descriptions, reward bullets, active/inactive status, and checkout preview links.
+- Added membership levels with one-time or recurring payment types, monthly or yearly billing, descriptions, reward bullets, active/inactive status, and checkout preview links.
 - Added members-only post and page access controls for the editor, including allowed membership levels and custom preview word counts.
 - Added paywall CTA rendering for restricted content with teaser content, membership level pricing, reward bullets, and return-to-content checkout links.
-- Added active members dashboard with member search, level, renewal date, billing interval, subscription status, subscription detail links, and cancellation action.
+- Added a dedicated `buymecoffee_membership_access` table to manage one-time lifetime access, manual access, and subscription-backed access separately.
+- Added membership access activation for one-time Stripe payments without creating placeholder subscription records.
+- Added automatic WordPress user creation/linking for membership payments so members can manage access from their account page.
+- Added members dashboard based on membership access records with member search, level, renewal date, billing interval, access status, subscription detail links, and cancellation action where available.
 - Added membership members API endpoints and member/subscription linkage for admin workflows.
+- Added membership access records to supporter profile pages for single-member review and troubleshooting.
 - Added top navigation and admin layout refinements to make membership management easier to reach.
 
 ### Changed
 - Made content monetization and memberships the headline release focus in the WordPress readme.
+- Moved membership entitlement checks to the membership access table, while recurring subscriptions continue to sync renewal access from `current_period_end`.
+- Updated one-time membership checkout and paywall buttons to use `Join`; recurring membership payments continue to use `Subscribe`.
 - Improved supporter and subscription table links by using safer link tokens for supporter names.
+- Improved the What's New modal with the final membership access release details and release post link.
 - Disabled development mode for production and tightened public/admin route guards.
+- Updated release packaging to exclude macOS metadata files.
 - Updated README imagery and release positioning for the new membership flow.
 
 ### Fixed
 - Fixed PayPal live checkout endpoint and currency handling regressions included in the release range.
+- Fixed one-time membership payments incorrectly requiring empty subscription rows.
+- Fixed duplicate empty Stripe subscription IDs for one-time membership records by keeping one-time access in membership access records.
+- Fixed membership members list so one-time members are clickable and supporter profile pages show related access data.
+- Fixed membership access queries that used unprefixed table names in raw SQL fragments.
+- Fixed shipped frontend debug logs in production admin/public assets.
 - Fixed membership/admin UI polish issues from the new members workflow.
 
 ---

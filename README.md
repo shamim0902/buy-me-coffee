@@ -17,16 +17,24 @@
 
 ## Quick Navigation
 
-- [Why Buy Me a Coffee](#why-buy-me-a-coffee)
-- [Whats New in 12x](#whats-new-in-12x)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Development](#development)
-- [Third-Party Services](#third-party-services)
-- [Contributing](#contributing)
-- [License](#license)
+- [Buy Me a Coffee — WordPress Plugin](#buy-me-a-coffee--wordpress-plugin)
+  - [Quick Navigation](#quick-navigation)
+  - [Why Buy Me a Coffee](#why-buy-me-a-coffee)
+  - [What's New in 1.2.x](#whats-new-in-12x)
+    - [1.2.7](#127)
+    - [1.2.6](#126)
+    - [1.2.1](#121)
+    - [1.2.0](#120)
+  - [Features](#features)
+  - [Quick Start](#quick-start)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Development](#development)
+  - [Common Shortcodes](#common-shortcodes)
+  - [Third-Party Services](#third-party-services)
+  - [Changelog](#changelog)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ---
 
@@ -41,6 +49,9 @@
 ---
 
 ## What's New in 1.2.x
+
+### 1.2.7
+- **Onetime membership access** - Now onetime membership access can be managed
 
 ### 1.2.6
 - **Memberships and content monetization** — create paid levels, protect posts/pages, and show a built-in paywall CTA

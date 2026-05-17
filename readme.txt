@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: membership, paywall, donations, subscriptions, stripe payments
 Requires at least: 5.7
 Tested up to: 6.9
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -236,6 +236,13 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 7. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.7 May 17, 2026 =
+- Adds dedicated membership access management for one-time lifetime access, manual access, and subscription-backed access.
+- Adds one-time membership payments with lifetime access
+- Adds automatic WordPress user account creation/linking for membership payments.
+- Improves recurring membership access sync with subscription renewal dates.
+- Improves one-time membership button labels with Join text on paywalls and checkout.
 
 = 1.2.6 May 03, 2026 =
 - Adds Memberships as the headline monetization feature for paid content.

@@ -4,7 +4,7 @@
 Plugin Name: Buy Me a Coffee – Membership, Paywall & Fundraiser with Stripe & PayPal
 Plugin URI: https://wpminers.com/buymecoffee/
 Description: Easy way to collect donations like "buy me a coffee" directly your own Stripe and PayPal for free
-Version: 1.2.6
+Version: 1.2.7
 Author: wpminers
 Author URI: http://www.wpminers.com/
 License: GPLv2 or later
@@ -34,7 +34,7 @@ if (!defined('ABSPATH')) {
 }
 if (!defined('BUYMECOFFEE_VERSION')) {
     define('BUYMECOFFEE_VERSION_LITE', true);
-    define('BUYMECOFFEE_VERSION', '1.2.6');
+    define('BUYMECOFFEE_VERSION', '1.2.7');
     define('BUYMECOFFEE_MAIN_FILE', __FILE__);
     define('BUYMECOFFEE_URL', plugin_dir_url(__FILE__));
     define('BUYMECOFFEE_DIR', plugin_dir_path(__FILE__));
@@ -42,7 +42,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     if (!defined('BUYMECOFFEE_PRODUCTION')) {
         define('BUYMECOFFEE_PRODUCTION', false);
     }
-    define('BUYMECOFFEE_DB_VERSION', '1.12');
+    define('BUYMECOFFEE_DB_VERSION', '1.13');
 
     // if (!defined('BUYMECOFFEE_DEBUG')) {
     //     define('BUYMECOFFEE_DEBUG', false);
