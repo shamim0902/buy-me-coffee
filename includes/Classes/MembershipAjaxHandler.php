@@ -393,26 +393,7 @@ class MembershipAjaxHandler
             ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_membership_access.level_id', '=', 'buymecoffee_membership_levels.id')
             ->leftJoin('buymecoffee_subscriptions', 'buymecoffee_membership_access.subscription_id', '=', 'buymecoffee_subscriptions.id')
             ->whereNotNull('buymecoffee_membership_access.level_id')
-            ->where('buymecoffee_membership_access.level_id', '>', 0)
-            ->where(function ($whereQuery) {
-                $whereQuery->where(function ($activeQuery) {
-                    $activeQuery->where('buymecoffee_membership_access.status', 'active')
-                        ->where(function ($accessQuery) {
-                            $accessQuery->whereIn('buymecoffee_membership_access.access_type', ['one_time', 'manual'])
-                                ->orWhere(function ($periodQuery) {
-                                    $periodQuery->where('buymecoffee_membership_access.access_type', 'subscription')
-                                        ->whereNotNull('buymecoffee_membership_access.expires_at')
-                                        ->where('buymecoffee_membership_access.expires_at', '>', current_time('mysql', true));
-                                });
-                        });
-                })
-                    ->orWhere(function ($cancelledQuery) {
-                        $cancelledQuery->where('buymecoffee_membership_access.status', 'cancelled')
-                            ->where('buymecoffee_membership_access.access_type', 'subscription')
-                            ->whereNotNull('buymecoffee_membership_access.expires_at')
-                            ->where('buymecoffee_membership_access.expires_at', '>', current_time('mysql', true));
-                    });
-            });
+            ->where('buymecoffee_membership_access.level_id', '>', 0);
 
         if ($search !== '') {
             $query->where(function ($whereQuery) use ($search) {

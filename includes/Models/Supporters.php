@@ -257,6 +257,28 @@ class Supporters extends Model
                 ->first();
         }
 
+        $supporter->membership_access = buyMeCoffeeQuery()
+            ->table('buymecoffee_membership_access')
+            ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_membership_access.level_id', '=', 'buymecoffee_membership_levels.id')
+            ->leftJoin('buymecoffee_subscriptions', 'buymecoffee_membership_access.subscription_id', '=', 'buymecoffee_subscriptions.id')
+            ->leftJoin('buymecoffee_transactions', 'buymecoffee_membership_access.transaction_id', '=', 'buymecoffee_transactions.id')
+            ->select([
+                'buymecoffee_membership_access.*',
+                'buymecoffee_membership_levels.name'       => 'level_name',
+                'buymecoffee_subscriptions.interval_type'  => 'billing_interval',
+                'buymecoffee_subscriptions.amount'         => 'subscription_amount',
+                'buymecoffee_subscriptions.currency'       => 'subscription_currency',
+                'buymecoffee_transactions.payment_total'   => 'transaction_amount',
+                'buymecoffee_transactions.currency'        => 'transaction_currency',
+                'buymecoffee_transactions.charge_id'       => 'transaction_charge_id',
+                'buymecoffee_transactions.payment_method'  => 'transaction_payment_method',
+                'buymecoffee_transactions.status'          => 'transaction_status',
+            ])
+            ->where('buymecoffee_membership_access.supporter_id', (int) $supporter->id)
+            ->orderBy('buymecoffee_membership_access.created_at', 'DESC')
+            ->limit(50)
+            ->get();
+
         return $supporter;
     }
 

@@ -94,6 +94,7 @@
 
 <script>
 import { CreditCard, ArrowUpDown, DollarSign } from 'lucide-vue-next';
+import { ElMessage } from 'element-plus';
 import CoffeeLoader from './UI/CoffeeLoader.vue';
 import PageTitle from './UI/PageTitle.vue';
 
@@ -129,8 +130,8 @@ export default {
                     this.stats = response.data.stats;
                 }
             })
-            .catch((error) => {
-                console.log(error);
+            .catch(() => {
+                ElMessage.error('Could not load payment gateways.');
             })
             .always(() => {
                 this.loading = false;

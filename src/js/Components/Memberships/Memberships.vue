@@ -20,7 +20,7 @@
       <section v-show="active === 'members'">
         <div class="bmc-card">
           <div class="bmc-card-header">
-            <h3 class="bmc-sc__title">Members with Access</h3>
+            <h3 class="bmc-sc__title">Membership Access</h3>
             <el-input
               v-model="memberSearch"
               placeholder="Search by name or email…"
@@ -30,7 +30,7 @@
             />
           </div>
 
-          <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No members with access yet">
+          <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No membership access records yet">
             <el-table-column prop="supporters_name" label="Name" min-width="130">
               <template #default="{ row }">
                 <router-link
@@ -459,10 +459,6 @@ function formatPrice(cents) {
 }
 
 function memberRoute(row) {
-  if (row?.subscription_id) {
-    return { name: 'SubscriptionDetail', params: { id: row.subscription_id } };
-  }
-
   if (row?.supporter_id) {
     return { name: 'Supporter', params: { id: row.supporter_id } };
   }
