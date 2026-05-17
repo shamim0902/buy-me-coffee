@@ -20,7 +20,7 @@
       <section v-show="active === 'members'">
         <div class="bmc-card">
           <div class="bmc-card-header">
-            <h3 class="bmc-sc__title">Active Members</h3>
+            <h3 class="bmc-sc__title">Membership Access</h3>
             <el-input
               v-model="memberSearch"
               placeholder="Search by name or email…"
@@ -30,16 +30,18 @@
             />
           </div>
 
-          <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No members yet">
+          <el-table :data="members" style="width:100%" class="bmc-table" v-loading="membersLoading" empty-text="No membership access records yet">
             <el-table-column prop="supporters_name" label="Name" min-width="130">
               <template #default="{ row }">
                 <router-link
-                  :to="{ name: 'SubscriptionDetail', params: { id: row.subscription_id } }"
+                  v-if="memberRoute(row)"
+                  :to="memberRoute(row)"
                   class="bmc-entity-link"
                   @click.stop
                 >
                   {{ row.supporters_name || 'Anonymous' }}
                 </router-link>
+                <span v-else>{{ row.supporters_name || 'Anonymous' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="supporters_email" label="Email" min-width="170" />
@@ -57,7 +59,7 @@
             </el-table-column>
             <el-table-column prop="interval_type" label="Billing" width="90">
               <template #default="{ row }">
-                <span class="bmc-text-muted">{{ row.interval_type === 'one_time' ? 'One-time' : (row.interval_type === 'year' ? 'Yearly' : 'Monthly') }}</span>
+                <span class="bmc-text-muted">{{ row.interval_type === 'one_time' ? 'One-time' : (row.interval_type === 'manual' ? 'Manual' : (row.interval_type === 'year' ? 'Yearly' : 'Monthly')) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="status" label="Status" width="100">
@@ -67,17 +69,18 @@
             </el-table-column>
             <el-table-column width="100" align="center">
               <template #default="{ row }">
-                <el-dropdown trigger="click" @command="(cmd) => handleMemberAction(cmd, row)">
+                <el-dropdown v-if="row.subscription_id" trigger="click" @command="(cmd) => handleMemberAction(cmd, row)">
                   <button class="bmc-actions-btn" type="button">
                     <MoreHorizontal :size="16" />
                   </button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="view_subscription">{{ row.interval_type === 'one_time' ? 'View access' : 'View subscription' }}</el-dropdown-item>
-                      <el-dropdown-item v-if="row.status === 'active' && row.interval_type !== 'one_time'" command="cancel" divided style="color:#dc2626">Cancel membership</el-dropdown-item>
+                      <el-dropdown-item v-if="row.subscription_id" command="view_subscription">View subscription</el-dropdown-item>
+                      <el-dropdown-item v-if="row.status === 'active' && row.access_type === 'subscription' && row.subscription_id" command="cancel" divided style="color:#dc2626">Cancel membership</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
+                <span v-else class="bmc-text-muted">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -455,6 +458,14 @@ function formatPrice(cents) {
   return (cents / 100).toFixed(2).replace(/\.00$/, '');
 }
 
+function memberRoute(row) {
+  if (row?.supporter_id) {
+    return { name: 'Supporter', params: { id: row.supporter_id } };
+  }
+
+  return null;
+}
+
 async function fetchLevels() {
   const res = await adminGet('get_membership_levels');
   levels.value = res?.data?.levels || [];
@@ -542,8 +553,10 @@ async function confirmDelete(level) {
 
 async function handleMemberAction(command, row) {
   if (command === 'view_subscription') {
+    if (!row.subscription_id) return;
     vm?.$router?.push({ name: 'SubscriptionDetail', params: { id: row.subscription_id } });
   } else if (command === 'cancel') {
+    if (!row.subscription_id) return;
     try {
       await ElMessageBox.confirm(
         `Cancel the membership for "${row.supporters_name || 'this member'}"? This will revoke their access to paid content.`,

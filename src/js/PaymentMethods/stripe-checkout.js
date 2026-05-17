@@ -62,8 +62,8 @@ class StripeCheckout {
                         confirmPayload.subscriptionId = self.subscriptionId;
                     }
 
-                    await jQuery.post(window.buymecoffee_general.ajax_url, confirmPayload);
-                    self.afterPaymentSuccess();
+                    const confirmation = await jQuery.post(window.buymecoffee_general.ajax_url, confirmPayload);
+                    self.afterPaymentSuccess(confirmation?.data || {});
                 } catch (error) {
                     const message = error?.responseJSON?.data?.message || error?.message || 'Payment could not be confirmed. Please try again.';
                     self.showError(message);
@@ -88,15 +88,18 @@ class StripeCheckout {
         this.loader.show('Setting up payment...');
     }
 
-    afterPaymentSuccess() {
+    afterPaymentSuccess(confirmation = {}) {
         const isSubscription = !!this.data?.is_subscription;
         const isMembership = !!this.data?.is_membership;
-        const messageTitle = isSubscription
-            ? "Recurring donation set up successfully"
-            : (isMembership ? "Membership activated" : "Thanks for your contribution");
-        const messageSubtitle = isSubscription
-            ? "Your subscription is active. You can manage everything from your account."
-            : (isMembership ? "Your membership access is active. You can manage everything from your account." : "Your payment was successful. You can view your receipt below.");
+        const isPaid = confirmation.payment_status === 'paid';
+        const accessActive = confirmation.access_active === true || confirmation.access_active === '1';
+        const isActive = isPaid && (!isMembership || accessActive);
+        const messageTitle = isActive
+            ? (isSubscription ? "Recurring donation set up successfully" : (isMembership ? "Membership activated" : "Thanks for your contribution"))
+            : "Payment is processing";
+        const messageSubtitle = isActive
+            ? (isSubscription ? "Your subscription is active. You can manage everything from your account." : (isMembership ? "Your membership access is active. You can manage everything from your account." : "Your payment was successful. You can view your receipt below."))
+            : "Stripe is still confirming this payment. Your access will be available as soon as the payment is completed.";
 
         const receiptContainer = jQuery("<div class='buymecoffee_form_receipt'></div>");
         const receiptCard = jQuery("<div class='bmc-receipt-success'></div>");
@@ -119,7 +122,7 @@ class StripeCheckout {
             actions.append(receiptLink);
         }
 
-        if (isSubscription) {
+        if ((isSubscription || isMembership) && isActive) {
             const accountPageUrl = this.getSafeReceiptUrl(window.buymecoffee_general?.account_page_url);
             if (accountPageUrl) {
                 const accountLink = jQuery('<a></a>')

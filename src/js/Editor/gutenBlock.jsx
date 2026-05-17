@@ -1,4 +1,3 @@
-console.log('buymecoffee-gutenberg-block');
 const { __ } = wp.i18n;
 const { registerBlockType } = wp.blocks;
 const {

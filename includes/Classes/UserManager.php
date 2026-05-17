@@ -2,6 +2,8 @@
 
 namespace BuyMeCoffee\Classes;
 
+use BuyMeCoffee\Models\MembershipAccess;
+
 if (!defined('ABSPATH')) exit;
 
 class UserManager
@@ -11,6 +13,7 @@ class UserManager
         add_action('buymecoffee_subscription_activated', [$this, 'handleSubscriptionActivated']);
         add_action('buymecoffee_subscription_cancelled', [$this, 'handleSubscriptionCancelled']);
         add_action('buymecoffee_subscription_status_changed', [$this, 'handleSubscriptionStatusChanged'], 10, 3);
+        add_action('buymecoffee_membership_access_activated', [$this, 'handleMembershipAccessActivated']);
     }
 
     private function isEnabled(): bool
@@ -21,16 +24,22 @@ class UserManager
 
     public function handleSubscriptionActivated($subscriptionId)
     {
-        if (!$this->isEnabled()) {
-            return;
-        }
-
         $subscription = buyMeCoffeeQuery()
             ->table('buymecoffee_subscriptions')
             ->where('id', (int) $subscriptionId)
             ->first();
 
         if (!$subscription) {
+            return;
+        }
+
+        $isMembershipAccess = !empty($subscription->level_id);
+        if ($isMembershipAccess) {
+            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+            return;
+        }
+
+        if (!$isMembershipAccess && !$this->isEnabled()) {
             return;
         }
 
@@ -84,12 +93,63 @@ class UserManager
 
     public function handleSubscriptionCancelled($subscriptionId)
     {
+        (new MembershipAccess())->upsertFromSubscription((int) $subscriptionId);
         $this->syncBySubscriptionId((int) $subscriptionId);
     }
 
     public function handleSubscriptionStatusChanged($subscriptionId, $oldStatus, $newStatus)
     {
+        (new MembershipAccess())->upsertFromSubscription((int) $subscriptionId);
         $this->syncBySubscriptionId((int) $subscriptionId);
+    }
+
+    public function handleMembershipAccessActivated($accessId)
+    {
+        $access = (new MembershipAccess())->find((int) $accessId);
+        if (!$access) {
+            return;
+        }
+
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('id', (int) $access->supporter_id)
+            ->first();
+
+        if (!$supporter || empty($supporter->supporters_email)) {
+            return;
+        }
+
+        if (!empty($supporter->wp_user_id)) {
+            (new MembershipAccess())->updateData((int) $access->id, [
+                'wp_user_id' => (int) $supporter->wp_user_id,
+                'updated_at' => current_time('mysql'),
+            ]);
+            $this->syncSubscriptionAccessMeta((int) $supporter->wp_user_id);
+            return;
+        }
+
+        $userData = $this->getOrCreateUser(
+            $supporter->supporters_email,
+            $supporter->supporters_name ?? ''
+        );
+
+        if (empty($userData['user_id'])) {
+            return;
+        }
+
+        $userId = (int) $userData['user_id'];
+
+        $this->linkUserToSupporter((int) $supporter->id, $userId);
+        (new MembershipAccess())->updateData((int) $access->id, [
+            'wp_user_id' => $userId,
+            'updated_at' => current_time('mysql'),
+        ]);
+        $this->syncSubscriptionAccessMeta($userId);
+
+        if (!empty($userData['created']) && !is_user_logged_in() && $this->isBrowserRequest()) {
+            wp_set_current_user($userId);
+            wp_set_auth_cookie($userId, true);
+        }
     }
 
     private function syncBySubscriptionId(int $subscriptionId): void

@@ -80,7 +80,7 @@ class MonetizationController
 
     private function renderPaywallCta($postId)
     {
-        $allLevels   = self::getActiveLevels();
+        $allLevels   = (new MembershipLevel())->getForAdmin();
         $levels      = $this->filterLevelsForPost($postId, $allLevels);
         $settings    = self::getGlobalSettings();
         $membershipPaused = !self::isMembershipActive();
@@ -156,7 +156,7 @@ class MonetizationController
         }
 
         $args['bmc_level']       = $level;
-        $args['force_recurring'] = true;
+        $args['force_recurring'] = empty($level->payment_type) || $level->payment_type === 'subscription';
 
         return $args;
     }

@@ -9,7 +9,7 @@
     "build": "node src/env/production_mode.js && vite build",
     "build:zip": "npm run package",
     "production": "npm run build",
-    "package": "npm run build && mkdir -p builds && rm -f builds/buy-me-coffee.zip && zip -r builds/buy-me-coffee.zip assets buy-me-coffee.php includes index.php languages license.txt readme.txt"
+    "package": "npm run build && mkdir -p builds && rm -f builds/buy-me-coffee.zip && zip -r builds/buy-me-coffee.zip assets buy-me-coffee.php includes index.php languages license.txt readme.txt -x '*/.DS_Store' '__MACOSX/*'"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.0.9",

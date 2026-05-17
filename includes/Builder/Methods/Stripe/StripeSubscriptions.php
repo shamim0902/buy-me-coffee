@@ -5,6 +5,7 @@ namespace BuyMeCoffee\Builder\Methods\Stripe;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -149,6 +150,10 @@ class StripeSubscriptions
             $transaction->payment_args   = $paymentArgs;
             $transaction->subscription_id = (int) $localSubscriptionId;
 
+            if ($levelId) {
+                (new MembershipAccess())->upsertFromSubscription((int) $localSubscriptionId, false);
+            }
+
             wp_send_json_success([
                 'nextAction'      => 'stripe',
                 'actionName'      => 'custom',
@@ -156,6 +161,7 @@ class StripeSubscriptions
                 'intent'          => $paymentIntent,
                 'order_items'     => $transaction,
                 'is_subscription' => true,
+                'is_membership'   => !empty($levelId),
                 'subscription_id' => (int) $localSubscriptionId,
                 'message_to_show' => __('Setting up your recurring donation, please complete the payment below.', 'buy-me-coffee'),
             ], 200);
@@ -250,6 +256,10 @@ class StripeSubscriptions
                 'updated_at'         => current_time('mysql'),
             ]);
 
+            if (!empty($subscription->level_id)) {
+                (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+            }
+
             ActivityLogger::logSubscription((int) $subscription->id, 'subscription_activated', 'Subscription activated', [
                 'status'     => 'success',
                 'created_by' => 'webhook:stripe',
@@ -324,6 +334,10 @@ class StripeSubscriptions
             'updated_at'         => current_time('mysql'),
         ]);
 
+        if (!empty($subscription->level_id)) {
+            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+        }
+
         ActivityLogger::logSubscription((int) $subscription->id, 'subscription_renewed', 'Subscription renewed', [
             'status'     => 'success',
             'created_by' => 'webhook:stripe',
@@ -370,6 +384,9 @@ class StripeSubscriptions
             'cancelled_at' => current_time('mysql'),
             'updated_at'   => current_time('mysql'),
         ]);
+        if (!empty($subscription->level_id)) {
+            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+        }
         do_action('buymecoffee_subscription_cancelled', (int) $subscription->id);
 
         ActivityLogger::logSubscription((int) $subscription->id, 'subscription_cancelled', 'Subscription cancelled via Stripe', [
@@ -432,6 +449,9 @@ class StripeSubscriptions
         }
 
         $subscriptionModel->updateData($subscription->id, $update);
+        if (!empty($subscription->level_id)) {
+            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+        }
         if (!empty($update['status']) && $update['status'] !== $subscription->status) {
             do_action('buymecoffee_subscription_status_changed', (int) $subscription->id, (string) $subscription->status, (string) $update['status']);
         }
@@ -634,6 +654,9 @@ class StripeSubscriptions
 
         // 4. Update local subscription record
         (new Subscriptions())->updateData($subscription->id, $subscriptionUpdate);
+        if (!empty($subscription->level_id)) {
+            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+        }
 
         ActivityLogger::logSubscription((int) $subscription->id, 'subscription_fetched', 'Subscription fetched from Stripe', [
             'status'  => 'info',

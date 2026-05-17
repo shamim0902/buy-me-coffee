@@ -232,6 +232,8 @@ class AccountPage
 
     public function render(): string
     {
+        global $wpdb;
+
         if (!$this->isEnabled()) {
             return '';
         }
@@ -257,12 +259,55 @@ class AccountPage
             $supporterIds[] = (int) $supporter->id;
         }
 
-        $subscriptions = buyMeCoffeeQuery()
+        $subscriptionRows = buyMeCoffeeQuery()
             ->table('buymecoffee_subscriptions')
+            ->select([
+                buyMeCoffeeQuery()->raw('0 as access_id'),
+                'buymecoffee_subscriptions.id' => 'subscription_id',
+                buyMeCoffeeQuery()->raw("'subscription' as access_type"),
+                'buymecoffee_subscriptions.status',
+                'buymecoffee_subscriptions.current_period_end',
+                'buymecoffee_subscriptions.created_at',
+                'buymecoffee_subscriptions.amount',
+                'buymecoffee_subscriptions.currency',
+                'buymecoffee_subscriptions.interval_type',
+            ])
             ->whereIn('supporter_id', $supporterIds)
+            ->where(function ($subscriptionQuery) {
+                $subscriptionQuery->whereNotNull('stripe_subscription_id')
+                    ->orWhereNull('level_id');
+            })
             ->orderBy('created_at', 'DESC')
             ->limit(20)
             ->get();
+
+        $transactionsTable = $wpdb->prefix . 'buymecoffee_transactions';
+
+        $accessRows = buyMeCoffeeQuery()
+            ->table('buymecoffee_membership_access')
+            ->leftJoin('buymecoffee_transactions', 'buymecoffee_membership_access.transaction_id', '=', 'buymecoffee_transactions.id')
+            ->select([
+                'buymecoffee_membership_access.id' => 'access_id',
+                buyMeCoffeeQuery()->raw('0 as subscription_id'),
+                'buymecoffee_membership_access.access_type',
+                'buymecoffee_membership_access.status',
+                'buymecoffee_membership_access.expires_at' => 'current_period_end',
+                'buymecoffee_membership_access.starts_at' => 'created_at',
+                buyMeCoffeeQuery()->raw("COALESCE({$transactionsTable}.payment_total, 0) as amount"),
+                buyMeCoffeeQuery()->raw("COALESCE({$transactionsTable}.currency, '') as currency"),
+                'buymecoffee_membership_access.access_type' => 'interval_type',
+            ])
+            ->whereIn('buymecoffee_membership_access.supporter_id', $supporterIds)
+            ->whereNull('buymecoffee_membership_access.subscription_id')
+            ->orderBy('buymecoffee_membership_access.created_at', 'DESC')
+            ->limit(20)
+            ->get();
+
+        $subscriptions = array_merge((array) $subscriptionRows, (array) $accessRows);
+        usort($subscriptions, function ($a, $b) {
+            return strtotime($b->created_at ?? '') <=> strtotime($a->created_at ?? '');
+        });
+        $subscriptions = array_slice($subscriptions, 0, 20);
 
         $transactions = buyMeCoffeeQuery()
             ->table('buymecoffee_transactions')

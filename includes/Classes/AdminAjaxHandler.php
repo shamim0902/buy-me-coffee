@@ -444,34 +444,39 @@ class AdminAjaxHandler
 
         $batchSize = 500;
 
+        $membershipAccessDeletion = $this->deleteTestMembershipAccessInBatches($batchSize);
         $supporterDeletion = $this->deleteTestSupportersInBatches($batchSize);
         $transactionDeletion = $this->deleteTestRowsInBatches('buymecoffee_transactions', 'payment', $batchSize);
         $subscriptionDeletion = $this->deleteTestRowsInBatches('buymecoffee_subscriptions', 'subscription', $batchSize);
 
+        $deletedMembershipAccess = $membershipAccessDeletion['rows'];
         $deletedSupporters    = $supporterDeletion['rows'];
         $deletedTransactions  = $transactionDeletion['rows'];
         $deletedSubscriptions = $subscriptionDeletion['rows'];
-        $deletedActivities    = $supporterDeletion['activities'] + $transactionDeletion['activities'] + $subscriptionDeletion['activities'];
+        $deletedActivities    = $membershipAccessDeletion['activities'] + $supporterDeletion['activities'] + $transactionDeletion['activities'] + $subscriptionDeletion['activities'];
 
         do_action('buymecoffee_test_data_deleted', [
             'transactions'  => $deletedTransactions,
             'subscriptions' => $deletedSubscriptions,
+            'membership_access' => $deletedMembershipAccess,
             'supporters'    => $deletedSupporters,
             'activities'    => $deletedActivities,
         ]);
 
         wp_send_json_success([
             'message' => sprintf(
-                /* translators: 1: deleted test transaction count, 2: deleted test subscription count, 3: deleted test supporter/customer count, 4: deleted activity log count. */
-                __('Deleted %1$d test transactions, %2$d test subscriptions, %3$d test supporters/customers, and %4$d activity logs.', 'buy-me-coffee'),
+                /* translators: 1: deleted test transaction count, 2: deleted test subscription count, 3: deleted membership access count, 4: deleted test supporter/customer count, 5: deleted activity log count. */
+                __('Deleted %1$d test transactions, %2$d test subscriptions, %3$d membership access records, %4$d test supporters/customers, and %5$d activity logs.', 'buy-me-coffee'),
                 $deletedTransactions,
                 $deletedSubscriptions,
+                $deletedMembershipAccess,
                 $deletedSupporters,
                 $deletedActivities
             ),
             'deleted' => [
                 'transactions'  => $deletedTransactions,
                 'subscriptions' => $deletedSubscriptions,
+                'membership_access' => $deletedMembershipAccess,
                 'supporters'    => $deletedSupporters,
                 'activities'    => $deletedActivities,
             ],
@@ -1267,6 +1272,7 @@ class AdminAjaxHandler
         $allowedTables = [
             'buymecoffee_transactions',
             'buymecoffee_subscriptions',
+            'buymecoffee_membership_access',
             'buymecoffee_supporters',
         ];
 
@@ -1287,7 +1293,7 @@ class AdminAjaxHandler
 
     private function deleteActivityRowsByObjectIds($objectType, $ids)
     {
-        $allowedObjectTypes = ['payment', 'subscription', 'submission', 'email'];
+        $allowedObjectTypes = ['payment', 'subscription', 'membership_access', 'submission', 'email'];
         $objectType = sanitize_key($objectType);
         if (!in_array($objectType, $allowedObjectTypes, true)) {
             return 0;
@@ -1318,6 +1324,27 @@ class AdminAjaxHandler
 
             $deletedActivities += $this->deleteActivityRowsByObjectIds($activityObjectType, $ids);
             $deletedRows += $this->deleteRowsByIds($table, $ids);
+        } while (count($ids) === $batchSize);
+
+        return [
+            'rows'       => $deletedRows,
+            'activities' => $deletedActivities,
+        ];
+    }
+
+    private function deleteTestMembershipAccessInBatches($batchSize)
+    {
+        $deletedRows = 0;
+        $deletedActivities = 0;
+
+        do {
+            $ids = $this->getTestMembershipAccessIds($batchSize);
+            if (empty($ids)) {
+                break;
+            }
+
+            $deletedActivities += $this->deleteActivityRowsByObjectIds('membership_access', $ids);
+            $deletedRows += $this->deleteRowsByIds('buymecoffee_membership_access', $ids);
         } while (count($ids) === $batchSize);
 
         return [
@@ -1364,6 +1391,35 @@ class AdminAjaxHandler
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned cleanup query with a fixed allowlisted table name.
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT id FROM {$allowedTables[$table]} WHERE payment_mode = %s ORDER BY id ASC LIMIT %d",
+            'test',
+            max(1, absint($limit))
+        ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        return $this->idsFromRows($rows);
+    }
+
+    private function getTestMembershipAccessIds($limit)
+    {
+        global $wpdb;
+
+        $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+        $transactionsTable = $wpdb->prefix . 'buymecoffee_transactions';
+        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $supportersTable = $wpdb->prefix . 'buymecoffee_supporters';
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned cleanup query with fixed table identifiers and bounded LIMIT.
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT ma.id
+            FROM {$accessTable} ma
+            LEFT JOIN {$transactionsTable} tx ON ma.transaction_id = tx.id
+            LEFT JOIN {$subscriptionsTable} sub ON ma.subscription_id = sub.id
+            LEFT JOIN {$supportersTable} sup ON ma.supporter_id = sup.id
+            WHERE tx.payment_mode = %s OR sub.payment_mode = %s OR sup.payment_mode = %s
+            ORDER BY ma.id ASC
+            LIMIT %d",
+            'test',
+            'test',
             'test',
             max(1, absint($limit))
         ));

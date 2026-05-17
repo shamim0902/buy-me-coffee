@@ -11,7 +11,7 @@ class ActivityLogger
     /**
      * Core log method. All typed wrappers funnel through here.
      *
-     * @param string $objectType  'payment' | 'subscription' | 'submission' | 'email'
+     * @param string $objectType  'payment' | 'subscription' | 'membership_access' | 'submission' | 'email'
      * @param int    $objectId    Row ID in the corresponding table
      * @param string $event       e.g. 'payment_completed', 'subscription_renewed'
      * @param string $title       Short human-readable one-liner
@@ -79,6 +79,11 @@ class ActivityLogger
     public static function logSubscription(int $subscriptionId, string $event, string $title, array $args = [])
     {
         return self::log('subscription', $subscriptionId, $event, $title, $args);
+    }
+
+    public static function logMembershipAccess(int $accessId, string $event, string $title, array $args = [])
+    {
+        return self::log('membership_access', $accessId, $event, $title, $args);
     }
 
     public static function logSubmission(int $supporterId, string $event, string $title, array $args = [])

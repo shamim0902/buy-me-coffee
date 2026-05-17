@@ -154,21 +154,29 @@ class Render
         $bmcLevelName = '';
         $bmcLevelPrice = 0;
         $bmcLevelFormattedAmount = '';
+        $bmcLevelPaymentType = 'subscription';
         if (!empty($args['bmc_level'])) {
             $bmcLevel   = $args['bmc_level'];
             $bmcLevelId = absint($bmcLevel->id);
             $bmcLevelName = sanitize_text_field($bmcLevel->name);
             $bmcLevelPrice = (int) $bmcLevel->price;
+            $bmcLevelPaymentType = !empty($bmcLevel->payment_type) && $bmcLevel->payment_type === 'one_time' ? 'one_time' : 'subscription';
             $bmcLevelFormattedAmount = PaymentHelper::getFormattedAmount($bmcLevelPrice, $currency);
             $defaultAmount = $bmcLevelPrice / 100;
             $customCoffeeDefault = $defaultAmount;
-            $allowRecurring   = true;
+            $allowRecurring   = $bmcLevelPaymentType === 'subscription';
             $recurringInterval = sanitize_text_field($bmcLevel->interval_type ?: 'month');
+            $emailAttributes['data-required'] = 'yes';
+            $emailAttributes['placeholder'] = __('Email address', 'buy-me-coffee');
         }
+
+        $submitButtonLabel = $bmcLevelId
+            ? ($bmcLevelPaymentType === 'one_time' ? __('Join', 'buy-me-coffee') : __('Subscribe', 'buy-me-coffee'))
+            : __('Support', 'buy-me-coffee');
 
         ob_start();
         ?>
-        <form id="<?php echo esc_attr($formDynamicClass . '_main_wrapper');  ?>" class="buymecoffee_form<?php echo $bmcLevelId ? ' bmc-level-locked' : ''; ?>" data-wpm_currency="<?php echo esc_html($currency); ?>"<?php echo $bmcLevelId ? ' data-bmc-level-id="' . absint($bmcLevelId) . '"' : ''; ?>>
+        <form id="<?php echo esc_attr($formDynamicClass . '_main_wrapper');  ?>" class="buymecoffee_form<?php echo $bmcLevelId ? ' bmc-level-locked' : ''; ?>" data-wpm_currency="<?php echo esc_html($currency); ?>"<?php echo $bmcLevelId ? ' data-bmc-level-id="' . absint($bmcLevelId) . '" data-bmc-payment-type="' . esc_attr($bmcLevelPaymentType) . '"' : ''; ?>>
             <input type="hidden" name="__buymecoffee_ref" value="<?php echo esc_html($template['yourName']); ?>"/>
             <input type="hidden" name="buymecoffee_quantity" value="1"/>
             <?php if ($bmcLevelId): ?>
@@ -191,7 +199,9 @@ class Render
                 <span class="bmc-level-locked-name"><?php echo esc_html($bmcLevelName); ?></span>
                 <div class="bmc-level-locked-pricing">
                     <span class="bmc-level-locked-amount"><?php echo esc_html($bmcLevelFormattedAmount); ?></span>
+                    <?php if ($bmcLevelPaymentType === 'subscription') : ?>
                     <span class="bmc-level-locked-interval">/<?php echo esc_html($recurringInterval === 'year' ? __('year', 'buy-me-coffee') : __('month', 'buy-me-coffee')); ?></span>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php elseif (!$isCustomPay): ?>
@@ -250,11 +260,11 @@ class Render
             <?php endif; ?>
 
             <?php
-            // Show email field normally, or hidden-but-present when recurring is allowed
-            // (recurring requires an email for the Stripe customer)
-            $emailHiddenForRecurring = !$enableEmail && $allowRecurring;
-            if ($enableEmail || $allowRecurring) : ?>
-                <div data-element_type="email" class="buymecoffee_form_item<?php echo $emailHiddenForRecurring ? ' bmc_email_recurring_only' : ''; ?>"<?php echo $emailHiddenForRecurring ? ' style="display:none;"' : ''; ?>>
+            // Show email field normally, or hidden-but-present when an account is required.
+            $requiresAccountEmail = $allowRecurring || (bool) $bmcLevelId;
+            $emailHiddenForAccount = !$enableEmail && $requiresAccountEmail;
+            if ($enableEmail || $requiresAccountEmail) : ?>
+                <div data-element_type="email" class="buymecoffee_form_item<?php echo $emailHiddenForAccount ? ' bmc_email_recurring_only' : ''; ?>"<?php echo $emailHiddenForAccount ? ' style="display:none;"' : ''; ?>>
                     <div class="buymecoffee_input_content">
                         <input <?php
                         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -301,7 +311,11 @@ class Render
                 <div class="buymecoffee_input_content">
                     <button <?php
                     // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    echo static::builtAttributes($btnAttributes); ?>>Support
+                    echo static::builtAttributes($btnAttributes); ?>
+                            data-default-label="<?php esc_attr_e('Support', 'buy-me-coffee'); ?>"
+                            data-recurring-label="<?php esc_attr_e('Subscribe', 'buy-me-coffee'); ?>"
+                            data-membership-label="<?php echo esc_attr($bmcLevelPaymentType === 'one_time' ? __('Join', 'buy-me-coffee') : __('Subscribe', 'buy-me-coffee')); ?>">
+                        <span class="wpm_submit_button_label"><?php echo esc_html($submitButtonLabel); ?></span>
                         <div class="wpm_loading_svg">
                             <svg version="1.1" id="loader-1" xmlns="http://www.w3.org/2000/svg"
                                  xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="30px" height="30px"
@@ -320,7 +334,7 @@ class Render
                     </button>
                 </div>
             </div>
-            <p class="buymecoffee_no_signup" data-default="<?php esc_attr_e('No signup required', 'buy-me-coffee'); ?>" data-recurring="<?php esc_attr_e('An account will be created to manage your subscription', 'buy-me-coffee'); ?>"><?php esc_html_e('No signup required', 'buy-me-coffee'); ?></p>
+            <p class="buymecoffee_no_signup" data-default="<?php esc_attr_e('No signup required', 'buy-me-coffee'); ?>" data-recurring="<?php esc_attr_e('An account will be created to manage your subscription', 'buy-me-coffee'); ?>" data-membership="<?php esc_attr_e('An account will be created to manage your membership', 'buy-me-coffee'); ?>"><?php esc_html_e('No signup required', 'buy-me-coffee'); ?></p>
         </form>
         <?php
         return ob_get_clean();

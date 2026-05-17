@@ -16,8 +16,9 @@ class Subscriptions extends Model
     /**
      * Check if a subscription still grants content access.
      *
-     * Returns true when the subscription is active, or when it was cancelled
-     * but the already-paid billing period (current_period_end) hasn't expired yet.
+     * Returns true when one-time/manual access is active, when recurring access
+     * is active and still inside current_period_end, or when it was cancelled
+     * but the already-paid billing period hasn't expired yet.
      *
      * @param object $subscription Subscription row object.
      * @return bool
@@ -28,14 +29,28 @@ class Subscriptions extends Model
             return false;
         }
 
+        $accessType = $subscription->access_type ?? '';
         if ($subscription->status === 'active') {
-            return true;
+            if (in_array($accessType, ['one_time', 'manual'], true)
+                || ($subscription->interval_type ?? '') === 'one_time'
+                || ($subscription->interval_type ?? '') === 'manual'
+                || ($subscription->payment_mode ?? '') === 'manual') {
+                return true;
+            }
+
+            $expiresAt = $subscription->expires_at ?? $subscription->current_period_end ?? '';
+
+            return !empty($expiresAt)
+                && $expiresAt !== '0000-00-00 00:00:00'
+                && strtotime($expiresAt) > time();
         }
 
+        $expiresAt = $subscription->expires_at ?? $subscription->current_period_end ?? '';
+
         return $subscription->status === 'cancelled'
-            && !empty($subscription->current_period_end)
-            && $subscription->current_period_end !== '0000-00-00 00:00:00'
-            && strtotime($subscription->current_period_end) > time();
+            && !empty($expiresAt)
+            && $expiresAt !== '0000-00-00 00:00:00'
+            && strtotime($expiresAt) > time();
     }
 
     public function findByStripeId($stripeSubscriptionId)
@@ -95,7 +110,7 @@ class Subscriptions extends Model
         $stats = $this->getQuery()
             ->select(
                 $this->raw('COUNT(*) as active_count'),
-                $this->raw("COALESCE(SUM(CASE WHEN interval_type = 'year' THEN ROUND(amount / 12) ELSE amount END), 0) as mrr")
+                $this->raw("COALESCE(SUM(CASE WHEN interval_type = 'one_time' THEN 0 WHEN interval_type = 'year' THEN ROUND(amount / 12) ELSE amount END), 0) as mrr")
             )
             ->where('status', 'active')
             ->first();
@@ -124,13 +139,13 @@ class Subscriptions extends Model
         $recent = [];
         foreach ($recent_rows as $row) {
             $amountFormatted = \BuyMeCoffee\Helpers\PaymentHelper::getFormattedAmount((int) $row->amount, $row->currency ?: 'USD');
-            $interval = ($row->interval_type === 'year') ? '/yr' : '/mo';
+            $interval = $row->interval_type === 'one_time' ? '' : (($row->interval_type === 'year') ? '/yr' : '/mo');
             $recent[] = [
                 'id'     => $row->id,
                 'name'   => $row->supporters_name ?: 'Anonymous',
                 'email'  => $row->supporters_email ?: '',
                 'amount' => $amountFormatted . $interval,
-                'plan'   => ucfirst($row->interval_type ?? 'month') . 'ly',
+                'plan'   => $row->interval_type === 'one_time' ? __('One-time', 'buy-me-coffee') : ucfirst($row->interval_type ?? 'month') . 'ly',
                 'status' => $row->status,
             ];
         }

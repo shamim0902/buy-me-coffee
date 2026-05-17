@@ -3,6 +3,7 @@
 namespace BuyMeCoffee\Classes;
 
 use BuyMeCoffee\Models\MembershipLevel;
+use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Controllers\MonetizationController;
 use BuyMeCoffee\Helpers\PaymentHelper;
 
@@ -80,10 +81,13 @@ class MembershipAjaxHandler
         }
 
         $allowedIntervals = ['month', 'year'];
+        $allowedPaymentTypes = ['one_time', 'subscription'];
         $allowedStatuses  = ['active', 'inactive'];
         $allowedAccess    = ['full', 'preview'];
 
         $price        = isset($data['price']) ? absint($data['price']) : 0;
+        $paymentType  = isset($data['payment_type']) && in_array($data['payment_type'], $allowedPaymentTypes, true)
+            ? $data['payment_type'] : 'subscription';
         $intervalType = isset($data['interval_type']) && in_array($data['interval_type'], $allowedIntervals, true)
             ? $data['interval_type'] : 'month';
         $status       = isset($data['status']) && in_array($data['status'], $allowedStatuses, true)
@@ -132,6 +136,7 @@ class MembershipAjaxHandler
             'name'         => $name,
             'description'  => isset($data['description']) ? sanitize_textarea_field($data['description']) : '',
             'price'        => $price,
+            'payment_type' => $paymentType,
             'interval_type' => $intervalType,
             'status'       => $status,
             'rewards'      => wp_json_encode($rewards),
@@ -167,24 +172,37 @@ class MembershipAjaxHandler
 
     private function deleteMembershipLevel($data)
     {
+        global $wpdb;
+
         $id = isset($data['id']) ? absint($data['id']) : 0;
         if (!$id) {
             wp_send_json_error(['message' => __('Invalid level ID.', 'buy-me-coffee')]);
             return;
         }
 
-        // Block deletion if active subscriptions reference this level
-        $activeCount = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->where('level_id', $id)
-            ->where('status', 'active')
-            ->count();
+        $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+        $now = current_time('mysql', true);
+
+        // Block deletion if any access record still grants entitlement to this level.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table with prepared values.
+        $activeCount = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*)
+             FROM {$accessTable}
+             WHERE level_id = %d
+             AND (
+                (status = 'active' AND (access_type IN ('one_time', 'manual') OR (access_type = 'subscription' AND expires_at IS NOT NULL AND expires_at > %s)))
+                OR (status = 'cancelled' AND access_type = 'subscription' AND expires_at IS NOT NULL AND expires_at > %s)
+             )",
+            $id,
+            $now,
+            $now
+        ));
 
         if ($activeCount > 0) {
             wp_send_json_error([
                 'message' => sprintf(
-                    /* translators: %d: number of active subscribers */
-                    __('Cannot delete: %d active subscriber(s) on this level. Cancel their subscriptions first.', 'buy-me-coffee'),
+                    /* translators: %d: number of active members */
+                    __('Cannot delete: %d active member(s) on this level. Revoke their access first.', 'buy-me-coffee'),
                     (int) $activeCount
                 ),
             ]);
@@ -339,15 +357,22 @@ class MembershipAjaxHandler
 
     private function queryMembershipMembers($search, $limit, $offset)
     {
+        global $wpdb;
+
+        $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+        $subscriptionsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
         $rows = $this->buildMembershipMembersQuery($search)
             ->select([
-                'buymecoffee_subscriptions.*',
+                'buymecoffee_membership_access.*',
                 'buymecoffee_supporters.supporters_name',
                 'buymecoffee_supporters.supporters_email',
-                'buymecoffee_subscriptions.id'       => 'subscription_id',
-                'buymecoffee_membership_levels.name' => 'level_name',
+                'buymecoffee_membership_access.id'         => 'access_id',
+                'buymecoffee_membership_access.expires_at' => 'current_period_end',
+                'buymecoffee_membership_levels.name'       => 'level_name',
+                buyMeCoffeeQuery()->raw("CASE WHEN {$accessTable}.access_type = 'subscription' THEN {$subscriptionsTable}.interval_type ELSE {$accessTable}.access_type END as interval_type"),
             ])
-            ->orderBy('buymecoffee_subscriptions.created_at', 'DESC')
+            ->orderBy('buymecoffee_membership_access.created_at', 'DESC')
             ->limit(absint($limit))
             ->offset(absint($offset))
             ->get();
@@ -363,19 +388,12 @@ class MembershipAjaxHandler
     private function buildMembershipMembersQuery($search)
     {
         $query = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->leftJoin('buymecoffee_supporters', 'buymecoffee_subscriptions.supporter_id', '=', 'buymecoffee_supporters.id')
-            ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_subscriptions.level_id', '=', 'buymecoffee_membership_levels.id')
-            ->whereNotNull('buymecoffee_subscriptions.level_id')
-            ->where('buymecoffee_subscriptions.level_id', '>', 0)
-            ->where(function ($whereQuery) {
-                $whereQuery->where('buymecoffee_subscriptions.status', 'active')
-                    ->orWhere(function ($cancelledQuery) {
-                        $cancelledQuery->where('buymecoffee_subscriptions.status', 'cancelled')
-                            ->whereNotNull('buymecoffee_subscriptions.current_period_end')
-                            ->where('buymecoffee_subscriptions.current_period_end', '>', current_time('mysql', true));
-                    });
-            });
+            ->table('buymecoffee_membership_access')
+            ->leftJoin('buymecoffee_supporters', 'buymecoffee_membership_access.supporter_id', '=', 'buymecoffee_supporters.id')
+            ->leftJoin('buymecoffee_membership_levels', 'buymecoffee_membership_access.level_id', '=', 'buymecoffee_membership_levels.id')
+            ->leftJoin('buymecoffee_subscriptions', 'buymecoffee_membership_access.subscription_id', '=', 'buymecoffee_subscriptions.id')
+            ->whereNotNull('buymecoffee_membership_access.level_id')
+            ->where('buymecoffee_membership_access.level_id', '>', 0);
 
         if ($search !== '') {
             $query->where(function ($whereQuery) use ($search) {
@@ -414,8 +432,8 @@ class MembershipAjaxHandler
             return;
         }
 
-        $subscriptionId = $this->grantInviteSubscription($userId, $supporterId, $level);
-        if (!$subscriptionId) {
+        $accessId = $this->grantInviteSubscription($userId, $supporterId, $level);
+        if (!$accessId) {
             wp_send_json_error(['message' => __('This member already has access to that level.', 'buy-me-coffee')]);
             return;
         }
@@ -518,7 +536,7 @@ class MembershipAjaxHandler
         }
 
         $existing = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
+            ->table('buymecoffee_membership_access')
             ->whereIn('supporter_id', $supporterIds)
             ->where('level_id', (int) $level->id)
             ->where('status', 'active')
@@ -528,31 +546,13 @@ class MembershipAjaxHandler
             return 0;
         }
 
-        $subscriptionId = buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
-            'supporter_id'            => (int) $supporterId,
-            'stripe_subscription_id'  => null,
-            'stripe_customer_id'      => null,
-            'interval_type'           => sanitize_text_field($level->interval_type ?: 'month'),
-            'amount'                  => 0,
-            'currency'                => strtolower(PaymentHelper::getCurrency()),
-            'status'                  => 'active',
-            'payment_mode'            => 'manual',
-            'current_period_end'      => null,
-            'cancelled_at'            => null,
-            'level_id'                => (int) $level->id,
-            'created_at'              => current_time('mysql'),
-            'updated_at'              => current_time('mysql'),
-        ]);
+        $accessId = (new MembershipAccess())->grantManualAccess((int) $supporterId, (int) $userId, (int) $level->id);
 
-        if ($subscriptionId && function_exists('buymecoffee_delete_supporter_meta')) {
+        if ($accessId && function_exists('buymecoffee_delete_supporter_meta')) {
             buymecoffee_delete_supporter_meta((int) $supporterIds[0], 'active_level_ids');
         }
 
-        if ($subscriptionId) {
-            do_action('buymecoffee_subscription_activated', (int) $subscriptionId);
-        }
-
-        return (int) $subscriptionId;
+        return (int) $accessId;
     }
 
     private function sanitizeData($data)

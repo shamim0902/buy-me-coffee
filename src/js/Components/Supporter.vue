@@ -260,6 +260,64 @@
         </div>
       </div>
 
+      <!-- Membership Access -->
+      <div
+        v-if="supporter.membership_access && supporter.membership_access.length"
+        class="bg-white rounded-xl border border-neutral-200 shadow-xs p-6 mb-6"
+      >
+        <h3 class="text-sm font-semibold uppercase tracking-wide mt-0 mb-4" style="color: var(--text-secondary)">
+          Membership Access
+        </h3>
+        <el-table :data="supporter.membership_access" class="w-full">
+          <el-table-column label="Level" min-width="150">
+            <template #default="{ row }">
+              <span class="text-sm font-medium" style="color: var(--text-primary)">
+                {{ row.level_name || '--' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Billing" min-width="110">
+            <template #default="{ row }">
+              <span class="text-sm" style="color: var(--text-secondary)">
+                {{ formatMembershipBilling(row) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Access" min-width="140">
+            <template #default="{ row }">
+              <span class="text-sm" style="color: var(--text-primary)">
+                {{ formatAccessPeriod(row) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Amount" min-width="120">
+            <template #default="{ row }">
+              <span class="text-sm font-medium" style="color: var(--text-primary)">
+                {{ getMembershipAccessAmount(row) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Status" min-width="110">
+            <template #default="{ row }">
+              <StatusBadge :status="row.status" />
+            </template>
+          </el-table-column>
+          <el-table-column label="" width="120">
+            <template #default="{ row }">
+              <router-link
+                v-if="row.subscription_id"
+                :to="{ name: 'SubscriptionDetail', params: { id: row.subscription_id } }"
+                class="inline-flex items-center gap-1 text-xs font-medium no-underline hover:underline"
+                style="color: var(--color-primary-600)"
+              >
+                View <ExternalLink :size="11" />
+              </router-link>
+              <span v-else class="text-xs" style="color: var(--text-tertiary)">--</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
       <!-- Payment History (all transactions including renewals) -->
       <div
         v-if="supporter.transactions && supporter.transactions.length > 1"
@@ -543,6 +601,33 @@ export default {
     },
     getFormatedAmount(amount, currency) {
       return this.$formatAmount(amount, currency, { empty: '--' });
+    },
+    formatMembershipBilling(row) {
+      if (row.access_type === 'one_time') {
+        return 'One-time';
+      }
+
+      if (row.access_type === 'manual') {
+        return 'Manual';
+      }
+
+      return row.billing_interval === 'year' ? 'Yearly' : 'Monthly';
+    },
+    formatAccessPeriod(row) {
+      if (row.access_type === 'one_time' || row.access_type === 'manual') {
+        return 'Lifetime';
+      }
+
+      if (!row.expires_at || row.expires_at === '0000-00-00 00:00:00') {
+        return '--';
+      }
+
+      return new Date(row.expires_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+    getMembershipAccessAmount(row) {
+      const amount = row.transaction_amount || row.subscription_amount || 0;
+      const currency = row.transaction_currency || row.subscription_currency || this.supporter.currency;
+      return this.getFormatedAmount(amount, currency);
     },
     updateStatus() {
       ElMessageBox.confirm(

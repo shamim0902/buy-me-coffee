@@ -8,6 +8,11 @@ class MembershipLevel extends Model
 {
     protected $table = 'buymecoffee_membership_levels';
 
+    public function find($id)
+    {
+        return $this->decodeJsonFields(parent::find($id));
+    }
+
     public function getActive()
     {
         $rows = $this->getQuery()
@@ -58,6 +63,7 @@ class MembershipLevel extends Model
         if (is_object($row)) {
             $row->rewards      = !empty($row->rewards) ? json_decode($row->rewards, true) : [];
             $row->access_rules = !empty($row->access_rules) ? json_decode($row->access_rules, true) : [];
+            $row->payment_type = !empty($row->payment_type) ? sanitize_key($row->payment_type) : 'subscription';
         }
         return $row;
     }
