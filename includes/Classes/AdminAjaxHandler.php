@@ -93,6 +93,18 @@ class AdminAjaxHandler
             'complete_guided_tour' => 'completeGuidedTour',
             'get_review_prompt' => 'getReviewPrompt',
             'review_prompt_action' => 'reviewPromptAction',
+
+            'get_membership_levels' => 'handleMembershipRoute',
+            'get_membership_level' => 'handleMembershipRoute',
+            'save_membership_level' => 'handleMembershipRoute',
+            'delete_membership_level' => 'handleMembershipRoute',
+            'reorder_membership_levels' => 'handleMembershipRoute',
+            'get_membership_settings' => 'handleMembershipRoute',
+            'save_membership_settings' => 'handleMembershipRoute',
+            'get_post_types_for_membership' => 'handleMembershipRoute',
+            'get_categories_for_membership' => 'handleMembershipRoute',
+            'get_membership_members' => 'handleMembershipRoute',
+            'send_membership_invite' => 'handleMembershipRoute',
         );
 
         if (!$this->canAccessRoute($route)) {
@@ -160,6 +172,23 @@ class AdminAjaxHandler
             'gateways' => $enriched,
             'stats'    => $stats,
         ], 200);
+    }
+
+    public function handleMembershipRoute($data)
+    {
+        $route = isset($_REQUEST['route']) ? sanitize_text_field(wp_unslash($_REQUEST['route'])) : '';
+
+        if (!$route) {
+            wp_send_json_error([
+                'message' => __('Invalid membership route.', 'buy-me-coffee'),
+            ], 400);
+        }
+
+        (new MembershipAjaxHandler())->handle($route, $data);
+
+        wp_send_json_error([
+            'message' => __('Invalid membership route.', 'buy-me-coffee'),
+        ], 400);
     }
 
     public function statusReport()
@@ -534,23 +563,21 @@ class AdminAjaxHandler
         // Keys that may contain multi-line text
         $textareaKeys = ['body', 'message', 'content'];
 
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                foreach ($value as $k => $v) {
-                    if (in_array($k, $textareaKeys, true)) {
-                        $data[$key][$k] = sanitize_textarea_field($v);
-                    } else {
-                        $data[$key][$k] = sanitize_text_field($v);
-                    }
-                }
-            } else {
-                if (in_array($key, $textareaKeys, true)) {
-                    $data[$key] = sanitize_textarea_field($value);
-                } else {
-                    $data[$key] = sanitize_text_field($value);
-                }
-            }
+        return $this->sanitizeNestedTextArray($data, $textareaKeys);
+    }
+
+    private function sanitizeNestedTextArray($data, $textareaKeys)
+    {
+        if (!is_array($data)) {
+            return sanitize_text_field($data);
         }
+
+        foreach ($data as $key => $value) {
+            $data[$key] = is_array($value)
+                ? $this->sanitizeNestedTextArray($value, $textareaKeys)
+                : (in_array($key, $textareaKeys, true) ? sanitize_textarea_field($value) : sanitize_text_field($value));
+        }
+
         return $data;
     }
 

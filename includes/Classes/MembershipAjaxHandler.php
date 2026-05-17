@@ -16,9 +16,12 @@ class MembershipAjaxHandler
         add_action('buymecoffee_admin_ajax_handler_catch', [$this, 'handle']);
     }
 
-    public function handle($route)
+    public function handle($route, $data = null)
     {
-        $data = isset($_REQUEST['data']) ? $this->sanitizeData(wp_unslash($_REQUEST['data'])) : []; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce/capability verified in AdminAjaxHandler before this catch-all route.
+        if ($data === null) {
+            $data = isset($_REQUEST['data']) ? $this->sanitizeData(wp_unslash($_REQUEST['data'])) : []; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce/capability verified in AdminAjaxHandler before this catch-all route.
+        }
+
         if (!is_array($data)) {
             $data = [];
         }
@@ -74,6 +77,8 @@ class MembershipAjaxHandler
 
     private function saveMembershipLevel($data)
     {
+        global $wpdb;
+
         $name = isset($data['name']) ? sanitize_text_field($data['name']) : '';
         if (empty($name)) {
             wp_send_json_error(['message' => __('Level name is required.', 'buy-me-coffee')]);
@@ -153,7 +158,13 @@ class MembershipAjaxHandler
                 wp_send_json_error(['message' => __('Level not found.', 'buy-me-coffee')]);
                 return;
             }
-            $model->updateData($id, $saveData);
+            $updated = $model->updateData($id, $saveData);
+            if ($updated === false) {
+                wp_send_json_error([
+                    'message' => $wpdb->last_error ?: __('Could not update membership level.', 'buy-me-coffee'),
+                ], 500);
+                return;
+            }
         } else {
             $saveData['sort_order'] = buyMeCoffeeQuery()
                 ->table('buymecoffee_membership_levels')
@@ -161,9 +172,20 @@ class MembershipAjaxHandler
                 ->count();
             $saveData['created_at'] = current_time('mysql');
             $id = $model->create($saveData);
+            if (!$id) {
+                wp_send_json_error([
+                    'message' => $wpdb->last_error ?: __('Could not create membership level.', 'buy-me-coffee'),
+                ], 500);
+                return;
+            }
         }
 
         $saved = $model->find($id);
+        if (!$saved) {
+            wp_send_json_error(['message' => __('Membership level was saved but could not be loaded.', 'buy-me-coffee')], 500);
+            return;
+        }
+
         wp_send_json_success([
             'level'   => $model->decodeJsonFields($saved),
             'message' => __('Membership level saved.', 'buy-me-coffee'),

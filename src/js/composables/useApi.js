@@ -57,14 +57,40 @@ export function useApi() {
             const qs = buildSearchParams(params).toString();
             const fetchUrl = qs ? `${url}?${qs}` : url;
             const res = await fetch(fetchUrl, options);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
+            if (!res.ok) throw new Error(await getErrorMessage(res));
+            return parseJsonResponse(res);
         }
 
         options.body = buildFormData(params);
         const res = await fetch(url, options);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+        if (!res.ok) throw new Error(await getErrorMessage(res));
+        return parseJsonResponse(res);
+    }
+
+    async function parseJsonResponse(res) {
+        const text = await res.text();
+        if (!text) {
+            throw new Error('The server returned an empty response. Please refresh and try again.');
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            throw new Error('The server returned an invalid response. Please refresh and try again.');
+        }
+    }
+
+    async function getErrorMessage(res) {
+        try {
+            const json = await res.clone().json();
+            return json?.data?.message || json?.message || `HTTP ${res.status}`;
+        } catch (error) {
+            try {
+                return await res.text() || `HTTP ${res.status}`;
+            } catch (textError) {
+                return `HTTP ${res.status}`;
+            }
+        }
     }
 
     async function adminGet(route, data = {}, signal) {

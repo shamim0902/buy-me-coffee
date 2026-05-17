@@ -61,10 +61,24 @@ class MembershipLevel extends Model
             return $row;
         }
         if (is_object($row)) {
-            $row->rewards      = !empty($row->rewards) ? json_decode($row->rewards, true) : [];
-            $row->access_rules = !empty($row->access_rules) ? json_decode($row->access_rules, true) : [];
+            $row->rewards      = $this->decodeJsonValue($row->rewards);
+            $row->access_rules = $this->decodeJsonValue($row->access_rules);
             $row->payment_type = !empty($row->payment_type) ? sanitize_key($row->payment_type) : 'subscription';
         }
         return $row;
+    }
+
+    private function decodeJsonValue($value)
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || $value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : [];
     }
 }

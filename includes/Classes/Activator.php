@@ -12,6 +12,7 @@ class Activator
 {
     const INSTALLED_AT_OPTION = 'buymecoffee_installed_at';
     const DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION = 'buymecoffee_default_membership_level_seeded';
+    const SCHEMA_VERIFIED_DB_VERSION_OPTION = 'buymecoffee_schema_verified_db_version';
 
     public function migrateDatabases($network_wide = false)
     {
@@ -38,9 +39,19 @@ class Activator
     public function maybeRunMigrations()
     {
         $installedVersion = get_option('buymecoffee_db_version', '1.0');
-        if (version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<')) {
+        $schemaVerifiedVersion = get_option(self::SCHEMA_VERIFIED_DB_VERSION_OPTION, '');
+        $needsVersionMigration = version_compare($installedVersion, BUYMECOFFEE_DB_VERSION, '<');
+        $needsSchemaVerification = !$needsVersionMigration && $schemaVerifiedVersion !== BUYMECOFFEE_DB_VERSION;
+
+        if ($needsVersionMigration) {
             if ($this->migrate()) {
-                update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
+                $this->markMigrationStateCurrent();
+            }
+        } elseif ($needsSchemaVerification) {
+            if ($this->verifyMigrationState()) {
+                update_option(self::SCHEMA_VERIFIED_DB_VERSION_OPTION, BUYMECOFFEE_DB_VERSION, false);
+            } elseif ($this->migrate()) {
+                $this->markMigrationStateCurrent();
             }
         }
 
@@ -73,6 +84,8 @@ class Activator
             return;
         }
 
+        $this->markMigrationStateCurrent();
+
         if (!get_option(self::INSTALLED_AT_OPTION)) {
             update_option(self::INSTALLED_AT_OPTION, current_time('mysql'), false);
         }
@@ -89,6 +102,12 @@ class Activator
     private function isFreshInstall()
     {
         return !get_option(self::INSTALLED_AT_OPTION) && !get_option('buymecoffee_db_version');
+    }
+
+    private function markMigrationStateCurrent()
+    {
+        update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
+        update_option(self::SCHEMA_VERIFIED_DB_VERSION_OPTION, BUYMECOFFEE_DB_VERSION, false);
     }
 
     public function createSupportersTable()
