@@ -6,6 +6,7 @@ use BuyMeCoffee\Builder\Methods\Stripe\API;
 use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
 use BuyMeCoffee\Controllers\SubmissionHandler;
 use BuyMeCoffee\Models\Buttons;
+use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
 use BuyMeCoffee\Models\Subscriptions;
@@ -34,7 +35,7 @@ class PaymentHelper
         $response = $api->makeRequest($path, [], (new StripeSettings())->getKeys('secret'));
 
         if (!$response || is_wp_error($response)) {
-            return;
+            return new \WP_Error('stripe_payment_lookup_failed', __('Unable to verify the Stripe payment.', 'buy-me-coffee'));
         }
 
         $orderHash = Arr::get($response, 'metadata.ref_id');
@@ -44,17 +45,18 @@ class PaymentHelper
         $paymentHelper = new PaymentHelper();
         $order =  $paymentHelper->getByHash($orderHash);
         if (!$order || empty($order->transaction)) {
-            return;
+            return new \WP_Error('stripe_payment_order_missing', __('Unable to match this payment to an order.', 'buy-me-coffee'));
         }
 
         // For subscriptions the PI amount may not yet be reflected in amount_received
         // at the moment the confirmation fires, so allow a zero amount_received to pass
         // (the status check below still gates on 'succeeded').
         if ($amount > 0 && intval($order->payment_total) !== $amount) {
-            return;
+            return new \WP_Error('stripe_payment_amount_mismatch', __('Payment amount does not match the order.', 'buy-me-coffee'));
         }
 
-        $status = Arr::get($response, 'status') === 'succeeded' ? 'paid' : 'pending';
+        $stripeStatus = sanitize_text_field(Arr::get($response, 'status', ''));
+        $status = $stripeStatus === 'succeeded' ? 'paid' : 'pending';
         $card = Arr::get($response, 'charges.data.0.payment_method_details.card');
         $last4 = Arr::get($card, 'last4');
         $cardBand = Arr::get($card, 'brand');
@@ -91,7 +93,69 @@ class PaymentHelper
             do_action('buymecoffee_subscription_activated', (int) $order->transaction->subscription_id);
         }
 
+        $membershipAccess = $this->getMembershipAccessByTransaction((int) $order->transaction->id);
+        $membershipAccessId = $membershipAccess ? (int) $membershipAccess->id : 0;
+
+        if ($status === 'paid' && empty($order->transaction->subscription_id)) {
+            $membershipAccessId = (new MembershipAccess())->activateByTransaction((int) $order->transaction->id);
+            $membershipAccess = $membershipAccessId ? (new MembershipAccess())->find($membershipAccessId) : $membershipAccess;
+        }
+
         do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);
+
+        $subscription = null;
+        if (!empty($order->transaction->subscription_id)) {
+            $subscription = buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('id', (int) $order->transaction->subscription_id)
+                ->first();
+            $membershipAccess = $this->getMembershipAccessBySubscription((int) $order->transaction->subscription_id) ?: $membershipAccess;
+            if ($membershipAccess && !$membershipAccessId) {
+                $membershipAccessId = (int) $membershipAccess->id;
+            }
+        }
+
+        $isMembership = !empty($membershipAccess) || !empty($subscription->level_id);
+        $accessActive = $status === 'paid' && (
+            !$isMembership
+            || ($membershipAccess && Subscriptions::hasAccessValidity($membershipAccess))
+        );
+
+        return [
+            'payment_status'           => $status,
+            'stripe_status'            => $stripeStatus,
+            'transaction_id'           => (int) $order->transaction->id,
+            'subscription_id'          => !empty($order->transaction->subscription_id) ? (int) $order->transaction->subscription_id : 0,
+            'is_subscription'          => !empty($order->transaction->subscription_id),
+            'is_membership'            => $isMembership,
+            'membership_access_id'     => $membershipAccessId,
+            'membership_access_status' => !empty($membershipAccess->status) ? sanitize_text_field($membershipAccess->status) : '',
+            'access_active'            => (bool) $accessActive,
+        ];
+    }
+
+    private function getMembershipAccessByTransaction(int $transactionId)
+    {
+        if (!$transactionId) {
+            return null;
+        }
+
+        return buyMeCoffeeQuery()
+            ->table('buymecoffee_membership_access')
+            ->where('transaction_id', $transactionId)
+            ->first();
+    }
+
+    private function getMembershipAccessBySubscription(int $subscriptionId)
+    {
+        if (!$subscriptionId) {
+            return null;
+        }
+
+        return buyMeCoffeeQuery()
+            ->table('buymecoffee_membership_access')
+            ->where('subscription_id', $subscriptionId)
+            ->first();
     }
 
     private function resolveStripeSubscriptionPeriodEnd(int $localSubscriptionId): ?string

@@ -7,6 +7,7 @@ use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
+use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
@@ -77,6 +78,13 @@ class Stripe extends BaseMethods
             }
             (new StripeSubscriptions())->createSubscription($transaction, $paymentArgs, $apiKey, $interval);
         } else {
+            if (!empty($paymentArgs['bmc_level_id'])) {
+                $membershipAccessId = $this->createOneTimeMembershipAccess($transaction, $paymentArgs);
+                if ($membershipAccessId) {
+                    $paymentArgs['membership_access_id'] = $membershipAccessId;
+                }
+            }
+
             $this->handleInlinePayment($transaction, $paymentArgs, $apiKey);
         }
     }
@@ -105,11 +113,17 @@ class Stripe extends BaseMethods
 
         // Fallback / full update: re-query Stripe to record charge details, card info, etc.
         // Also activates subscription if subscription_id is on the transaction (covers webhook-less setups).
-        (new PaymentHelper())->updatePaymentData($intentId);
+        $paymentResult = (new PaymentHelper())->updatePaymentData($intentId);
 
-        wp_send_json_success([
-            'message' => __('Payment confirmation received', 'buy-me-coffee')
-        ], 200);
+        if (is_wp_error($paymentResult)) {
+            wp_send_json_error([
+                'message' => $paymentResult->get_error_message(),
+            ], 400);
+        }
+
+        wp_send_json_success(wp_parse_args((array) $paymentResult, [
+            'message' => __('Payment confirmation received', 'buy-me-coffee'),
+        ]), 200);
     }
 
     private function activateMatchedSubscription($intentId, $requestedSubscriptionId)
@@ -187,6 +201,22 @@ class Stripe extends BaseMethods
 
         if (!$orderHash && !$this->intentBelongsToSubscription($intentId, $localSubscription)) {
             return false;
+        }
+
+        if ($intentStatus !== 'succeeded') {
+            (new Supporters())->updateData((int) $supporter->id, [
+                'payment_status' => 'pending',
+                'updated_at'     => current_time('mysql'),
+            ]);
+            (new Transactions())->updateData((int) $transaction->id, [
+                'status'       => 'pending',
+                'charge_id'    => sanitize_text_field($intentId),
+                'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
+                'payment_note' => wp_json_encode($intent),
+                'updated_at'   => current_time('mysql'),
+            ]);
+
+            return true;
         }
 
         $update = [
@@ -276,7 +306,6 @@ class Stripe extends BaseMethods
             }
 
             $transaction->payment_args = $paymentArgs;
-
             $responseData = [
                 'nextAction' => 'stripe',
                 'actionName' => 'custom',
@@ -286,6 +315,11 @@ class Stripe extends BaseMethods
                 'message_to_show' => __('Payment Modal is opening, Please complete the payment', 'buy-me-coffee'),
             ];
 
+            if (!empty($paymentArgs['membership_access_id'])) {
+                $responseData['membership_access_id'] = (int) $paymentArgs['membership_access_id'];
+                $responseData['is_membership'] = true;
+            }
+
             wp_send_json_success($responseData, 200);
         } catch (\Exception $e) {
             wp_send_json_error([
@@ -293,6 +327,39 @@ class Stripe extends BaseMethods
                 'message' => $e->getMessage()
             ], 423);
         }
+    }
+
+    private function createOneTimeMembershipAccess($transaction, array $paymentArgs): int
+    {
+        $levelId = !empty($paymentArgs['bmc_level_id']) ? absint($paymentArgs['bmc_level_id']) : 0;
+        if (!$levelId) {
+            return 0;
+        }
+
+        $accessId = (new MembershipAccess())->createPendingForTransaction(
+            (int) $transaction->id,
+            (int) $paymentArgs['supporter_id'],
+            $levelId,
+            'one_time'
+        );
+
+        if (!$accessId) {
+            return 0;
+        }
+
+        ActivityLogger::logMembershipAccess((int) $accessId, 'membership_access_created', 'One-time membership access created', [
+            'status'  => 'info',
+            'context' => [
+                'membership_access_id' => (int) $accessId,
+                'transaction_id'  => (int) $transaction->id,
+                'supporter_id'    => (int) $paymentArgs['supporter_id'],
+                'level_id'        => $levelId,
+                'amount'          => (int) $paymentArgs['amount'],
+                'currency'        => $paymentArgs['currency'],
+            ],
+        ]);
+
+        return (int) $accessId;
     }
 
     public function intentData($args)
@@ -459,6 +526,18 @@ class Stripe extends BaseMethods
             'status' => sanitize_text_field($status),
             'updated_at' => current_time('mysql')
         ]);
+
+        if ($status === 'paid' && !empty($transaction->subscription_id)) {
+            (new Subscriptions())->updateData((int) $transaction->subscription_id, [
+                'status'     => 'active',
+                'updated_at' => current_time('mysql'),
+            ]);
+            do_action('buymecoffee_subscription_activated', (int) $transaction->subscription_id);
+        }
+
+        if ($status === 'paid' && empty($transaction->subscription_id)) {
+            (new MembershipAccess())->activateByTransaction((int) $transaction->id);
+        }
 
         do_action('buymecoffee_payment_status_updated', $transaction->id, $status);
         self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' status updated and action fired');

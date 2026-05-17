@@ -42,7 +42,7 @@ if (!defined('BUYMECOFFEE_VERSION')) {
     if (!defined('BUYMECOFFEE_PRODUCTION')) {
         define('BUYMECOFFEE_PRODUCTION', false);
     }
-    define('BUYMECOFFEE_DB_VERSION', '1.9');
+    define('BUYMECOFFEE_DB_VERSION', '1.12');
 
     // if (!defined('BUYMECOFFEE_DEBUG')) {
     //     define('BUYMECOFFEE_DEBUG', false);

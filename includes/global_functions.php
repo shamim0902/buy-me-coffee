@@ -124,10 +124,11 @@ if (!function_exists('buymecoffee_subscription_access_where')) {
     /**
      * Build the WHERE clause for subscriptions that grant content access.
      *
-     * A subscription grants access if:
-     *   - status is 'active', OR
-     *   - status is 'cancelled' but current_period_end is still in the future
-     *     (the subscriber already paid for this billing cycle)
+     * A membership grants access if:
+     *   - one-time/manual access is active, OR
+     *   - recurring access is active and current_period_end is still in the future, OR
+     *   - recurring access is cancelled but current_period_end is still in the future
+     *     (the member already paid for this billing cycle)
      *
      * @param string $table  Fully-qualified subscriptions table name.
      * @return string SQL WHERE fragment (without leading WHERE/AND).
@@ -135,7 +136,21 @@ if (!function_exists('buymecoffee_subscription_access_where')) {
     function buymecoffee_subscription_access_where($table)
     {
         $now = current_time('mysql', true); // UTC
-        return "({$table}.status = 'active' OR ({$table}.status = 'cancelled' AND {$table}.current_period_end IS NOT NULL AND {$table}.current_period_end > '{$now}'))";
+        return "(({$table}.status = 'active' AND ({$table}.interval_type = 'one_time' OR {$table}.payment_mode = 'manual' OR ({$table}.current_period_end IS NOT NULL AND {$table}.current_period_end > '{$now}'))) OR ({$table}.status = 'cancelled' AND {$table}.current_period_end IS NOT NULL AND {$table}.current_period_end > '{$now}'))";
+    }
+}
+
+if (!function_exists('buymecoffee_membership_access_where')) {
+    /**
+     * Build the WHERE clause for membership access rows that grant content access.
+     *
+     * @param string $table Fully-qualified membership access table name.
+     * @return string SQL WHERE fragment (without leading WHERE/AND).
+     */
+    function buymecoffee_membership_access_where($table)
+    {
+        $now = current_time('mysql', true);
+        return "(({$table}.status = 'active' AND ({$table}.access_type IN ('one_time', 'manual') OR ({$table}.access_type = 'subscription' AND {$table}.expires_at IS NOT NULL AND {$table}.expires_at > '{$now}'))) OR ({$table}.status = 'cancelled' AND {$table}.access_type = 'subscription' AND {$table}.expires_at IS NOT NULL AND {$table}.expires_at > '{$now}'))";
     }
 }
 
@@ -172,29 +187,7 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
             }
         }
 
-        $rows = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->select(['level_id'])
-            ->whereIn('supporter_id', $supporterIds)
-            ->whereNotNull('level_id')
-            ->where(function ($whereQuery) {
-                $whereQuery->where('status', 'active')
-                    ->orWhere(function ($cancelledQuery) {
-                        $cancelledQuery->where('status', 'cancelled')
-                            ->whereNotNull('current_period_end')
-                            ->where('current_period_end', '>', current_time('mysql', true));
-                    });
-            })
-            ->get();
-
-        $levelIds = [];
-        foreach ($rows as $row) {
-            if (!empty($row->level_id)) {
-                $levelIds[] = (int) $row->level_id;
-            }
-        }
-
-        $levelIds = array_unique($levelIds);
+        $levelIds = (new \BuyMeCoffee\Models\MembershipAccess())->getActiveLevelIdsForUser($userId);
         buymecoffee_update_supporter_meta($primarySupporterId, 'active_level_ids', $levelIds);
 
         return $levelIds;

@@ -234,22 +234,36 @@ class SubmissionHandler
             ], 400);
         }
 
+        $supporterEmail = sanitize_email(ArrayHelper::get($formData, 'wpm-supporter-email', ''));
+        if (!$supporterEmail || !is_email($supporterEmail)) {
+            wp_send_json_error([
+                'message' => __('A valid email address is required for membership access.', 'buy-me-coffee')
+            ], 400);
+        }
+        $formData['wpm-supporter-email'] = $supporterEmail;
+
         $interval = isset($level->interval_type) ? sanitize_text_field($level->interval_type) : 'month';
         if (!in_array($interval, ['month', 'year'], true)) {
             $interval = 'month';
         }
 
+        $paymentType = isset($level->payment_type) ? sanitize_key($level->payment_type) : 'subscription';
+        if (!in_array($paymentType, ['one_time', 'subscription'], true)) {
+            $paymentType = 'subscription';
+        }
+
         $paymentTotal = $levelPrice;
         $quantity = 1;
-        $isRecurring = 'yes';
+        $isRecurring = $paymentType === 'subscription' ? 'yes' : 'no';
         $recurringInterval = $interval;
 
         $formData['bmc_level_id'] = $levelId;
+        $formData['bmc_level_payment_type'] = $paymentType;
         $formData['buymecoffee_amount'] = (string) ($levelPrice / 100);
         $formData['buymecoffee_quantity'] = '1';
         $formData['payment_total'] = $levelPrice;
         $formData['currency'] = $currency;
-        $formData['is_recurring'] = 'yes';
+        $formData['is_recurring'] = $isRecurring;
         $formData['recurring_interval'] = $interval;
 
         return $level;
