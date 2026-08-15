@@ -440,6 +440,10 @@ class PublicRequestGuard
             // recognisable for longer than the provider's own retry schedule.
             'stripe_event' => ['in_progress' => 900, 'completed' => 1209600],
             'paypal_ipn'   => ['in_progress' => 900, 'completed' => 1209600],
+            // A subscription invoice is announced by more than one delivery and
+            // more than one event id, so its identity has to stay recognisable
+            // for as long as the provider may keep announcing it.
+            'stripe_invoice' => ['in_progress' => 900, 'completed' => 1209600],
         ];
 
         $default  = ['in_progress' => self::CLAIM_TTL, 'completed' => 86400];

@@ -8,11 +8,11 @@ use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Helpers\ArrayHelper;
 use BuyMeCoffee\Helpers\PaymentHelper;
 use BuyMeCoffee\Models\MembershipAccess;
-use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PaymentTransitionService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -318,28 +318,30 @@ class Stripe extends BaseMethods
             return false;
         }
 
-        if ($intentStatus !== 'succeeded') {
-            (new Supporters())->updateData((int) $supporter->id, [
-                'payment_status' => 'pending',
-                'updated_at'     => current_time('mysql'),
-            ]);
-            (new Transactions())->updateData((int) $transaction->id, [
-                'status'       => 'pending',
-                'charge_id'    => sanitize_text_field($intentId),
-                'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
-                'payment_note' => GatewayAuditData::stripePaymentIntentNote($intent),
-                'updated_at'   => current_time('mysql'),
-            ]);
+        // Descriptive only — which intent paid, in which mode, and the audit
+        // projection of what Stripe returned. None of it grants anything, so it
+        // is recorded whatever the transition below decides.
+        (new Transactions())->updateData((int) $transaction->id, [
+            'charge_id'    => sanitize_text_field($intentId),
+            'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
+            'payment_note' => GatewayAuditData::stripePaymentIntentNote($intent),
+            'updated_at'   => current_time('mysql'),
+        ]);
 
+        $service    = new PaymentTransitionService();
+        $transition = $service->apply($transaction, $intentStatus === 'succeeded' ? 'paid' : 'pending');
+
+        if (is_wp_error($transition) && $transition->get_error_code() === 'bmc_payment_write_failed') {
+            return false;
+        }
+
+        if ($intentStatus !== 'succeeded') {
             return true;
         }
 
-        $update = [
-            'status'     => 'active',
-            'updated_at' => current_time('mysql'),
-        ];
+        $periodEnd = null;
 
-        if ($localSubscription && !empty($localSubscription->stripe_subscription_id)) {
+        if (!empty($localSubscription->stripe_subscription_id)) {
             $stripeSubscription = (new API())->makeRequest(
                 'subscriptions/' . sanitize_text_field($localSubscription->stripe_subscription_id),
                 [],
@@ -350,25 +352,14 @@ class Stripe extends BaseMethods
             if (!is_wp_error($stripeSubscription)) {
                 $periodEndTs = (int) ArrayHelper::get($stripeSubscription, 'current_period_end', 0);
                 if ($periodEndTs > 0) {
-                    $update['current_period_end'] = gmdate('Y-m-d H:i:s', $periodEndTs);
+                    $periodEnd = gmdate('Y-m-d H:i:s', $periodEndTs);
                 }
             }
         }
 
-        (new Subscriptions())->updateData($requestedSubscriptionId, $update);
-        (new Supporters())->updateData((int) $supporter->id, [
-            'payment_status' => $intentStatus === 'succeeded' ? 'paid' : 'pending',
-            'updated_at'     => current_time('mysql'),
-        ]);
-        (new Transactions())->updateData((int) $transaction->id, [
-            'status'       => $intentStatus === 'succeeded' ? 'paid' : 'pending',
-            'charge_id'    => sanitize_text_field($intentId),
-            'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
-            'payment_note' => GatewayAuditData::stripePaymentIntentNote($intent),
-            'updated_at'   => current_time('mysql'),
-        ]);
-
-        do_action('buymecoffee_subscription_activated', $requestedSubscriptionId);
+        // Announced once: a first invoice webhook arriving before or after this
+        // confirmation finds the subscription already active and stays quiet.
+        $service->activateSubscription($requestedSubscriptionId, $periodEnd);
 
         return true;
     }
@@ -720,10 +711,11 @@ class Stripe extends BaseMethods
         self::debugLog('Processing subscription event: ' . $eventType);
         $keys    = StripeSettings::getKeys();
         $handler = new StripeSubscriptions();
+        $applied = [];
 
         try {
             if ($eventType === 'invoice.payment_succeeded') {
-                $handler->handleRenewalWebhook($event, $keys['secret']);
+                $applied = (array) $handler->handleRenewalWebhook($event, $keys['secret']);
             } elseif ($eventType === 'customer.subscription.deleted') {
                 $handler->handleSubscriptionCancelled($event);
             } elseif ($eventType === 'customer.subscription.updated') {
@@ -738,10 +730,28 @@ class Stripe extends BaseMethods
             ]));
         }
 
+        if (!empty($applied['retryable'])) {
+            // The payment this event announces was not durably recorded, so the
+            // event must stay redeliverable: nothing is marked consumed.
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
+            $code       = isset($applied['code']) ? (string) $applied['code'] : '';
+            $inProgress = ($code === 'bmc_payment_invoice_in_progress');
+            $message    = !empty($applied['message']) ? (string) $applied['message'] : '';
+
+            return self::outcome($inProgress ? 'event_in_progress' : 'update_failed', $inProgress ? 409 : 500, array_merge($context, [
+                'message'     => $message ?: 'the subscription payment could not be recorded',
+                'retry_after' => isset($applied['retry_after']) ? (int) $applied['retry_after'] : 0,
+            ]));
+        }
+
         PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
 
         return self::outcome('subscription_event_processed', 200, array_merge($context, [
-            'message' => 'subscription event processed',
+            'transaction_id' => isset($applied['transaction_id']) ? (int) $applied['transaction_id'] : 0,
+            'changed'        => !empty($applied['changed']),
+            'message'        => 'subscription event processed'
+                . (isset($applied['code']) ? ': ' . $applied['code'] : ''),
         ]));
     }
 
@@ -825,25 +835,32 @@ class Stripe extends BaseMethods
             return self::claimRefusal($claim, array_merge($context, ['status' => '']));
         }
 
+        $isSubscriptionLinked = !empty($transaction->subscription_id);
+
         try {
-            // Subscription-linked transactions keep their existing lifecycle.
-            if (!empty($transaction->subscription_id)) {
-                $this->updateStatus($orderHash, $status);
-
-                PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
-
-                return self::outcome('subscription_transaction_updated', 200, array_merge($context, [
-                    'changed' => true,
-                    'message' => 'subscription-linked transaction updated to ' . $status,
-                ]));
-            }
-
-            $result = (new OneTimePaymentStatusService())->apply($transaction, $status);
+            // Subscription-linked transactions keep their own lifecycle, but the
+            // status itself is written by the same transition service, so this
+            // path can no longer settle a payment without the side effects the
+            // canonical hook owns — or repeat them for a redelivery.
+            $result = $isSubscriptionLinked
+                ? $this->updateStatus($orderHash, $status)
+                : (new OneTimePaymentStatusService())->apply($transaction, $status);
         } catch (\Throwable $error) {
             PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
 
             return self::outcome('processing_failed', 500, array_merge($context, [
                 'message' => 'the authenticated event could not be applied',
+            ]));
+        }
+
+        if ($result === null) {
+            // The row disappeared between the lookup above and the transition;
+            // there is nothing left for a redelivery to apply.
+            PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
+
+            return self::outcome('transaction_not_found', 200, array_merge($context, [
+                'status'  => '',
+                'message' => 'no transaction for entry_hash: ' . $orderHash,
             ]));
         }
 
@@ -905,53 +922,45 @@ class Stripe extends BaseMethods
     }
 
     /**
-     * Write a payment status straight onto an order.
+     * Apply a payment status to the order an entry hash identifies.
      *
-     * The webhook only routes subscription-linked transactions here, so the
-     * subscription activation below keeps working exactly as before. One-time
-     * transactions go through OneTimePaymentStatusService instead, which
-     * enforces the local transition policy this method has no notion of.
+     * The status, the supporter it rolls up to, the entitlement it grants and
+     * the canonical transition are all decided by PaymentTransitionService, so
+     * this path settles a payment the same way — and exactly as often — as a
+     * browser confirmation or a PayPal notification does.
      *
      * @param string $orderHash Transaction entry_hash.
      * @param string $status    Local payment status.
-     * @return void
+     * @return array|\WP_Error|null Transition result, or null when nothing matched.
      */
     public function updateStatus($orderHash, $status)
     {
-        $transactions = new Transactions();
-        $transaction = $transactions->find($orderHash, 'entry_hash');
+        $transaction = (new Transactions())->find($orderHash, 'entry_hash');
         if (!$transaction) {
             self::debugLog('updateStatus: no transaction found for entry_hash: ' . $orderHash);
-            return;
+            return null;
         }
 
         self::debugLog('updateStatus: transaction #' . $transaction->id . ' — setting status to "' . $status . '"');
 
-        $supportersModel = new Supporters();
-        $supportersModel->updateData($transaction->entry_id, [
-            'payment_status' => sanitize_text_field($status),
-            'updated_at' => current_time('mysql')
-        ]);
+        $service = new PaymentTransitionService();
+        $result  = $service->apply($transaction, $status);
 
-        $transactions->updateData($transaction->id, [
-            'status' => sanitize_text_field($status),
-            'updated_at' => current_time('mysql')
-        ]);
+        if (is_wp_error($result)) {
+            self::debugLog('updateStatus: refused — ' . $result->get_error_code());
 
-        if ($status === 'paid' && !empty($transaction->subscription_id)) {
-            (new Subscriptions())->updateData((int) $transaction->subscription_id, [
-                'status'     => 'active',
-                'updated_at' => current_time('mysql'),
-            ]);
-            do_action('buymecoffee_subscription_activated', (int) $transaction->subscription_id);
+            return $result;
         }
 
-        if ($status === 'paid' && empty($transaction->subscription_id)) {
-            (new MembershipAccess())->activateByTransaction((int) $transaction->id);
+        // Idempotent, so a subscription whose first payment was already
+        // confirmed by the browser is not activated — or announced — twice.
+        if ($result['to'] === 'paid' && !empty($transaction->subscription_id)) {
+            $service->activateSubscription((int) $transaction->subscription_id);
         }
 
-        do_action('buymecoffee_payment_status_updated', $transaction->id, $status);
-        self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' status updated and action fired');
+        self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' changed=' . ($result['changed'] ? 'yes' : 'no'));
+
+        return $result;
     }
 
     /**

@@ -35,6 +35,19 @@ class UserManager
             return;
         }
 
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->first();
+
+        // Subscription entitlement follows the subscription lifecycle and its
+        // billing period. Handling the linked transaction here as well would
+        // duplicate the activation performed by subscription_activated (and
+        // could revoke a still-live subscription because one renewal failed).
+        if (!$transaction || !empty($transaction->subscription_id)) {
+            return;
+        }
+
         if (in_array($status, ['refunded', 'failed'], true)) {
             (new MembershipAccess())->revokeByTransaction($transactionId, $status);
             return;

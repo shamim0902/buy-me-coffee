@@ -24,6 +24,7 @@ Covered feature groups:
 - Submission idempotency: a mandatory high-entropy attempt key, no duplicate rows or provider payments on a retry or address change, concurrent attempts refused, and keys never burned by validation failures
 - Gateway replay safety: browser confirmations resolved to local state before any provider call, concurrent confirmations of one Stripe intent or one PayPal donation serialized to a single capture, duplicate authenticated Stripe events, and duplicate VERIFIED PayPal notifications — including Stripe final-confirmation replay and PayPal settled-order replay driven by the minimized audit notes
 - Provider retryability: unauthenticated deliveries bounded per address without refusing genuine high-volume traffic from shared provider addresses
+- Payment transition ownership: every successful provider event — a Stripe initial subscription invoice, a Stripe renewal, a browser confirmation, a verified PayPal notification and a PayPal capture — settles through one atomic transition service, so a payment the browser never confirmed is still settled, a payment is never settled twice, a renewal creates exactly one paid transaction, a replayed or interrupted delivery repeats no row, hook, email, activity or entitlement work, an invoice held by another worker stays redeliverable, and a refund is never reversed
 
 See [FEATURE-MATRIX.md](FEATURE-MATRIX.md) for the complete automated and sandbox/staging release checklist.
 
