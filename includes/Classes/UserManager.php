@@ -14,6 +14,26 @@ class UserManager
         add_action('buymecoffee_subscription_cancelled', [$this, 'handleSubscriptionCancelled']);
         add_action('buymecoffee_subscription_status_changed', [$this, 'handleSubscriptionStatusChanged'], 10, 3);
         add_action('buymecoffee_membership_access_activated', [$this, 'handleMembershipAccessActivated']);
+        add_action('buymecoffee_payment_status_updated', [$this, 'handlePaymentStatusUpdated'], 10, 2);
+    }
+
+    /**
+     * Revoke membership access when a transaction stops being a valid payment.
+     *
+     * A refunded/failed one-time (or manual) membership must lose content
+     * access; without this the access row stays 'active' forever because no
+     * further gateway event fires after a refund.
+     *
+     * @param int    $transactionId Transaction row ID.
+     * @param string $status        New payment status.
+     */
+    public function handlePaymentStatusUpdated($transactionId, $status)
+    {
+        if (!in_array($status, ['refunded', 'failed'], true)) {
+            return;
+        }
+
+        (new MembershipAccess())->revokeByTransaction((int) $transactionId, $status);
     }
 
     private function isEnabled(): bool
