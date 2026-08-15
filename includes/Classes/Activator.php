@@ -33,6 +33,18 @@ class Activator
     public function registerMigrationHooks()
     {
         add_action(self::MIGRATION_HOOK, [$this, 'runMigrationBatch']);
+
+        // A site added after a network activation has to be installed into as
+        // well. Priority 100 puts this after core has finished creating the
+        // site's own tables. WordPress 5.1 replaced 'wpmu_new_blog' with
+        // 'wp_initialize_site' and still fires the old name from the new hook
+        // for back compatibility, so only one of the two may ever be
+        // registered or a new site would be installed into twice.
+        if (version_compare(get_bloginfo('version'), '5.1', '<')) {
+            add_action('wpmu_new_blog', [$this, 'installNewSite'], 100);
+        } else {
+            add_action('wp_initialize_site', [$this, 'installNewSite'], 100);
+        }
     }
 
     /**
