@@ -672,7 +672,9 @@ class AdminAjaxHandler
         }
 
         $notification = [
-            'enabled' => !empty($data['enabled']),
+            // Form-encoded booleans arrive as strings; "false" is truthy to
+            // !empty(), which made notifications impossible to disable. Parse it.
+            'enabled' => isset($data['enabled']) && filter_var($data['enabled'], FILTER_VALIDATE_BOOLEAN),
             'subject' => Arr::get($data, 'subject', ''),
             'body'    => Arr::get($data, 'body', ''),
         ];
