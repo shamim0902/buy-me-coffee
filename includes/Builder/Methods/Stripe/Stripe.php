@@ -184,7 +184,9 @@ class Stripe extends BaseMethods
             $intentAmount = (int) ArrayHelper::get($intent, 'amount_received', 0);
         }
 
-        $expectedAmount = (int) $localSubscription->amount;
+        // Local amount is stored in ×100 minor units; the Stripe intent amount is
+        // in the currency's native scale, so convert before comparing.
+        $expectedAmount = PaymentHelper::toStripeAmount((int) $localSubscription->amount, $localSubscription->currency);
         if ($intentAmount > 0 && $expectedAmount > 0 && $intentAmount !== $expectedAmount) {
             return false;
         }
@@ -365,7 +367,9 @@ class Stripe extends BaseMethods
     public function intentData($args)
     {
         $sessionPayload = array(
-            'amount' => $args['amount'],
+            // Stored amounts are ×100 minor units; convert to the amount Stripe
+            // expects for this currency (zero-decimal currencies must not be ×100).
+            'amount' => PaymentHelper::toStripeAmount($args['amount'], $args['currency']),
             'currency' => $args['currency'],
             'metadata' => [
                 'ref_id'  => $args['client_reference_id'],

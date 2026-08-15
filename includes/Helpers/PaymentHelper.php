@@ -51,7 +51,11 @@ class PaymentHelper
         // For subscriptions the PI amount may not yet be reflected in amount_received
         // at the moment the confirmation fires, so allow a zero amount_received to pass
         // (the status check below still gates on 'succeeded').
-        if ($amount > 0 && intval($order->payment_total) !== $amount) {
+        // payment_total is stored in ×100 minor units; convert to the Stripe
+        // amount for the order currency so zero-decimal currencies compare correctly.
+        $orderCurrency = !empty($order->transaction->currency) ? $order->transaction->currency : self::getCurrency();
+        $expectedAmount = self::toStripeAmount($order->payment_total, $orderCurrency);
+        if ($amount > 0 && $expectedAmount !== $amount) {
             return new \WP_Error('stripe_payment_amount_mismatch', __('Payment amount does not match the order.', 'buy-me-coffee'));
         }
 
@@ -187,6 +191,68 @@ class PaymentHelper
         }
 
         return gmdate('Y-m-d H:i:s', $periodEndTs);
+    }
+
+    /**
+     * Currencies Stripe expects in the whole (major) unit rather than the
+     * smallest unit — i.e. the amount is NOT multiplied by 100.
+     *
+     * @see https://docs.stripe.com/currencies#zero-decimal
+     * @var string[]
+     */
+    const STRIPE_ZERO_DECIMAL_CURRENCIES = [
+        'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA',
+        'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+    ];
+
+    public static function isStripeZeroDecimalCurrency($currency): bool
+    {
+        return in_array(strtoupper((string) $currency), self::STRIPE_ZERO_DECIMAL_CURRENCIES, true);
+    }
+
+    /**
+     * Convert a stored payment_total (always kept in ×100 minor units) into the
+     * integer amount Stripe expects for the given currency.
+     *
+     * For normal currencies Stripe wants the minor-unit value as-is; for
+     * zero-decimal currencies (JPY, KRW, …) the smallest unit IS the whole
+     * unit, so the ×100 scaling must be undone — otherwise the customer is
+     * charged 100× the intended amount.
+     *
+     * @param int|float $storedTotal Amount as stored in payment_total (×100).
+     * @param string    $currency    ISO currency code.
+     * @return int Stripe amount.
+     */
+    public static function toStripeAmount($storedTotal, $currency): int
+    {
+        $storedTotal = (int) round((float) $storedTotal);
+
+        if (self::isStripeZeroDecimalCurrency($currency)) {
+            return (int) round($storedTotal / 100);
+        }
+
+        return $storedTotal;
+    }
+
+    /**
+     * Inverse of toStripeAmount(): convert a Stripe amount (as returned in
+     * invoices/payment intents) back into the ×100 minor-unit value the plugin
+     * stores in payment_total / subscription amount, so stored amounts stay in
+     * one consistent scale regardless of currency.
+     *
+     * @param int|float $stripeAmount Amount from a Stripe object.
+     * @param string    $currency     ISO currency code.
+     * @return int Stored (×100 minor unit) amount.
+     */
+    public static function fromStripeAmount($stripeAmount, $currency): int
+    {
+        $stripeAmount = (int) round((float) $stripeAmount);
+
+        if (self::isStripeZeroDecimalCurrency($currency)) {
+            return $stripeAmount * 100;
+        }
+
+        return $stripeAmount;
     }
 
     public static function getFormattedAmount($amount, $currency)
