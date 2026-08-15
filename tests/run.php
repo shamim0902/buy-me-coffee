@@ -292,6 +292,17 @@ $suite->test('one-time membership activation and refund update user access', fun
     $test->assertNotEmpty($accessId);
     $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
 
+    // Access follows the payment: while the transaction is not stored as paid
+    // there is nothing to activate, however often activation is asked for.
+    $test->assertSame(0, $access->activateByTransaction($transactionId), 'An unpaid transaction must not grant access');
+    $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['status' => 'paid'],
+        ['id' => $transactionId]
+    );
+
     $test->assertSame((int) $accessId, $access->activateByTransaction($transactionId));
     $test->assertSame([(int) $levelId], buymecoffee_user_get_active_level_ids($userId, true));
 
@@ -2376,29 +2387,39 @@ $suite->test('an access row that already owns a source transaction is reconciled
         // A rival row already owning the canonical subscription link is the one
         // a cancellation finds, so the batch must skip the duplicate instead of
         // failing this range on every retry forever.
-        $rival = $bmcMakeMigrationSource(['level_id' => $levelId, 'transactions' => 1]);
+        $rivalUserId = 424343;
+        $rival = $bmcMakeMigrationSource([
+            'level_id'     => $levelId,
+            'wp_user_id'   => $rivalUserId,
+            'transactions' => 1,
+        ]);
 
         $canonicalId = $insertAccess([
             'supporter_id'    => $rival['supporter_id'],
-            'wp_user_id'      => null,
+            'wp_user_id'      => $rivalUserId,
             'level_id'        => $levelId,
             'transaction_id'  => null,
             'subscription_id' => $rival['subscription_id'],
             'access_type'     => 'subscription',
             'status'          => 'active',
             'starts_at'       => null,
-            'expires_at'      => null,
+            'expires_at'      => $expires,
             'created_at'      => current_time('mysql'),
             'updated_at'      => current_time('mysql'),
         ]);
+        // The dangerous shape of a duplicate: 'active' and untyped as recurring,
+        // so every grant path reads it as a one-time purchase that never
+        // expires. Skipping it is not enough — a cancellation updates only the
+        // canonical row above, and this one would go on granting the level for
+        // good.
         $duplicateId = $insertAccess([
             'supporter_id'    => $rival['supporter_id'],
-            'wp_user_id'      => null,
+            'wp_user_id'      => $rivalUserId,
             'level_id'        => $levelId,
             'transaction_id'  => $rival['transaction_ids'][0],
             'subscription_id' => null,
             'access_type'     => 'one_time',
-            'status'          => 'incomplete',
+            'status'          => 'active',
             'starts_at'       => null,
             'expires_at'      => null,
             'created_at'      => current_time('mysql'),
@@ -2419,6 +2440,47 @@ $suite->test('an access row that already owns a source transaction is reconciled
         $test->assertSame((int) $rival['subscription_id'], (int) $rivalRows[0]->subscription_id, 'The canonical row must keep the subscription link');
         $test->assertSame($duplicateId, (int) $rivalRows[1]->id, 'The duplicate must be skipped, not deleted');
         $test->assertSame(null, $rivalRows[1]->subscription_id, 'The duplicate must not steal the unique subscription link');
+
+        // Skipped, but no longer granting: the canonical row is left as the one
+        // row that answers for this subscription, so a later cancellation of it
+        // actually ends the entitlement.
+        $test->assertSame('superseded', $rivalRows[1]->status, 'A duplicate the collision left behind must stop granting');
+        $test->assertSame($rival['transaction_ids'][0], (int) $rivalRows[1]->transaction_id, 'A retired duplicate stays on record');
+
+        $test->assertSame(
+            [$levelId],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'The canonical row alone grants the level'
+        );
+
+        // Cancelling the subscription and letting its paid period lapse has to
+        // take the access with it. Before the duplicate was retired, the
+        // cancellation reached only the canonical row and the level stayed
+        // granted forever through the one nothing else ever looks at.
+        $wpdb->update($accessTable, [
+            'status'     => 'cancelled',
+            'expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS),
+        ], ['id' => $canonicalId]);
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'A cancelled subscription must not keep granting through the duplicate'
+        );
+
+        // Replaying the range must not rewrite an already retired duplicate.
+        $wpdb->update($accessTable, ['updated_at' => '2003-03-03 00:00:00'], ['id' => $duplicateId]);
+
+        $rewound           = get_option(Activator::MIGRATION_STATE_OPTION);
+        $rewound['phase']  = Activator::PHASE_BACKFILL_ACCESS;
+        $rewound['cursor'] = $cursor;
+        update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+        $settled = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($settled), 'A replay over a retired duplicate must succeed: ' . (is_wp_error($settled) ? $settled->get_error_message() : ''));
+
+        $settledRows = $bmcAccessRowsFor($rival['supporter_id']);
+        $test->assertSame(2, count($settledRows), 'A replay must not add a row');
+        $test->assertSame('2003-03-03 00:00:00', $settledRows[1]->updated_at, 'An already retired duplicate must not be rewritten');
     } finally {
         remove_filter('buymecoffee_migration_batch_size', $batch);
         $restore();
@@ -6187,6 +6249,179 @@ $suite->test('a PayPal capture and its notification settle one donation once bet
         $stopWatching();
         remove_filter('pre_http_request', $stub, 10);
         $restoreTransactions();
+    }
+});
+
+$suite->test('a payment left unbound by an upgrade is recovered from the intent, and nothing else is', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcClearGuard, $bmcGuardRows) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
+
+    $txTable = $wpdb->prefix . 'buymecoffee_transactions';
+    $helper  = new PaymentHelper();
+
+    // A payment that was already in flight when the site upgraded: checkout
+    // created it before binding existed, so Stripe holds an intent for it and
+    // the row knows nothing about that intent.
+    $stranded = $bmcMakeOneTimePurchase();
+    $wpdb->update($txTable, ['charge_id' => ''], ['id' => $stranded['transaction_id']]);
+
+    $strandedIntent = 'pi_stranded_' . $stranded['suffix'];
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $strandedIntent, $stranded) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/' . $strandedIntent) !== false) {
+            return $bmcStripeBody([
+                'id'       => $strandedIntent,
+                'object'   => 'payment_intent',
+                'status'   => 'requires_payment_method',
+                'amount'   => 2500,
+                'currency' => 'usd',
+                'livemode' => false,
+                'metadata' => ['ref_id' => $stranded['order_hash']],
+            ]);
+        }
+
+        // Any other intent is one this site never created, so Stripe answers
+        // as it would for an id belonging to somebody else's account.
+        return $bmcStripeBody(['error' => ['message' => 'No such payment_intent']], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $recovered = $helper->findStripeTransactionByIntent($strandedIntent);
+
+        $test->assertNotEmpty($recovered, 'A payment stranded by the upgrade must still be recognised');
+        $test->assertSame($stranded['transaction_id'], (int) $recovered->id, 'It must be the transaction the intent names');
+        $test->assertSame($strandedIntent, $recovered->charge_id, 'The recovered transaction carries its intent');
+
+        $stored = $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $stranded['transaction_id']));
+        $test->assertSame($strandedIntent, $stored, 'The missing binding is written, so the recovery happens once');
+
+        $costOfRecovery = count($requests);
+        $test->assertSame(1, $costOfRecovery, 'Recovery costs exactly one lookup');
+
+        // Bound now, so the fast path answers and Stripe is not asked again.
+        $again = $helper->findStripeTransactionByIntent($strandedIntent);
+        $test->assertSame($stranded['transaction_id'], (int) $again->id);
+        $test->assertSame($costOfRecovery, count($requests), 'A bound intent must never reach Stripe again');
+
+        // An intent this site never created stays refused. It is allowed to
+        // cost a lookup while the window is open — it may not be recognised.
+        $test->assertSame(null, $helper->findStripeTransactionByIntent('pi_never_created_here'), 'An unknown intent must not be matched to an order');
+
+        // An intent naming a transaction that already has a different binding
+        // is a mismatch, not an upgrade case.
+        $hijack = 'pi_hijack_' . $stranded['suffix'];
+        $hijackStub = function ($pre, $args, $url) use ($bmcStripeBody, $hijack, $stranded) {
+            if (strpos($url, 'payment_intents/' . $hijack) !== false) {
+                return $bmcStripeBody([
+                    'id'       => $hijack,
+                    'object'   => 'payment_intent',
+                    'status'   => 'requires_payment_method',
+                    'metadata' => ['ref_id' => $stranded['order_hash']],
+                ]);
+            }
+
+            return $bmcStripeBody(['error' => ['message' => 'No such payment_intent']], 404);
+        };
+        add_filter('pre_http_request', $hijackStub, 9, 3);
+
+        $test->assertSame(null, $helper->findStripeTransactionByIntent($hijack), 'A transaction already bound to an intent must not adopt another');
+
+        $keptBinding = $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $stranded['transaction_id']));
+        $test->assertSame($strandedIntent, $keptBinding, 'The original binding must survive the attempt');
+
+        remove_filter('pre_http_request', $hijackStub, 9);
+
+        // The window closes on age. An unbound payment old enough that no
+        // browser is still waiting on it is abandoned, not stranded, and every
+        // site accumulates those forever — so it must not reopen the recovery.
+        $abandoned = $bmcMakeOneTimePurchase();
+        $wpdb->update($txTable, ['charge_id' => ''], ['id' => $abandoned['transaction_id']]);
+
+        // Age out every open unbound Stripe payment, not only this test's, so
+        // the assertion below describes a drained window rather than whatever
+        // the fixtures before it happened to leave behind.
+        $aged = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - (3 * DAY_IN_SECONDS));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Test fixture.
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$txTable} SET created_at = %s
+              WHERE payment_method = 'stripe'
+                AND status IN ('pending', 'processing')
+                AND (charge_id IS NULL OR charge_id = '')",
+            $aged
+        ));
+
+        $before = count($requests);
+        $test->assertSame(null, $helper->findStripeTransactionByIntent('pi_after_the_window'), 'A closed window must refuse');
+        $test->assertSame($before, count($requests), 'With nothing recent left unbound, a refusal must cost no Stripe call');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a stale paid announcement cannot re-open the access a refund has already taken back', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects) {
+    global $wpdb;
+
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $access   = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+
+        // The refund commits and revokes the access it bought. An activation
+        // that was already in flight — its paid transition committed, its row
+        // lock long released — only reaches the access row now.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'refunded'],
+            ['id' => $purchase['transaction_id']]
+        );
+        $access->revokeByTransaction($purchase['transaction_id']);
+
+        $revoked = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $revoked['access']);
+        $test->assertSame([], $revoked['levels']);
+
+        $test->assertSame(
+            0,
+            $access->activateByTransaction($purchase['transaction_id']),
+            'A payment that is no longer paid may not grant access'
+        );
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'The late activation must change nothing');
+        $test->assertSame([], $log['activated'], 'A refused activation must announce no entitlement');
+
+        // The same guarantee has to hold for the announcement itself. A 'paid'
+        // hook published before the refund committed still reaches UserManager,
+        // which acts on the status it was handed rather than re-reading the
+        // payment — so the guard has to live where every caller passes.
+        do_action('buymecoffee_payment_status_updated', $purchase['transaction_id'], 'paid');
+
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'A stale paid announcement must not restore access');
+        $test->assertSame([], $log['activated'], 'A stale announcement must announce no entitlement either');
+
+        // The guard is on the stored payment, not on the access row: put the
+        // payment back to paid — an admin reversing the refund — and the very
+        // same call is allowed again.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'paid'],
+            ['id' => $purchase['transaction_id']]
+        );
+
+        $test->assertSame($purchase['access_id'], $access->activateByTransaction($purchase['transaction_id']));
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+        $test->assertSame([(int) $purchase['level_id']], $bmcPaymentState($purchase)['levels']);
+        $test->assertSame([$purchase['access_id']], $log['activated'], 'The activation that moved the row announces it once');
+    } finally {
+        $stopWatching();
     }
 });
 
