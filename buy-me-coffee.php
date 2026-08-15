@@ -242,6 +242,20 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         (new \BuyMeCoffee\Classes\Activator())->unscheduleMigration($networkWide);
     });
 
+    // A site added after a network activation has to be installed into as well,
+    // or it runs without the plugin's tables until some cron event happens to
+    // fire. WordPress 5.1 replaced 'wpmu_new_blog' with 'wp_initialize_site';
+    // both are registered so the plugin's multisite support does not depend on
+    // the network's WordPress version.
+    $buymecoffeeInstallNewSite = function ($site) {
+        require_once(BUYMECOFFEE_DIR . 'includes/Classes/Activator.php');
+        (new \BuyMeCoffee\Classes\Activator())->installNewSite($site);
+    };
+    add_action('wp_initialize_site', $buymecoffeeInstallNewSite, 100);
+    if (version_compare(get_bloginfo('version'), '5.1', '<')) {
+        add_action('wpmu_new_blog', $buymecoffeeInstallNewSite, 100);
+    }
+
     // Disable WP admin notices on the Buy Me Coffee app page.
     $buymecoffeeRemoveAdminNotices = function () {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin page check only
