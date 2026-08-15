@@ -7,6 +7,7 @@ use BuyMeCoffee\Helpers\PaymentHelper;
 use BuyMeCoffee\Models\Buttons;
 use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -31,6 +32,13 @@ class SubmissionHandler
                 ), 403);
             }
         }
+
+        // Size ceiling and layered rate limits are consumed here: before the
+        // payload is read, before a supporter row is written, and before any
+        // gateway is asked to create a remote payment.
+        PublicRequestGuard::enforce('submission');
+
+        $idempotencyKey = $this->resolveIdempotencyKey();
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public form payload check
         if (!isset($_REQUEST['form_data'])) {
@@ -81,10 +89,6 @@ class SubmissionHandler
             $allMethods
         );
 
-        $supporterName = ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous');
-        $supporterEmail = ArrayHelper::get($form_data, 'wpm-supporter-email');
-        $supporterMessage = ArrayHelper::get($form_data, 'wpm-supporter-message');
-
         if ($isRecurring === 'yes') {
             $this->validateRecurringRequest($paymentMethod, $template, (bool) $membershipLevel);
         }
@@ -94,13 +98,49 @@ class SubmissionHandler
         $form_data['is_recurring']        = $isRecurring;
         $form_data['recurring_interval']  = $recurringInterval;
 
+        // Everything above this line only reads and validates. A request refused
+        // up to here has consumed no idempotency key, so the same attempt can be
+        // corrected and retried with the same key.
+        $claim = $this->claimSubmission($idempotencyKey);
+
+        try {
+            $this->createSubmission($form_data, $paymentMethod, $paymentTotal, $quantity, $currency, $isRecurring, $claim);
+        } catch (\Throwable $error) {
+            // Nothing durable was produced, so the key must not stay burned. A
+            // claim completed inside createSubmission() is already settled and
+            // is left exactly as it is.
+            if ($claim) {
+                PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+            }
+
+            throw $error;
+        }
+    }
+
+    /**
+     * Write the supporter and transaction rows and hand off to the gateway.
+     *
+     * Reached only once per successful idempotency key: it is the whole
+     * side-effecting half of a submission.
+     *
+     * @param array      $form_data     Sanitized form payload.
+     * @param string     $paymentMethod Selected gateway route.
+     * @param int        $paymentTotal  Amount in ×100 minor units.
+     * @param int        $quantity      Coffee count.
+     * @param string     $currency      Uppercase currency code.
+     * @param string     $isRecurring   'yes' or 'no'.
+     * @param array|null $claim         Idempotency lease held for this attempt.
+     * @return void
+     */
+    private function createSubmission($form_data, $paymentMethod, $paymentTotal, $quantity, $currency, $isRecurring, $claim = null)
+    {
         $hash = sanitize_text_field($this->getHash());
         $reference = ArrayHelper::get($form_data, '__buymecoffee_ref', '');
 
         $entries = array(
-            'supporters_name' => $supporterName,
-            'supporters_email' => $supporterEmail,
-            'supporters_message' => $supporterMessage,
+            'supporters_name' => ArrayHelper::get($form_data, 'wpm-supporter-name', 'Anonymous'),
+            'supporters_email' => ArrayHelper::get($form_data, 'wpm-supporter-email'),
+            'supporters_message' => ArrayHelper::get($form_data, 'wpm-supporter-message'),
             'form_data_raw' => maybe_serialize($form_data),
             'currency' => $currency,
             'payment_method' => $paymentMethod,
@@ -145,6 +185,20 @@ class SubmissionHandler
             ->where('entry_id', $entryId)
             ->first();
 
+        if ($claim) {
+            // Durable local state now exists for this attempt, so it may never
+            // run again — whatever the gateway does next belongs to this one
+            // submission. Settling the lease here rather than after the response
+            // matters because the gateway handoff below ends the request with
+            // die(), which no later statement would survive.
+            //
+            // Nothing about the response is stored: a gateway handoff carries
+            // client secrets and provider URLs, and the guard table is not a
+            // place to keep them. A retry of a completed key is answered with a
+            // conflict instead, so it can never create a second payment.
+            PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'submission');
+        }
+
          if ($paymentTotal > 0) {
             do_action('buymecoffee_make_payment_' . $paymentMethod, $transactionId->id, $entryId, $form_data);
         }
@@ -154,6 +208,101 @@ class SubmissionHandler
             'submission_id' => $entryId
         ), 200);
 
+    }
+
+    /**
+     * Read the idempotency key the browser generated for this attempt.
+     *
+     * The key is mandatory. Without one, this endpoint is exactly what it was
+     * before: an unauthenticated route where a double click, a retried request
+     * or a scripted burst each create their own supporter row and their own
+     * remote payment. An attacker would simply omit the field, so accepting a
+     * keyless submission would make the whole protection optional.
+     *
+     * The escape hatch is deliberately narrow, single-purpose and off: it exists
+     * only for a host that has to keep serving a client which cannot produce a
+     * key at all, and turning it on knowingly restores the old behaviour for
+     * that site alone.
+     *
+     * @return string Empty only when the escape hatch is enabled.
+     */
+    private function resolveIdempotencyKey()
+    {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce already verified above.
+        $raw = isset($_REQUEST['idempotency_key']) ? wp_unslash($_REQUEST['idempotency_key']) : '';
+        $key = is_string($raw) ? sanitize_text_field($raw) : '';
+
+        if ($key === '') {
+            if (apply_filters('buymecoffee_allow_unkeyed_submission', false)) {
+                return '';
+            }
+
+            wp_send_json_error([
+                'message' => __('Your browser could not start a secure donation. Please reload the page and try again.', 'buy-me-coffee'),
+                'code'    => 'idempotency_key_required',
+            ], 400);
+        }
+
+        if (!preg_match('/\A[A-Za-z0-9_-]{16,128}\z/', $key)) {
+            wp_send_json_error([
+                'message' => __('Invalid submission key. Please reload the page and try again.', 'buy-me-coffee'),
+                'code'    => 'invalid_idempotency_key',
+            ], 400);
+        }
+
+        return $key;
+    }
+
+    /**
+     * Claim an attempt's key so only one of its retries may create anything.
+     *
+     * The cryptographically random key identifies the attempt itself, independent
+     * of the caller's current address. Mobile and proxied clients can change IPs
+     * between a dropped response and a retry; scoping the claim to the address
+     * would let that retry create a second donation. No response data is replayed,
+     * so possession of a key can reveal only that the attempt already exists.
+     *
+     * @param string $idempotencyKey Key supplied by the browser.
+     * @return array|null Claim record, or null when the escape hatch is enabled.
+     */
+    private function claimSubmission($idempotencyKey)
+    {
+        if ($idempotencyKey === '') {
+            return null;
+        }
+
+        $claim = PublicRequestGuard::claim(
+            'submission',
+            $idempotencyKey
+        );
+
+        if ($claim['acquired']) {
+            return $claim;
+        }
+
+        if (!$claim['available']) {
+            $decision = PublicRequestGuard::unavailable();
+            PublicRequestGuard::sendRetryAfter($decision['retry_after']);
+
+            wp_send_json_error([
+                'message' => $decision['message'],
+                'code'    => $decision['code'],
+            ], $decision['http']);
+        }
+
+        if ($claim['state'] === PublicRequestGuard::STATE_COMPLETED) {
+            wp_send_json_error([
+                'message' => __('This donation has already been submitted. Please reload the page to start a new one.', 'buy-me-coffee'),
+                'code'    => 'submission_already_completed',
+            ], 409);
+        }
+
+        PublicRequestGuard::sendRetryAfter($claim['retry_after']);
+
+        wp_send_json_error([
+            'message' => __('This donation is already being processed. Please wait a moment before trying again.', 'buy-me-coffee'),
+            'code'    => 'submission_in_progress',
+        ], 409);
     }
 
     private function calculatePaymentData($formData, $template)

@@ -140,6 +140,13 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         public function commonActions()
         {
             require_once BUYMECOFFEE_DIR . 'includes/Classes/Vite.php';
+
+            // Abuse controls for the public endpoints are loaded before the
+            // handlers themselves, so no public route can ever be reachable
+            // before the guard that bounds it exists.
+            require_once BUYMECOFFEE_DIR . 'includes/Services/PublicRequestGuard.php';
+            \BuyMeCoffee\Services\PublicRequestGuard::boot();
+
             require BUYMECOFFEE_DIR . 'includes/Controllers/SubmissionHandler.php';
 
             //payment methods init

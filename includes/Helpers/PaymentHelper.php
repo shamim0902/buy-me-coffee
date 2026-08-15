@@ -28,6 +28,110 @@ class PaymentHelper
     }
 
     /**
+     * The local Stripe transaction a PaymentIntent belongs to.
+     *
+     * Checkout stamps the intent onto its transaction before the browser is ever
+     * handed it, so a confirmation can prove ownership of the intent it presents
+     * without asking Stripe anything. That is what stops an arbitrary intent id
+     * from being turned into a claim, a provider call, or a lock on somebody
+     * else's donation.
+     *
+     * @param string $intentId Stripe PaymentIntent id.
+     * @return object|null
+     */
+    public function findStripeTransactionByIntent($intentId)
+    {
+        $intentId = sanitize_text_field($intentId);
+        if (!$intentId) {
+            return null;
+        }
+
+        return buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('charge_id', $intentId)
+            ->where('payment_method', 'stripe')
+            ->first();
+    }
+
+    /**
+     * Answer a repeated confirmation from local state alone.
+     *
+     * A browser confirmation is replayable by design — a reload, a double click,
+     * or a retry after a dropped response all send the same intent again. Once
+     * the local transaction has reached a final state, another round trip to
+     * Stripe cannot change what is reported, so it is skipped: the same result
+     * is rebuilt from the rows and from the intent payload already stored on the
+     * transaction. Anything still pending or processing is deliberately not
+     * replayed, because for those the provider is the only source of truth.
+     *
+     * @param string $intentId               Stripe PaymentIntent id.
+     * @param int    $requestedSubscriptionId Subscription the caller claims, 0 for none.
+     * @return array|null Same shape as updatePaymentData(), or null when the
+     *                    confirmation still has to reach Stripe.
+     */
+    public function replayConfirmationResult($intentId, $requestedSubscriptionId = 0)
+    {
+        $transaction = $this->findStripeTransactionByIntent($intentId);
+
+        if (!$transaction) {
+            return null;
+        }
+
+        $status = sanitize_text_field($transaction->status);
+        if (!in_array($status, ['paid', 'refunded', 'failed'], true)) {
+            return null;
+        }
+
+        $subscriptionId = !empty($transaction->subscription_id) ? (int) $transaction->subscription_id : 0;
+
+        $requestedSubscriptionId = absint($requestedSubscriptionId);
+        if ($requestedSubscriptionId && $requestedSubscriptionId !== $subscriptionId) {
+            // The caller is asking about a different subscription than the one
+            // this intent settled; that claim has to be checked against Stripe.
+            return null;
+        }
+
+        $transactionId = (int) $transaction->id;
+
+        $membershipAccess = $this->getMembershipAccessByTransaction($transactionId);
+        $subscription = null;
+
+        if ($subscriptionId) {
+            $subscription = buyMeCoffeeQuery()
+                ->table('buymecoffee_subscriptions')
+                ->where('id', $subscriptionId)
+                ->first();
+            $membershipAccess = $this->getMembershipAccessBySubscription($subscriptionId) ?: $membershipAccess;
+        }
+
+        $isMembership = !empty($membershipAccess) || !empty($subscription->level_id);
+        $accessActive = $status === 'paid' && (
+            !$isMembership
+            || ($membershipAccess && Subscriptions::hasAccessValidity($membershipAccess))
+        );
+
+        // The intent Stripe returned for this charge was stored verbatim when the
+        // payment was recorded, so its status is replayed instead of re-fetched.
+        $storedIntent = json_decode((string) $transaction->payment_note, true);
+        $stripeStatus = (is_array($storedIntent) && isset($storedIntent['status']))
+            ? sanitize_text_field($storedIntent['status'])
+            : '';
+
+        return [
+            'payment_status'           => $status,
+            'stripe_status'            => $stripeStatus,
+            'transaction_id'           => $transactionId,
+            'subscription_id'          => $subscriptionId,
+            'is_subscription'          => (bool) $subscriptionId,
+            'is_membership'            => $isMembership,
+            'membership_access_id'     => $membershipAccess ? (int) $membershipAccess->id : 0,
+            'membership_access_status' => !empty($membershipAccess->status) ? sanitize_text_field($membershipAccess->status) : '',
+            'access_active'            => (bool) $accessActive,
+            'replayed'                 => true,
+        ];
+    }
+
+    /**
      * Record a Stripe PaymentIntent against the order it was created for.
      *
      * This runs from the browser after checkout and can be replayed at will — a

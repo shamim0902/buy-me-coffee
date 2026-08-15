@@ -143,10 +143,14 @@ class StripeSubscriptions
                 ],
             ]);
 
-            // Link transaction to subscription
+            // Link transaction to subscription, and bind the first invoice's
+            // intent to it before the browser is handed that intent: the
+            // confirmation that comes back is then matched to local state, and
+            // to this subscription, without asking Stripe who it belongs to.
             (new Transactions())->updateData($transaction->id, [
                 'transaction_type' => 'recurring',
                 'subscription_id'  => (int) $localSubscriptionId,
+                'charge_id'        => sanitize_text_field($paymentIntent['id']),
                 'updated_at'       => current_time('mysql'),
             ]);
 

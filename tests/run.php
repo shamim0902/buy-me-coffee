@@ -25,7 +25,20 @@ use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PublicRequestGuard;
 use BuyMeCoffee\Services\SupporterDeletionService;
+
+/**
+ * Stands in for the die() that ends a real wp_send_json_*() response, so an
+ * endpoint can be run to completion without ending the test process.
+ *
+ * Deliberately an Error rather than an Exception: gateway code legitimately
+ * wraps its own calls in catch (\Exception), and a halted response must not be
+ * mistaken for a payment failure and answered a second time.
+ */
+class BmcHaltedPublicRequest extends Error
+{
+}
 
 $suite = new BmcFeatureTestRunner();
 
@@ -58,6 +71,7 @@ $suite->test('database schema has every feature table and critical index', funct
         'buymecoffee_membership_levels',
         'buymecoffee_membership_access',
         'buymecoffee_supporters_meta',
+        'buymecoffee_request_guard',
     ];
 
     foreach ($tables as $table) {
@@ -3013,6 +3027,1783 @@ $suite->test('a supporter page reads paid history only for the identities on tha
         (string) $plan['t']['possible_keys'] . ' ' . (string) $plan['t']['key'],
         'The transaction lookup must be able to use bmc_tx_entry'
     );
+});
+
+
+// ── MEDIUM-01: public write endpoints need anti-automation and idempotency ──
+
+/**
+ * Run a public endpoint that answers with wp_send_json_*() and capture what it
+ * sent, instead of letting the response end the process.
+ *
+ * Deliberately re-entrant: a stub for an outbound provider call may run a second
+ * endpoint inside the first, which is how one process reproduces two requests
+ * that overlap — the second one runs while the first is still holding whatever
+ * it took out before calling the provider.
+ *
+ * @param callable $run Endpoint invocation.
+ * @return array {status, body, raw, ended}
+ */
+$bmcCapturePublicResponse = function (callable $run) {
+    $captured = ['status' => 200, 'body' => null, 'raw' => '', 'ended' => false];
+
+    $statusFilter = function ($header, $code) use (&$captured) {
+        $captured['status'] = (int) $code;
+
+        return $header;
+    };
+
+    $dieHandler = function () {
+        return function ($message = '', $title = '', $args = []) {
+            throw new BmcHaltedPublicRequest();
+        };
+    };
+
+    // A distinct closure per capture, never a shared named callback: a nested
+    // capture removing a callback the outer one still needs would leave the
+    // outer response to end the process instead of being caught.
+    $ajaxFilter = function () {
+        return true;
+    };
+
+    add_filter('wp_doing_ajax', $ajaxFilter);
+    add_filter('status_header', $statusFilter, 10, 2);
+    add_filter('wp_die_handler', $dieHandler);
+    add_filter('wp_die_ajax_handler', $dieHandler);
+    add_filter('wp_die_json_handler', $dieHandler);
+
+    $baseLevel = ob_get_level();
+    ob_start();
+
+    try {
+        $run();
+    } catch (BmcHaltedPublicRequest $halted) {
+        $captured['ended'] = true;
+    } finally {
+        while (ob_get_level() > $baseLevel) {
+            $captured['raw'] = ob_get_clean() . $captured['raw'];
+        }
+
+        remove_filter('wp_doing_ajax', $ajaxFilter);
+        remove_filter('status_header', $statusFilter, 10);
+        remove_filter('wp_die_handler', $dieHandler);
+        remove_filter('wp_die_ajax_handler', $dieHandler);
+        remove_filter('wp_die_json_handler', $dieHandler);
+    }
+
+    $captured['body'] = json_decode($captured['raw'], true);
+
+    return $captured;
+};
+
+/** Every guard row currently stored. */
+$bmcGuardRows = function ($type = null) {
+    global $wpdb;
+
+    if ($type === null) {
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        return $wpdb->get_results("SELECT * FROM {$wpdb->prefix}buymecoffee_request_guard");
+    }
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    return $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}buymecoffee_request_guard WHERE guard_type = %s",
+        $type
+    ));
+};
+
+/** Read one guard row by the storage key a claim reported. */
+$bmcGuardRow = function ($key) {
+    global $wpdb;
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    return $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}buymecoffee_request_guard WHERE guard_key = %s",
+        $key
+    ));
+};
+
+/** Move a guard row's lease so a lapse or a long wait can be observed. */
+$bmcExpireGuardRow = function ($key, $offset) {
+    global $wpdb;
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->prefix}buymecoffee_request_guard SET expires_at = %d WHERE guard_key = %s",
+        time() + $offset,
+        $key
+    ));
+};
+
+/** Start a test from an empty guard table and an unmemoized probe. */
+$bmcClearGuard = function () {
+    global $wpdb;
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query("DELETE FROM {$wpdb->prefix}buymecoffee_request_guard");
+
+    PublicRequestGuard::resetRuntimeState();
+};
+
+/** A syntactically valid, unique idempotency key. */
+$bmcIdemKey = function ($label) {
+    return 'bmcidem-' . substr(hash('sha256', (string) $label), 0, 24);
+};
+
+/** Put a complete public donation request into the superglobals. */
+$bmcSubmissionRequest = function (array $overrides = []) use ($bmcIdemKey) {
+    $request = array_merge([
+        'action'            => 'buymecoffee_submit',
+        'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+        'idempotency_key'   => $bmcIdemKey('attempt-' . wp_generate_password(12, false, false)),
+        'payment_method'    => 'paypal',
+        'is_recurring'      => 'no',
+        'form_data'         => [
+            ['name' => 'wpm-supporter-name', 'value' => 'Guard Donor'],
+            ['name' => 'wpm-supporter-email', 'value' => 'guard-donor@example.com'],
+            ['name' => 'buymecoffee_amount', 'value' => '5'],
+            ['name' => 'buymecoffee_quantity', 'value' => '1'],
+        ],
+    ], $overrides);
+
+    // A null override means "omit this field entirely".
+    foreach ($request as $field => $value) {
+        if ($value === null) {
+            unset($request[$field]);
+        }
+    }
+
+    $_REQUEST = $request;
+    $_POST    = $request;
+
+    return $request;
+};
+
+/** Count the supporter rows a submission test created. */
+$bmcCountSubmissions = function ($email = 'guard-donor@example.com') {
+    global $wpdb;
+
+    return [
+        'supporters' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}buymecoffee_supporters WHERE supporters_email = %s",
+            $email
+        )),
+        'transactions' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}buymecoffee_transactions t
+             INNER JOIN {$wpdb->prefix}buymecoffee_supporters s ON s.id = t.entry_id
+             WHERE s.supporters_email = %s",
+            $email
+        )),
+    ];
+};
+
+/** Enable PayPal Standard, which needs no outbound call to start a donation. */
+$bmcPayPalStandardSettings = function () {
+    update_option('buymecoffee_payment_settings_paypal', [
+        'enable'       => 'yes',
+        'payment_mode' => 'test',
+        'payment_type' => 'standard',
+        'paypal_email' => 'merchant@example.com',
+    ], false);
+};
+
+/** Enable PayPal Pro, which verifies and captures orders through the REST API. */
+$bmcPayPalProSettings = function () {
+    update_option('buymecoffee_payment_settings_paypal', [
+        'enable'          => 'yes',
+        'payment_mode'    => 'test',
+        'payment_type'    => 'pro',
+        'paypal_email'    => 'merchant@example.com',
+        'test_public_key' => 'client-id',
+        'test_secret_key' => 'client-secret',
+    ], false);
+};
+
+/** A PayPal donation waiting to be confirmed or notified about. */
+$bmcMakePayPalDonation = function ($status = 'pending', $chargeId = '') {
+    $hash = 'bmc_paypal_' . wp_generate_password(12, false, false);
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'PayPal Donor',
+        'supporters_email' => 'paypal-donor@example.com',
+        'payment_status'   => $status,
+        'entry_hash'       => $hash,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_method'   => 'paypal',
+        'payment_mode'     => 'test',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => $hash,
+        'transaction_type' => 'one_time',
+        'payment_method'   => 'paypal',
+        'payment_total'    => 2500,
+        'status'           => $status,
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'charge_id'        => $chargeId,
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    return [
+        'hash'           => $hash,
+        'supporter_id'   => $supporterId,
+        'transaction_id' => $transactionId,
+    ];
+};
+
+/** Build a wp_remote_request() response for a PayPal JSON body. */
+$bmcPayPalBody = function ($body, $code = 200) {
+    return [
+        'headers'  => [],
+        'body'     => is_string($body) ? $body : wp_json_encode($body),
+        'response' => ['code' => $code, 'message' => 'OK'],
+        'cookies'  => [],
+        'filename' => null,
+    ];
+};
+
+/** A captured PayPal order as the REST API returns it. */
+$bmcPayPalOrder = function ($orderId, $hash, $status = 'COMPLETED', $captureId = '') {
+    return [
+        'id'             => $orderId,
+        'status'         => $status,
+        'purchase_units' => [[
+            'reference_id' => $hash,
+            'amount'       => ['value' => '25.00', 'currency_code' => 'USD'],
+            'payments'     => ['captures' => [['id' => $captureId ?: ('CAPTURE-' . $orderId)]]],
+        ]],
+    ];
+};
+
+/** The current status of a transaction row. */
+$bmcTransactionStatus = function ($transactionId) {
+    global $wpdb;
+
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+        $transactionId
+    ));
+};
+
+$suite->test('a request past its route ceiling is refused with 413, measured on the body that actually arrived', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcClearGuard) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR']    = '203.0.113.10';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    // A declared oversize is refused before the body is touched at all.
+    $_SERVER['CONTENT_LENGTH'] = (string) (2 * 1024 * 1024);
+
+    $decision = PublicRequestGuard::checkSize('submission');
+    $test->assertFalse($decision['allowed'], 'A body past the route ceiling must not be allowed');
+    $test->assertSame('request_too_large', $decision['code']);
+    $test->assertSame(413, $decision['http']);
+
+    $before = $bmcCountSubmissions();
+    $bmcSubmissionRequest();
+    $response = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(413, $response['status'], 'The endpoint itself must fail closed');
+    $test->assertFalse($response['body']['success']);
+    $test->assertSame('request_too_large', $response['body']['data']['code'], 'The error payload must stay stable');
+    $test->assertSame($before, $bmcCountSubmissions(), 'A refused request must write nothing');
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests) {
+        $requests[] = $url;
+
+        return $pre;
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        // Content-Length is a claim. With none at all, and with an understated
+        // one, the Stripe webhook still measures what it really read.
+        $oversizedEvent = str_repeat('a', 512 * 1024 + 64);
+
+        foreach ([null, '32'] as $declared) {
+            unset($_SERVER['CONTENT_LENGTH']);
+            if ($declared !== null) {
+                $_SERVER['CONTENT_LENGTH'] = $declared;
+            }
+
+            $outcome = (new Stripe())->processIncomingEvent(null, $oversizedEvent);
+
+            $test->assertSame('request_too_large', $outcome['code'], 'The real body length must decide');
+            $test->assertSame(413, $outcome['http']);
+            $test->assertSame(0, count($requests), 'An oversized webhook body must not be re-fetched from Stripe');
+        }
+
+        // PayPal enforces the body it was handed in exactly the same way.
+        $oversizedIpn = 'txn_id=BMC-BIG&payload=' . str_repeat('b', 128 * 1024);
+
+        foreach ([null, '32'] as $declared) {
+            unset($_SERVER['CONTENT_LENGTH']);
+            if ($declared !== null) {
+                $_SERVER['CONTENT_LENGTH'] = $declared;
+            }
+
+            $outcome = (new IPN())->processIncomingIpn($oversizedIpn);
+
+            $test->assertSame('request_too_large', $outcome['code']);
+            $test->assertSame(413, $outcome['http']);
+            $test->assertSame(0, count($requests), 'An oversized IPN must never be echoed back to PayPal');
+        }
+
+        // A body of a normal size passes the very same checks and is processed.
+        unset($_SERVER['CONTENT_LENGTH']);
+        $test->assertTrue(PublicRequestGuard::checkSize('submission')['allowed'], 'A normal donation body must pass');
+
+        $normal = (new Stripe())->processIncomingEvent(null, wp_json_encode([
+            'id'   => 'evt_guard_normal_size',
+            'type' => 'charge.succeeded',
+        ]));
+
+        $test->assertFalse($normal['code'] === 'request_too_large', 'A normal webhook body must get past the ceiling');
+        $test->assertSame(1, count($requests), 'A normal webhook body is authenticated against Stripe');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('rate limits are exact at their boundary and no increment is ever lost or duplicated', function ($test) use ($bmcClearGuard, $bmcGuardRows) {
+    $bmcClearGuard();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.11';
+
+    $bucket = 'rate|guard-test|boundary|' . PublicRequestGuard::clientId();
+
+    for ($hit = 1; $hit <= 5; $hit++) {
+        $result = PublicRequestGuard::consume($bucket, 5, MINUTE_IN_SECONDS);
+        $test->assertTrue($result['allowed'], "Hit {$hit} is inside the limit and must be allowed");
+        $test->assertSame($hit, $result['count'], 'Every hit must be counted exactly once');
+
+        // A worker that shares nothing but the database still continues the same
+        // window: the count lives in the row, never in a cache or in this process.
+        wp_cache_flush();
+    }
+
+    $denied = PublicRequestGuard::consume($bucket, 5, MINUTE_IN_SECONDS);
+    $test->assertFalse($denied['allowed'], 'The hit past the limit must be refused');
+    $test->assertSame(6, $denied['count'], 'The refused hit is still counted, so it cannot be lost');
+    $test->assertTrue($denied['retry_after'] > 0, 'A refusal must say how long to wait');
+    $test->assertTrue($denied['retry_after'] <= MINUTE_IN_SECONDS, 'The wait must not exceed the window');
+
+    $rows = $bmcGuardRows();
+    $test->assertSame(1, count($rows), 'One window is one row, so parallel workers contend on one key');
+    $test->assertSame(6, (int) $rows[0]->counter, 'No increment may be lost or applied twice');
+    $test->assertSame('rate', $rows[0]->guard_type);
+
+    // Ten consumers of one bucket are handed ten distinct positions. That is the
+    // property a read-then-write limiter loses: two of them would read the same
+    // count and write the same value back, and one hit would vanish.
+    $fresh  = 'rate|guard-test|distinct|' . PublicRequestGuard::clientId();
+    $counts = [];
+    for ($hit = 1; $hit <= 10; $hit++) {
+        wp_cache_flush();
+        $counts[] = PublicRequestGuard::consume($fresh, 100, MINUTE_IN_SECONDS)['count'];
+    }
+
+    $test->assertSame(range(1, 10), $counts, 'Every consumer must be handed its own position in the window');
+    $test->assertSame(10, count(array_unique($counts)), 'No two consumers may be given the same count');
+
+    // A lapsed window starts again from one, and does so in the same statement.
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->prefix}buymecoffee_request_guard SET expires_at = %d WHERE guard_key = %s",
+        time() - 5,
+        $rows[0]->guard_key
+    ));
+
+    $rolled = PublicRequestGuard::consume($bucket, 5, MINUTE_IN_SECONDS);
+    $test->assertTrue($rolled['allowed'], 'A new window must be allowed again');
+    $test->assertSame(1, $rolled['count'], 'A lapsed window restarts at one');
+    $test->assertSame(2, count($bmcGuardRows()), 'A rolled window must reuse its row, not add one');
+
+    // A limit of zero is the documented "off" setting.
+    $test->assertTrue(PublicRequestGuard::consume($bucket, 0, MINUTE_IN_SECONDS)['allowed']);
+});
+
+$suite->test('a forwarded client IP is ignored unless a trusted resolver supplies one', function ($test) use ($bmcClearGuard, $bmcGuardRows) {
+    $bmcClearGuard();
+
+    $_SERVER['REMOTE_ADDR']          = '198.51.100.5';
+    $_SERVER['HTTP_X_FORWARDED_FOR'] = '9.9.9.9';
+    $_SERVER['HTTP_CLIENT_IP']       = '7.7.7.7';
+    $_SERVER['HTTP_X_REAL_IP']       = '6.6.6.6';
+
+    $test->assertSame('198.51.100.5', PublicRequestGuard::clientIp(), 'Only REMOTE_ADDR is trusted by default');
+    $first = PublicRequestGuard::clientId();
+
+    // Rotating every forwarding header buys an attacker nothing at all.
+    $_SERVER['HTTP_X_FORWARDED_FOR'] = '8.8.8.8, 1.1.1.1';
+    $_SERVER['HTTP_CLIENT_IP']       = '5.5.5.5';
+    $test->assertSame($first, PublicRequestGuard::clientId(), 'A rotated forwarding header must not create a new bucket');
+
+    for ($hit = 1; $hit <= 3; $hit++) {
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.' . $hit;
+        PublicRequestGuard::consume('rate|guard-test|forwarded|' . PublicRequestGuard::clientId(), 3, MINUTE_IN_SECONDS);
+    }
+
+    $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.250';
+    $test->assertFalse(
+        PublicRequestGuard::consume('rate|guard-test|forwarded|' . PublicRequestGuard::clientId(), 3, MINUTE_IN_SECONDS)['allowed'],
+        'The limit must still trip while the forwarding header changes on every request'
+    );
+    $test->assertSame(1, count($bmcGuardRows()), 'Every request must land in the same bucket');
+
+    // A host behind a proxy opts in explicitly, and only then is it honoured.
+    $resolver = function () {
+        return '203.0.113.99';
+    };
+    add_filter('buymecoffee_trusted_client_ip', $resolver);
+
+    try {
+        $test->assertSame('203.0.113.99', PublicRequestGuard::clientIp(), 'An explicitly resolved address must win');
+        $test->assertFalse($first === PublicRequestGuard::clientId(), 'A different client must get a different bucket');
+    } finally {
+        remove_filter('buymecoffee_trusted_client_ip', $resolver);
+    }
+
+    // A rubbish resolved value falls back rather than poisoning the bucket key.
+    $broken = function () {
+        return 'not-an-ip';
+    };
+    add_filter('buymecoffee_trusted_client_ip', $broken);
+
+    try {
+        $test->assertSame('198.51.100.5', PublicRequestGuard::clientIp());
+    } finally {
+        remove_filter('buymecoffee_trusted_client_ip', $broken);
+    }
+
+    // Nothing readable is ever persisted.
+    foreach ($bmcGuardRows() as $row) {
+        $test->assertNotContains('198.51.100.5', $row->guard_key, 'A raw address must never be stored');
+        $test->assertTrue((bool) preg_match('/\A[a-f0-9]{40}\z/', $row->guard_key), 'Guard keys must be keyed digests');
+    }
+});
+
+$suite->test('a submission without a usable idempotency key is refused and writes nothing', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcClearGuard, $bmcGuardRows, $bmcIdemKey) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.30';
+
+    // No key at all. This is what an attacker sends, and what a double-clicking
+    // browser used to send: without it there is nothing to make the request
+    // repeatable, so it is refused rather than served unprotected.
+    $bmcSubmissionRequest(['idempotency_key' => null]);
+    $missing = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(400, $missing['status']);
+    $test->assertSame('idempotency_key_required', $missing['body']['data']['code']);
+    $test->assertSame(['supporters' => 0, 'transactions' => 0], $bmcCountSubmissions(), 'A keyless request must write nothing');
+    $test->assertSame(0, count($bmcGuardRows('claim')), 'A keyless request must not take out a claim');
+
+    foreach (['', 'short', str_repeat('x', 129), 'has spaces in it here'] as $bad) {
+        $bmcSubmissionRequest(['idempotency_key' => $bad]);
+        $refused = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(400, $refused['status'], 'A malformed key must be refused');
+        $test->assertTrue(
+            in_array($refused['body']['data']['code'], ['idempotency_key_required', 'invalid_idempotency_key'], true),
+            'A malformed key must be named as such'
+        );
+    }
+
+    $test->assertSame(['supporters' => 0, 'transactions' => 0], $bmcCountSubmissions());
+
+    // A host that has to serve a client which cannot produce a key opts out
+    // deliberately, and only then does the old unprotected behaviour return.
+    $optOut = '__return_true';
+    add_filter('buymecoffee_allow_unkeyed_submission', $optOut);
+
+    try {
+        $bmcSubmissionRequest(['idempotency_key' => null]);
+        $legacy = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(200, $legacy['status'], 'The explicit opt-out must restore the old behaviour');
+        $test->assertSame(1, $bmcCountSubmissions()['supporters']);
+    } finally {
+        remove_filter('buymecoffee_allow_unkeyed_submission', $optOut);
+    }
+
+    // And with a well-formed key the donation goes through as normal.
+    $bmcSubmissionRequest(['idempotency_key' => $bmcIdemKey('well-formed')]);
+    $accepted = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(200, $accepted['status']);
+    $test->assertNotEmpty($accepted['body']['data']['redirectTo'], 'PayPal Standard must still hand back its redirect');
+    $test->assertSame(2, $bmcCountSubmissions()['supporters']);
+});
+
+$suite->test('a retried or concurrent submission creates no second donation and no second provider payment', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcStripeSettings, $bmcStripeBody, $bmcClearGuard, $bmcIdemKey) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.20';
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody) {
+        $requests[] = $url;
+
+        if (strpos($url, '/customers') !== false) {
+            return $bmcStripeBody(['id' => 'cus_guard_dup']);
+        }
+
+        return $bmcStripeBody([
+            'id'            => 'pi_guard_dup_' . count($requests),
+            'object'        => 'payment_intent',
+            'amount'        => 500,
+            'currency'      => 'usd',
+            'status'        => 'requires_payment_method',
+            'client_secret' => 'pi_guard_dup_secret',
+        ]);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $key = $bmcIdemKey('retry-same-attempt');
+
+        $bmcSubmissionRequest(['payment_method' => 'stripe', 'idempotency_key' => $key]);
+        $first = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(200, $first['status']);
+        $test->assertTrue($first['body']['success'], 'The first attempt must be accepted');
+        $test->assertSame(2, count($requests), 'The first attempt creates the customer and the intent');
+        $test->assertSame(['supporters' => 1, 'transactions' => 1], $bmcCountSubmissions());
+
+        // The intent is bound to the order before the browser ever sees it, so
+        // the confirmation that comes back can be matched without asking Stripe.
+        $boundIntent = $wpdb->get_var($wpdb->prepare(
+            "SELECT t.charge_id FROM {$wpdb->prefix}buymecoffee_transactions t
+             INNER JOIN {$wpdb->prefix}buymecoffee_supporters s ON s.id = t.entry_id
+             WHERE s.supporters_email = %s",
+            'guard-donor@example.com'
+        ));
+        $test->assertSame('pi_guard_dup_2', $boundIntent, 'Checkout must record the intent it created');
+
+        // The browser never saw the answer and retries the very same attempt.
+        $bmcSubmissionRequest(['payment_method' => 'stripe', 'idempotency_key' => $key]);
+        $second = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(409, $second['status'], 'A completed attempt must not be run again');
+        $test->assertSame('submission_already_completed', $second['body']['data']['code']);
+        $test->assertSame(2, count($requests), 'A retry must not create a second remote payment');
+        $test->assertSame(['supporters' => 1, 'transactions' => 1], $bmcCountSubmissions(), 'A retry must not create a second row');
+
+        // A second request that arrives while the first is still running — a
+        // double click, or two tabs — is refused before it writes or pays.
+        $concurrentKey = $bmcIdemKey('still-running');
+        $inFlight = PublicRequestGuard::claim('submission', $concurrentKey);
+        $test->assertTrue($inFlight['acquired'], 'The first worker takes the lease');
+
+        $bmcSubmissionRequest(['payment_method' => 'stripe', 'idempotency_key' => $concurrentKey]);
+        $concurrent = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(409, $concurrent['status'], 'A concurrent attempt must be refused');
+        $test->assertSame('submission_in_progress', $concurrent['body']['data']['code']);
+        $test->assertSame(2, count($requests), 'A concurrent attempt must not reach Stripe');
+        $test->assertSame(['supporters' => 1, 'transactions' => 1], $bmcCountSubmissions(), 'A concurrent attempt must write nothing');
+
+        // A different attempt is a different key, and is a real donation again.
+        $bmcSubmissionRequest(['payment_method' => 'stripe', 'idempotency_key' => $bmcIdemKey('new-attempt')]);
+        $third = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(200, $third['status']);
+        $test->assertSame(4, count($requests), 'A new attempt may create a new payment');
+        $test->assertSame(['supporters' => 2, 'transactions' => 2], $bmcCountSubmissions());
+
+        // The same browser may move between networks before retrying. The attempt
+        // key, not its current address, remains the idempotency boundary.
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.21';
+        $bmcSubmissionRequest(['payment_method' => 'stripe', 'idempotency_key' => $key]);
+        $other = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(409, $other['status'], 'An address change must not reopen the same attempt');
+        $test->assertSame('submission_already_completed', $other['body']['data']['code']);
+        $test->assertSame(2, $bmcCountSubmissions()['supporters']);
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a submission refused before any side effect leaves its key reusable', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcClearGuard, $bmcIdemKey) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.31';
+
+    $key = $bmcIdemKey('correctable-attempt');
+
+    $bmcSubmissionRequest(['payment_method' => 'not-a-gateway', 'idempotency_key' => $key]);
+    $refused = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(400, $refused['status'], 'An unknown gateway is still refused');
+    $test->assertSame(['supporters' => 0, 'transactions' => 0], $bmcCountSubmissions(), 'Validation must not write anything');
+    $test->assertSame(
+        null,
+        PublicRequestGuard::readClaim('submission', $key),
+        'A validation failure must never consume the key'
+    );
+
+    // The donor corrects the request and retries the same attempt.
+    $bmcSubmissionRequest(['idempotency_key' => $key]);
+    $accepted = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(200, $accepted['status'], 'The corrected retry must be accepted');
+    $test->assertTrue($accepted['body']['success']);
+    $test->assertSame(['supporters' => 1, 'transactions' => 1], $bmcCountSubmissions());
+
+    $consumed = PublicRequestGuard::readClaim('submission', $key);
+    $test->assertSame(PublicRequestGuard::STATE_COMPLETED, $consumed['state'], 'A donation that was created consumes its key');
+});
+
+$suite->test('submissions are rate limited before any row is written', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcClearGuard) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.40';
+
+    $tighten = function ($limit, $route, $bucket) {
+        return ($route === 'submission' && $bucket === 'burst') ? 2 : $limit;
+    };
+    add_filter('buymecoffee_public_request_rate_limit', $tighten, 10, 3);
+
+    try {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $bmcSubmissionRequest();
+            $allowed = $bmcCapturePublicResponse(function () {
+                (new SubmissionHandler())->handleSubmission();
+            });
+            $test->assertSame(200, $allowed['status'], "Donation {$attempt} is inside the limit");
+        }
+
+        $test->assertSame(2, $bmcCountSubmissions()['supporters']);
+
+        $bmcSubmissionRequest();
+        $limited = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(429, $limited['status'], 'A flood must be answered with 429');
+        $test->assertSame('rate_limited', $limited['body']['data']['code']);
+        $test->assertSame(2, $bmcCountSubmissions()['supporters'], 'A limited request must not reach the database');
+
+        // Another visitor is unaffected by the first one hitting the limit.
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.41';
+        $bmcSubmissionRequest();
+        $other = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(200, $other['status'], 'One flooding client must not block everybody else');
+    } finally {
+        remove_filter('buymecoffee_public_request_rate_limit', $tighten, 10);
+    }
+});
+
+$suite->test('a Stripe confirmation for an intent this site never created reaches neither Stripe nor a lease', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcMakeOneTimePurchase, $bmcClearGuard, $bmcGuardRows) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.52';
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests) {
+        $requests[] = $url;
+
+        return $pre;
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => 'pi_never_created_here',
+        ];
+
+        $unknown = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(404, $unknown['status'], 'An unrecognised intent must be refused');
+        $test->assertSame('payment_intent_not_recognized', $unknown['body']['data']['code']);
+        $test->assertSame(0, count($requests), 'An unrecognised intent must not be looked up at Stripe');
+        $test->assertSame(0, count($bmcGuardRows('claim')), 'An unrecognised intent must not be able to hold a lease');
+
+        // A real intent, but presented with a subscription it was never bound
+        // to: refused on local state, again without a provider call.
+        $purchase = $bmcMakeOneTimePurchase();
+        $_REQUEST['intentId']       = 'pi_' . $purchase['suffix'];
+        $_REQUEST['subscriptionId'] = 4242;
+
+        $mismatched = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(403, $mismatched['status']);
+        $test->assertSame('subscription_mismatch', $mismatched['body']['data']['code']);
+        $test->assertSame(0, count($requests), 'A mismatched subscription claim must not be checked at Stripe');
+        $test->assertSame(0, count($bmcGuardRows('claim')), 'A mismatched claim must not hold a lease either');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('two Stripe confirmations of one intent cannot both reach Stripe, and a settled one replays locally', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcServiceSharesTestTransaction, $bmcClearGuard) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.50';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+
+    $purchase = $bmcMakeOneTimePurchase();
+    $intentId = 'pi_' . $purchase['suffix'];
+
+    $requests   = [];
+    $concurrent = null;
+
+    $stub = function ($pre, $args, $url) use (&$requests, &$concurrent, $bmcStripeBody, $bmcCapturePublicResponse, $purchase, $intentId) {
+        $requests[] = $url;
+
+        // While this confirmation is at Stripe, a second one for the same intent
+        // arrives — deliberately from a different address, because a lease
+        // scoped to whoever is asking would let exactly that pair race.
+        if ($concurrent === null) {
+            $elsewhere = $_SERVER['REMOTE_ADDR'];
+            $_SERVER['REMOTE_ADDR'] = '198.51.100.44';
+
+            $concurrent = $bmcCapturePublicResponse(function () {
+                (new Stripe())->paymentConfirmation();
+            });
+
+            $_SERVER['REMOTE_ADDR'] = $elsewhere;
+        }
+
+        return $bmcStripeBody([
+            'id'              => $intentId,
+            'object'          => 'payment_intent',
+            'status'          => 'succeeded',
+            'amount'          => 2500,
+            'amount_received' => 2500,
+            'currency'        => 'usd',
+            'livemode'        => false,
+            'metadata'        => ['ref_id' => $purchase['order_hash']],
+            'charges'         => ['data' => [[
+                'payment_method_details' => ['card' => ['last4' => '4242', 'brand' => 'visa']],
+            ]]],
+        ]);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $intentId,
+        ];
+
+        $confirmed = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $confirmed['status'], 'The confirmation that holds the lease completes');
+        $test->assertSame('paid', $confirmed['body']['data']['payment_status']);
+        $test->assertSame(1, count($requests), 'Only one of the two confirmations may reach Stripe');
+
+        $test->assertNotEmpty($concurrent, 'The concurrent confirmation must have run');
+        $test->assertSame(409, $concurrent['status'], 'A confirmation of an operation already running is a conflict');
+        $test->assertSame('confirmation_in_progress', $concurrent['body']['data']['code']);
+        $test->assertFalse($concurrent['body']['success'], 'A conflicted confirmation must not report success');
+
+        // Now that it is settled, further confirmations are answered from the
+        // rows alone: no customer, intent, invoice or subscription lookup.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['payment_note' => wp_json_encode(['id' => $intentId, 'status' => 'succeeded'])],
+            ['id' => $purchase['transaction_id']]
+        );
+
+        $replayed = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $replayed['status']);
+        $test->assertSame(1, count($requests), 'A settled confirmation must not call Stripe again');
+        $test->assertSame('paid', $replayed['body']['data']['payment_status']);
+        $test->assertSame('succeeded', $replayed['body']['data']['stripe_status'], 'The stored intent status is replayed');
+        $test->assertSame($purchase['transaction_id'], $replayed['body']['data']['transaction_id']);
+        $test->assertTrue($replayed['body']['data']['access_active'], 'A paid membership must still report its access');
+        $test->assertTrue($replayed['body']['data']['replayed']);
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a Stripe confirmation that failed at the provider gives its lease straight back', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcServiceSharesTestTransaction, $bmcClearGuard) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.53';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+
+    $purchase = $bmcMakeOneTimePurchase();
+    $intentId = 'pi_' . $purchase['suffix'];
+
+    $requests = [];
+    $failing  = true;
+
+    $stub = function ($pre, $args, $url) use (&$requests, &$failing, $bmcStripeBody, $purchase, $intentId) {
+        $requests[] = $url;
+
+        if ($failing) {
+            return new WP_Error('http_request_failed', 'Stripe is unreachable');
+        }
+
+        return $bmcStripeBody([
+            'id'              => $intentId,
+            'object'          => 'payment_intent',
+            'status'          => 'succeeded',
+            'amount'          => 2500,
+            'amount_received' => 2500,
+            'currency'        => 'usd',
+            'livemode'        => false,
+            'metadata'        => ['ref_id' => $purchase['order_hash']],
+        ]);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $intentId,
+        ];
+
+        $failed = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(400, $failed['status'], 'A provider failure is reported as a failure');
+        $test->assertSame(1, count($requests));
+        $test->assertSame(
+            null,
+            PublicRequestGuard::readClaim('stripe_confirmation', 'intent|' . $intentId),
+            'A failed confirmation must not leave the intent locked'
+        );
+
+        // The donor tries again, and this time it works: the lease was never
+        // burned by a failure that a retry could fix.
+        $failing = false;
+
+        $retried = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $retried['status'], 'The retry must be able to reach Stripe again');
+        $test->assertSame('paid', $retried['body']['data']['payment_status']);
+        $test->assertSame(2, count($requests), 'The retry really did reach Stripe');
+
+        $settled = PublicRequestGuard::readClaim('stripe_confirmation', 'intent|' . $intentId);
+        $test->assertSame(PublicRequestGuard::STATE_COMPLETED, $settled['state'], 'A settled confirmation is recorded as done');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('replaying one Stripe intent is throttled per caller without locking out its donor', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcMakeOneTimePurchase, $bmcClearGuard) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.54';
+
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $intentId = 'pi_' . $purchase['suffix'];
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['payment_note' => wp_json_encode(['id' => $intentId, 'status' => 'succeeded'])],
+        ['id' => $purchase['transaction_id']]
+    );
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests) {
+        $requests[] = $url;
+
+        return $pre;
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $intentId,
+        ];
+
+        $statuses = [];
+        for ($attempt = 1; $attempt <= 8; $attempt++) {
+            $statuses[] = $bmcCapturePublicResponse(function () {
+                (new Stripe())->paymentConfirmation();
+            })['status'];
+        }
+
+        $test->assertSame(
+            [200, 200, 200, 200, 200, 200, 429, 429],
+            $statuses,
+            'One caller may replay one intent a bounded number of times per minute'
+        );
+        $test->assertSame(0, count($requests), 'Not one replay may reach Stripe');
+
+        // The bucket belongs to the caller, so a flood cannot spend the budget
+        // the real donor's own browser needs for the same intent.
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.55';
+        $donor = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $donor['status'], 'One caller flooding an intent must not lock out its donor');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a duplicate Stripe delivery costs no second fetch, and one still running stays retryable', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction, $bmcClearGuard) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.60';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase();
+    $eventId  = 'evt_guard_dup_' . $purchase['suffix'];
+    $event    = $bmcStripeEvent($eventId, 'charge.succeeded', $bmcStripeCharge($purchase['order_hash']));
+
+    $second   = $bmcMakeOneTimePurchase();
+    $secondId = 'evt_guard_busy_' . $second['suffix'];
+
+    $events = [
+        $eventId  => $event,
+        $secondId => $bmcStripeEvent($secondId, 'charge.succeeded', $bmcStripeCharge($second['order_hash'])),
+    ];
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $events) {
+        $requests[] = $url;
+
+        foreach ($events as $id => $payload) {
+            if (strpos($url, 'events/' . $id) !== false) {
+                return $bmcStripeBody($payload);
+            }
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'No such event']], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $claimed = (object) ['id' => $eventId, 'type' => 'charge.succeeded'];
+
+        $first = (new Stripe())->processIncomingEvent($claimed);
+        $test->assertSame('payment_status_updated', $first['code']);
+        $test->assertSame('paid', $bmcPaymentState($purchase)['transaction']);
+        $test->assertSame(1, count($requests), 'The event must be authenticated against Stripe once');
+        $test->assertSame(1, count($log['status']), 'The payment hook fires once');
+
+        $duplicate = (new Stripe())->processIncomingEvent($claimed);
+        $test->assertSame('duplicate_event', $duplicate['code'], 'A redelivery must be recognised');
+        $test->assertSame(200, $duplicate['http'], 'Stripe must not be asked to retry a finished event');
+        $test->assertSame(1, count($requests), 'A redelivery of a consumed event must not re-fetch it');
+        $test->assertSame(1, count($log['status']), 'A redelivery must not fire the payment hook again');
+        $test->assertSame('paid', $bmcPaymentState($purchase)['transaction']);
+
+        // A second delivery of an event another worker is still applying must
+        // NOT be answered 200: that would let Stripe drop it while the worker
+        // holding it may still fail, and the event would be lost for good.
+        $inFlight = PublicRequestGuard::claim('stripe_event', $secondId);
+        $test->assertTrue($inFlight['acquired'], 'The first worker takes the lease');
+
+        $busy = (new Stripe())->processIncomingEvent((object) ['id' => $secondId, 'type' => 'charge.succeeded']);
+
+        $test->assertSame('event_in_progress', $busy['code'], 'An event being applied elsewhere is a conflict');
+        $test->assertSame(409, $busy['http'], 'A conflicted delivery must stay retryable');
+        $test->assertTrue($busy['retry_after'] > 0, 'A conflicted delivery must be told when to return');
+        $test->assertSame('pending', $bmcPaymentState($second)['transaction'], 'The conflicted delivery must change nothing');
+        $test->assertSame(1, count($log['status']), 'The conflicted delivery must not fire the payment hook');
+
+        // Once that worker gives the lease back, the redelivery applies normally.
+        PublicRequestGuard::releaseClaim($inFlight['key'], $inFlight['owner']);
+
+        $redelivered = (new Stripe())->processIncomingEvent((object) ['id' => $secondId, 'type' => 'charge.succeeded']);
+        $test->assertSame('payment_status_updated', $redelivered['code'], 'The released event must still be applied');
+        $test->assertSame('paid', $bmcPaymentState($second)['transaction']);
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('unauthenticated Stripe deliveries are bounded per address without blocking genuine ones', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcServiceSharesTestTransaction, $bmcClearGuard) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+
+    $genuine  = $bmcMakeOneTimePurchase();
+    $genuineId = 'evt_guard_genuine_' . $genuine['suffix'];
+    $followUp  = $bmcMakeOneTimePurchase();
+    $followUpId = 'evt_guard_genuine2_' . $followUp['suffix'];
+
+    $events = [
+        $genuineId  => $bmcStripeEvent($genuineId, 'charge.succeeded', $bmcStripeCharge($genuine['order_hash'])),
+        $followUpId => $bmcStripeEvent($followUpId, 'charge.succeeded', $bmcStripeCharge($followUp['order_hash'])),
+    ];
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $events) {
+        $requests[] = $url;
+
+        foreach ($events as $id => $payload) {
+            if (strpos($url, 'events/' . $id) !== false) {
+                return $bmcStripeBody($payload);
+            }
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'No such event']], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    $tighten = function ($limit, $route, $bucket) {
+        return $route === 'webhook_stripe_invalid' ? 2 : $limit;
+    };
+    add_filter('buymecoffee_public_request_rate_limit', $tighten, 10, 3);
+
+    try {
+        // An attacker inventing event ids from their own address.
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.66';
+        $codes = [];
+
+        for ($attempt = 1; $attempt <= 4; $attempt++) {
+            $codes[] = (new Stripe())->processIncomingEvent((object) [
+                'id'   => 'evt_guard_invented_' . $attempt,
+                'type' => 'charge.succeeded',
+            ])['code'];
+        }
+
+        $test->assertSame(
+            ['event_fetch_failed', 'event_fetch_failed', 'rate_limited', 'rate_limited'],
+            $codes,
+            'Deliveries that fail to authenticate are bounded per address'
+        );
+        $test->assertSame(2, count($requests), 'A bounded caller must stop reaching the Stripe API');
+
+        // Stripe's own delivery address is untouched by that: the budget above
+        // is only ever charged by a delivery that failed to authenticate, and a
+        // genuine one never charges it however many arrive.
+        $_SERVER['REMOTE_ADDR'] = '54.187.174.169';
+        $requests = [];
+
+        $delivered = (new Stripe())->processIncomingEvent((object) ['id' => $genuineId, 'type' => 'charge.succeeded']);
+        $test->assertSame('payment_status_updated', $delivered['code'], 'A genuine delivery must still be processed');
+        $test->assertSame('paid', $bmcPaymentState($genuine)['transaction']);
+
+        $again = (new Stripe())->processIncomingEvent((object) ['id' => $followUpId, 'type' => 'charge.succeeded']);
+        $test->assertSame('payment_status_updated', $again['code'], 'Genuine volume must never fill a shared-address budget');
+        $test->assertSame('paid', $bmcPaymentState($followUp)['transaction']);
+        $test->assertSame(2, count($requests), 'Both genuine deliveries reached Stripe');
+    } finally {
+        remove_filter('buymecoffee_public_request_rate_limit', $tighten, 10);
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a duplicate VERIFIED PayPal notification is applied once, and a distinct one is never mistaken for it', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR']    = '173.0.93.10';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $donation      = $bmcMakePayPalDonation();
+    $transactionId = $donation['transaction_id'];
+
+    $calls = [];
+    $stub = function ($pre, $args, $url) use (&$calls) {
+        $calls[] = $url;
+
+        return [
+            'headers'  => [],
+            'body'     => 'VERIFIED',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies'  => [],
+            'filename' => null,
+        ];
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $completed = [
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'BMC-IPN-REPLAY-1',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => $transactionId,
+            'ipn_track_id'   => 'trackA',
+        ];
+
+        $first = (new IPN())->processIncomingIpn(http_build_query($completed));
+        $test->assertSame('ipn_processed', $first['code']);
+        $test->assertSame(200, $first['http']);
+        $test->assertSame(1, count($calls), 'Every notification is echoed back to PayPal first');
+        $test->assertSame('paid', $bmcTransactionStatus($transactionId), 'A verified completed payment settles');
+
+        // A refund lands after it; the redelivery must not resurrect the payment.
+        $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'refunded'], ['id' => $transactionId]);
+
+        $duplicate = (new IPN())->processIncomingIpn(http_build_query($completed));
+        $test->assertSame('duplicate_ipn', $duplicate['code'], 'A duplicate delivery must be recognised');
+        $test->assertSame(200, $duplicate['http'], 'PayPal must not be asked to redeliver it forever');
+        $test->assertSame('refunded', $bmcTransactionStatus($transactionId), 'A duplicate delivery must mutate nothing');
+        $test->assertSame(2, count($calls), 'Authenticity is still established before anything is decided');
+
+        // PayPal reordered the fields, which is the same message. Keying on a
+        // canonical form of the whole payload still recognises it.
+        $reordered = array_reverse($completed, true);
+        $shuffled  = (new IPN())->processIncomingIpn(http_build_query($reordered));
+        $test->assertSame('duplicate_ipn', $shuffled['code'], 'Field order must not create a new notification');
+
+        // Two notifications that share every field the old partial key looked at
+        // — type, status, amount and the local reference — but are genuinely
+        // different messages. Neither may be discarded as a replay of the other.
+        $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'pending'], ['id' => $transactionId]);
+
+        $pendingBase = [
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Pending',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => $transactionId,
+        ];
+
+        $stageOne = (new IPN())->processIncomingIpn(http_build_query(array_merge($pendingBase, [
+            'pending_reason' => 'echeck',
+            'payment_date'   => '10:00:00 Jan 01, 2026 PST',
+            'ipn_track_id'   => 'trackB',
+        ])));
+
+        $stageTwo = (new IPN())->processIncomingIpn(http_build_query(array_merge($pendingBase, [
+            'pending_reason' => 'multi_currency',
+            'payment_date'   => '11:00:00 Jan 01, 2026 PST',
+            'ipn_track_id'   => 'trackC',
+        ])));
+
+        $test->assertSame('ipn_processed', $stageOne['code']);
+        $test->assertSame('ipn_processed', $stageTwo['code'], 'A distinct notification must never be dropped as a duplicate');
+        $test->assertSame('processing', $bmcTransactionStatus($transactionId));
+
+        // Without a track id the identity falls back to the whole payload, and
+        // is just as exact.
+        $noTrack = array_merge($pendingBase, ['pending_reason' => 'address', 'payment_date' => '12:00:00 Jan 01, 2026 PST']);
+
+        $test->assertSame('ipn_processed', (new IPN())->processIncomingIpn(http_build_query($noTrack))['code']);
+        $test->assertSame('duplicate_ipn', (new IPN())->processIncomingIpn(http_build_query($noTrack))['code']);
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a PayPal notification that could not be applied, or is being applied elsewhere, stays redeliverable', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR']    = '173.0.93.11';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $donation      = $bmcMakePayPalDonation();
+    $transactionId = $donation['transaction_id'];
+
+    $calls = [];
+    $stub = function ($pre, $args, $url) use (&$calls) {
+        $calls[] = $url;
+
+        return [
+            'headers'  => [],
+            'body'     => 'VERIFIED',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies'  => [],
+            'filename' => null,
+        ];
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    $failing = function () {
+        throw new RuntimeException('storage unavailable');
+    };
+
+    try {
+        $body = http_build_query([
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'BMC-IPN-FAIL-1',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => $transactionId,
+            'ipn_track_id'   => 'trackFail',
+        ]);
+
+        add_action('buymecoffee_paypal_action_web_accept', $failing, 1);
+        $failed = (new IPN())->processIncomingIpn($body);
+        remove_action('buymecoffee_paypal_action_web_accept', $failing, 1);
+
+        $test->assertSame('processing_failed', $failed['code']);
+        $test->assertSame(500, $failed['http'], 'A failed application must ask PayPal to redeliver');
+        $test->assertSame('pending', $bmcTransactionStatus($transactionId), 'A failed application must change nothing');
+
+        $redelivered = (new IPN())->processIncomingIpn($body);
+        $test->assertSame('ipn_processed', $redelivered['code'], 'The redelivery must still be applied');
+        $test->assertSame('paid', $bmcTransactionStatus($transactionId));
+
+        // A notification another worker is still applying is a conflict, not a
+        // duplicate: answering 200 would let PayPal drop it.
+        $busyDonation = $bmcMakePayPalDonation();
+        $busyBody = http_build_query([
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'BMC-IPN-BUSY-1',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => $busyDonation['transaction_id'],
+            'ipn_track_id'   => 'trackBusy',
+        ]);
+
+        $inFlight = PublicRequestGuard::claim('paypal_ipn', 'track|trackBusy');
+        $test->assertTrue($inFlight['acquired'], 'The first worker takes the lease');
+
+        $busy = (new IPN())->processIncomingIpn($busyBody);
+        $test->assertSame('ipn_in_progress', $busy['code']);
+        $test->assertSame(409, $busy['http'], 'A conflicted notification must stay retryable');
+        $test->assertSame('pending', $bmcTransactionStatus($busyDonation['transaction_id']), 'It must change nothing');
+
+        PublicRequestGuard::releaseClaim($inFlight['key'], $inFlight['owner']);
+
+        $afterRelease = (new IPN())->processIncomingIpn($busyBody);
+        $test->assertSame('ipn_processed', $afterRelease['code'], 'Once released, the redelivery applies');
+        $test->assertSame('paid', $bmcTransactionStatus($busyDonation['transaction_id']));
+    } finally {
+        remove_action('buymecoffee_paypal_action_web_accept', $failing, 1);
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a replayed PayPal body is throttled, and verified notifications are never charged to a shared address', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $answer = 'INVALID';
+    $calls  = [];
+
+    $stub = function ($pre, $args, $url) use (&$calls, &$answer) {
+        $calls[] = $url;
+
+        return [
+            'headers'  => [],
+            'body'     => $answer,
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies'  => [],
+            'filename' => null,
+        ];
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    $tighten = function ($limit, $route, $bucket) {
+        return $route === 'ipn_paypal_invalid' ? 3 : $limit;
+    };
+    add_filter('buymecoffee_public_request_rate_limit', $tighten, 10, 3);
+
+    try {
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.77';
+
+        $repeated = http_build_query([
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'BMC-IPN-FLOOD',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => 0,
+        ]);
+
+        // One repeated body may only be echoed back to PayPal a bounded number
+        // of times, whatever PayPal answers.
+        $codes = [];
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $codes[] = (new IPN())->processIncomingIpn($repeated)['code'];
+        }
+
+        $test->assertSame(
+            ['verification_failed', 'verification_failed', 'verification_failed', 'rate_limited', 'rate_limited', 'rate_limited'],
+            $codes,
+            'A repeated body is bounded, and so is unverified traffic from one address'
+        );
+        $test->assertSame(3, count($calls), 'The throttled attempts must not reach PayPal');
+
+        $throttled = (new IPN())->processIncomingIpn($repeated);
+        $test->assertSame(429, $throttled['http'], 'A throttled body is asked to come back later');
+        $test->assertTrue($throttled['retry_after'] > 0);
+
+        // PayPal's own delivery address is untouched: the budget above is spent
+        // only by notifications PayPal refused to confirm, so a busy site behind
+        // the same shared addresses is never collateral damage.
+        $_SERVER['REMOTE_ADDR'] = '173.0.93.10';
+        $answer = 'VERIFIED';
+        $calls  = [];
+
+        for ($notification = 1; $notification <= 6; $notification++) {
+            $donation = $bmcMakePayPalDonation();
+
+            $outcome = (new IPN())->processIncomingIpn(http_build_query([
+                'txn_type'       => 'web_accept',
+                'payment_status' => 'Completed',
+                'txn_id'         => 'BMC-IPN-REAL-' . $notification,
+                'receiver_email' => 'merchant@example.com',
+                'mc_currency'    => 'USD',
+                'mc_gross'       => '25.00',
+                'custom'         => $donation['transaction_id'],
+                'ipn_track_id'   => 'trackReal' . $notification,
+            ]));
+
+            $test->assertSame('ipn_processed', $outcome['code'], "Genuine notification {$notification} must be applied");
+            $test->assertSame('paid', $bmcTransactionStatus($donation['transaction_id']));
+        }
+
+        $test->assertSame(6, count($calls), 'Every genuine notification is verified with PayPal');
+    } finally {
+        remove_filter('buymecoffee_public_request_rate_limit', $tighten, 10);
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('two PayPal orders for one donation cannot both capture, and the paying order replays', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcPayPalProSettings, $bmcMakePayPalDonation, $bmcPayPalBody, $bmcPayPalOrder, $bmcTransactionStatus) {
+    $bmcClearGuard();
+    $bmcPayPalProSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.80';
+
+    $donation = $bmcMakePayPalDonation();
+    $hash     = $donation['hash'];
+
+    $apiCalls   = [];
+    $concurrent = null;
+
+    $stub = function ($pre, $args, $url) use (&$apiCalls, &$concurrent, $bmcPayPalBody, $bmcPayPalOrder, $bmcCapturePublicResponse, $hash) {
+        if (strpos($url, 'oauth2/token') !== false) {
+            return $bmcPayPalBody(['access_token' => 'test-token']);
+        }
+
+        $apiCalls[] = $url;
+
+        // While order A is being verified, the same donation is confirmed again
+        // from a second tab holding a completely different PayPal order. Without
+        // a lease on the donation, that second order would go on to capture too.
+        if ($concurrent === null) {
+            $concurrent = $bmcCapturePublicResponse(function () {
+                $_REQUEST['charge_id'] = 'PAYPAL-ORDER-B';
+                (new PayPal())->paymentConfirmation();
+                });
+            $_REQUEST['charge_id'] = 'PAYPAL-ORDER-A';
+        }
+
+        if (strpos($url, '/capture') !== false) {
+            return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-A', $hash, 'COMPLETED'));
+        }
+
+        return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-A', $hash, 'APPROVED'));
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'charge_id'         => 'PAYPAL-ORDER-A',
+            'hash'              => $hash,
+        ];
+
+        $captured = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $captured['status'], 'The confirmation holding the lease captures');
+        $test->assertSame($donation['transaction_id'], (int) $captured['body']['data']['data']);
+        $test->assertSame('paid', $bmcTransactionStatus($donation['transaction_id']));
+        $test->assertSame(2, count($apiCalls), 'Exactly one verify and one capture reached PayPal');
+        $test->assertSame(1, count(array_filter($apiCalls, function ($url) {
+            return strpos($url, '/capture') !== false;
+        })), 'Only one capture may ever be made for one donation');
+
+        $test->assertNotEmpty($concurrent, 'The concurrent confirmation must have run');
+        $test->assertSame(409, $concurrent['status'], 'A second order arriving mid-capture is a conflict');
+        $test->assertSame('confirmation_in_progress', $concurrent['body']['data']['code']);
+
+        // And once it has settled, that second order is refused outright rather
+        // than sent to PayPal, where it would charge the donor a second time.
+        $_REQUEST['charge_id'] = 'PAYPAL-ORDER-B';
+        $conflicting = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(409, $conflicting['status']);
+        $test->assertSame('payment_already_completed', $conflicting['body']['data']['code']);
+        $test->assertSame(2, count($apiCalls), 'A conflicting order must never be captured');
+
+        // The order that did pay replays successfully, so a donor reloading
+        // their confirmation still sees their donation succeed.
+        $_REQUEST['charge_id'] = 'PAYPAL-ORDER-A';
+        $replayed = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $replayed['status'], 'The paying order must still confirm successfully');
+        $test->assertTrue($replayed['body']['data']['replayed']);
+        $test->assertSame(2, count($apiCalls), 'A settled capture must not be re-verified at PayPal');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a PayPal confirmation that failed at the provider gives its lease straight back', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcPayPalProSettings, $bmcMakePayPalDonation, $bmcPayPalBody, $bmcPayPalOrder, $bmcTransactionStatus) {
+    $bmcClearGuard();
+    $bmcPayPalProSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.81';
+
+    $donation = $bmcMakePayPalDonation();
+    $hash     = $donation['hash'];
+    $approved = false;
+
+    $stub = function ($pre, $args, $url) use (&$approved, $bmcPayPalBody, $bmcPayPalOrder, $hash) {
+        if (strpos($url, 'oauth2/token') !== false) {
+            return $bmcPayPalBody(['access_token' => 'test-token']);
+        }
+
+        if (!$approved) {
+            return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-C', $hash, 'PAYER_ACTION_REQUIRED'));
+        }
+
+        if (strpos($url, '/capture') !== false) {
+            return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-C', $hash, 'COMPLETED'));
+        }
+
+        return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-C', $hash, 'APPROVED'));
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'charge_id'         => 'PAYPAL-ORDER-C',
+            'hash'              => $hash,
+        ];
+
+        $notReady = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(400, $notReady['status'], 'An order the buyer has not approved is refused');
+        $test->assertSame('pending', $bmcTransactionStatus($donation['transaction_id']));
+        $test->assertSame(
+            null,
+            PublicRequestGuard::readClaim('paypal_confirmation', 'transaction|' . $donation['transaction_id']),
+            'A confirmation that captured nothing must not leave the donation locked'
+        );
+
+        // The buyer approves and the browser confirms again.
+        $approved = true;
+
+        $captured = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $captured['status'], 'The retry must be able to reach PayPal again');
+        $test->assertSame('paid', $bmcTransactionStatus($donation['transaction_id']));
+
+        $settled = PublicRequestGuard::readClaim('paypal_confirmation', 'transaction|' . $donation['transaction_id']);
+        $test->assertSame(PublicRequestGuard::STATE_COMPLETED, $settled['state'], 'A captured donation is recorded as done');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a stale claim owner can neither complete nor release the claim that replaced it', function ($test) use ($bmcClearGuard, $bmcGuardRow, $bmcExpireGuardRow) {
+    $bmcClearGuard();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.90';
+
+    $first = PublicRequestGuard::claim('submission', 'lease-handover');
+    $test->assertTrue($first['acquired'], 'The first worker takes the lease');
+    $test->assertNotEmpty($first['owner'], 'A lease has to be owned by somebody');
+
+    // That worker stalls long enough for its lease to lapse.
+    $bmcExpireGuardRow($first['key'], -1);
+
+    $second = PublicRequestGuard::claim('submission', 'lease-handover');
+    $test->assertTrue($second['acquired'], 'A lapsed lease may be taken over');
+    $test->assertFalse($first['owner'] === $second['owner'], 'A takeover must mint a new owner');
+
+    // The stalled worker wakes up and tries to finish work it no longer owns.
+    $test->assertFalse(
+        PublicRequestGuard::completeClaim($first['key'], $first['owner'], ['stale' => true], 'submission'),
+        'A stale owner must not be able to complete its replacement claim'
+    );
+
+    $row = $bmcGuardRow($first['key']);
+    $test->assertSame(PublicRequestGuard::STATE_IN_PROGRESS, $row->state, 'The replacement claim must still be in flight');
+    $test->assertTrue(empty($row->payload), 'A stale owner must not be able to store a replay payload');
+
+    $test->assertFalse(
+        PublicRequestGuard::releaseClaim($first['key'], $first['owner']),
+        'A stale owner must not be able to release its replacement claim'
+    );
+    $test->assertNotEmpty($bmcGuardRow($first['key']), 'The replacement claim must survive a stale release');
+
+    // An empty or invented token is not an owner either.
+    $test->assertFalse(PublicRequestGuard::releaseClaim($first['key'], ''));
+    $test->assertFalse(PublicRequestGuard::completeClaim($first['key'], str_repeat('f', 32), [], 'submission'));
+    $test->assertSame(PublicRequestGuard::STATE_IN_PROGRESS, $bmcGuardRow($first['key'])->state);
+
+    // The real owner may, and once it has, nobody may undo it.
+    $test->assertTrue(PublicRequestGuard::completeClaim($second['key'], $second['owner'], [], 'submission'));
+    $test->assertSame(PublicRequestGuard::STATE_COMPLETED, $bmcGuardRow($second['key'])->state);
+    $test->assertFalse(
+        PublicRequestGuard::releaseClaim($second['key'], $second['owner']),
+        'A completed claim must not be releasable, even by its owner'
+    );
+
+    // The token itself is never written down.
+    $row = $bmcGuardRow($second['key']);
+    $test->assertNotContains($first['owner'], wp_json_encode($row), 'A lease token must never be stored');
+    $test->assertNotContains($second['owner'], wp_json_encode($row), 'A lease token must never be stored');
+    $test->assertTrue((bool) preg_match('/\A[a-f0-9]{64}\z/', $row->owner_hash), 'Only a digest of the token is kept');
+});
+
+$suite->test('claim lifetimes are long enough that a crashed worker cannot open a duplicate window', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcClearGuard, $bmcGuardRow, $bmcExpireGuardRow, $bmcIdemKey) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.91';
+
+    $now = time();
+
+    // In flight: long enough that a worker which died after asking a gateway to
+    // create a remote payment cannot have its key reused before anyone notices.
+    $inFlight = PublicRequestGuard::claim('submission', 'lifetime-in-flight');
+    $test->assertTrue(
+        (int) $bmcGuardRow($inFlight['key'])->expires_at - $now >= HOUR_IN_SECONDS,
+        'An in-flight submission lease must outlive a crashed request'
+    );
+
+    // Completed: the real idempotency window, and a full day rather than the
+    // fifteen minutes a retried donation can easily outlast.
+    PublicRequestGuard::completeClaim($inFlight['key'], $inFlight['owner'], [], 'submission');
+    $test->assertTrue(
+        (int) $bmcGuardRow($inFlight['key'])->expires_at - $now >= DAY_IN_SECONDS,
+        'A completed submission must stay recognised for at least a day'
+    );
+
+    // Provider deliveries are redelivered for days, so a consumed one has to
+    // stay recognisable for longer than the provider keeps trying.
+    $event = PublicRequestGuard::claim('stripe_event', 'lifetime-event');
+    PublicRequestGuard::completeClaim($event['key'], $event['owner'], [], 'stripe_event');
+    $test->assertTrue(
+        (int) $bmcGuardRow($event['key'])->expires_at - $now >= 14 * DAY_IN_SECONDS,
+        'A consumed provider event must outlast the provider retry schedule'
+    );
+
+    // And the window is real, not just a stored number: a donation retried
+    // almost a full day later is still refused rather than created twice.
+    $key = $bmcIdemKey('long-window');
+    $bmcSubmissionRequest(['idempotency_key' => $key]);
+    $created = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(200, $created['status']);
+    $test->assertSame(1, $bmcCountSubmissions()['supporters']);
+
+    $claimKey = PublicRequestGuard::claim('submission', 'unused-probe')['key'];
+    $test->assertNotEmpty($claimKey, 'Claim keys are opaque digests');
+
+    $stored = PublicRequestGuard::readClaim('submission', $key);
+    $test->assertSame(PublicRequestGuard::STATE_COMPLETED, $stored['state']);
+
+    $bmcSubmissionRequest(['idempotency_key' => $key]);
+    $muchLater = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(409, $muchLater['status'], 'A key completed today must still be refused today');
+    $test->assertSame('submission_already_completed', $muchLater['body']['data']['code']);
+    $test->assertSame(1, $bmcCountSubmissions()['supporters'], 'No second donation may be created');
+});
+
+$suite->test('every protected public route fails closed when the guard table cannot be used', function ($test) use ($bmcCapturePublicResponse, $bmcSubmissionRequest, $bmcCountSubmissions, $bmcPayPalStandardSettings, $bmcStripeSettings, $bmcMakeOneTimePurchase, $bmcMakePayPalDonation, $bmcClearGuard, $bmcTransactionStatus) {
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR']    = '203.0.113.99';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $purchase = $bmcMakeOneTimePurchase();
+    $donation = $bmcMakePayPalDonation();
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests) {
+        $requests[] = $url;
+
+        return $pre;
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    // Without the table there is no atomic claim, so there is no way to promise
+    // an operation runs once. Every protected route says so and stays retryable
+    // rather than quietly running twice.
+    PublicRequestGuard::resetRuntimeState(false);
+
+    try {
+        $test->assertFalse(PublicRequestGuard::isAvailable(), 'The guard must report itself unusable');
+
+        $bmcSubmissionRequest();
+        $submission = $bmcCapturePublicResponse(function () {
+            (new SubmissionHandler())->handleSubmission();
+        });
+
+        $test->assertSame(503, $submission['status'], 'A donation must not be taken without the guard');
+        $test->assertSame('guard_unavailable', $submission['body']['data']['code']);
+        $test->assertSame(['supporters' => 0, 'transactions' => 0], $bmcCountSubmissions(), 'Nothing may be written');
+
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => 'pi_' . $purchase['suffix'],
+        ];
+        $stripeConfirmation = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(503, $stripeConfirmation['status']);
+        $test->assertSame('guard_unavailable', $stripeConfirmation['body']['data']['code']);
+
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'charge_id'         => 'PAYPAL-ORDER-X',
+            'hash'              => $donation['hash'],
+        ];
+        $paypalConfirmation = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(503, $paypalConfirmation['status']);
+        $test->assertSame('guard_unavailable', $paypalConfirmation['body']['data']['code']);
+
+        $webhook = (new Stripe())->processIncomingEvent((object) [
+            'id'   => 'evt_guard_missing_table',
+            'type' => 'charge.succeeded',
+        ]);
+
+        $test->assertSame('guard_unavailable', $webhook['code']);
+        $test->assertSame(503, $webhook['http'], 'A provider must be told to redeliver, not that it succeeded');
+        $test->assertTrue($webhook['retry_after'] > 0);
+
+        $ipn = (new IPN())->processIncomingIpn(http_build_query([
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'BMC-IPN-NO-GUARD',
+            'custom'         => $donation['transaction_id'],
+        ]));
+
+        $test->assertSame('guard_unavailable', $ipn['code']);
+        $test->assertSame(503, $ipn['http']);
+        $test->assertSame('pending', $bmcTransactionStatus($donation['transaction_id']), 'Nothing may be applied');
+
+        $test->assertSame(0, count($requests), 'No provider may be contacted while the guard is unusable');
+    } finally {
+        PublicRequestGuard::resetRuntimeState();
+        remove_filter('pre_http_request', $stub, 10);
+    }
+
+    // And once the table is usable again the very same routes work normally.
+    $test->assertTrue(PublicRequestGuard::isAvailable(), 'The probe must recover on its own');
+
+    $bmcSubmissionRequest();
+    $recovered = $bmcCapturePublicResponse(function () {
+        (new SubmissionHandler())->handleSubmission();
+    });
+
+    $test->assertSame(200, $recovered['status'], 'A recovered guard must not keep refusing donations');
+    $test->assertSame(1, $bmcCountSubmissions()['supporters']);
+});
+
+$suite->test('lapsed guard rows are cleaned up in bounded slices and live ones are left alone', function ($test) use ($bmcClearGuard, $bmcGuardRows) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.92';
+
+    for ($row = 1; $row <= 5; $row++) {
+        PublicRequestGuard::consume('rate|guard-test|cleanup|' . $row, 10, MINUTE_IN_SECONDS);
+    }
+
+    $live = PublicRequestGuard::claim('submission', 'cleanup-live');
+    $test->assertSame(6, count($bmcGuardRows()));
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->prefix}buymecoffee_request_guard SET expires_at = %d WHERE guard_type = %s",
+        time() - 10,
+        'rate'
+    ));
+
+    $removed = PublicRequestGuard::cleanup();
+
+    $test->assertSame(5, $removed, 'Every lapsed row is removed');
+    $remaining = $bmcGuardRows();
+    $test->assertSame(1, count($remaining), 'A live claim must survive housekeeping');
+    $test->assertSame($live['key'], $remaining[0]->guard_key);
+    $test->assertTrue(PublicRequestGuard::CLEANUP_LIMIT > 0, 'Cleanup must always be bounded');
 });
 
 exit($suite->run());

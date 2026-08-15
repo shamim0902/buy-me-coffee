@@ -10,6 +10,38 @@ class BmcFormHandler {
         this.paymentMethod = '';
         this.generalConfig = window.buymecoffee_general;
         this.$formNoticeWrapper = form.parent().find('.buymecoffee_form_notices');
+        // Identifies one donation attempt. It survives a retry of that attempt
+        // and is dropped once the server has answered, so the next donation is a
+        // new attempt with a new key.
+        this.idempotencyKey = null;
+    }
+
+    /**
+     * High-entropy key for the current attempt.
+     *
+     * Only a cryptographic source is acceptable. Math.random() is seeded and
+     * predictable, so a key drawn from it is guessable — and a guessable key is
+     * not a protection, it is a way for one visitor to collide with another's
+     * attempt. A browser without Web Crypto therefore gets no key at all, and
+     * the caller refuses to send the donation rather than send it unprotected.
+     *
+     * @returns {string|null} Key, or null when no secure source exists.
+     */
+    generateIdempotencyKey() {
+        const source = window.crypto || window.msCrypto;
+
+        if (source?.randomUUID) {
+            return source.randomUUID().replace(/-/g, '');
+        }
+
+        if (source?.getRandomValues) {
+            const bytes = new Uint8Array(16);
+            source.getRandomValues(bytes);
+
+            return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        return null;
     }
 
     $t(stringKey) {
@@ -108,6 +140,19 @@ class BmcFormHandler {
             }
         }
 
+        // Reused as-is while this attempt is being retried, so a submission the
+        // server already accepted is never created a second time.
+        if (!this.idempotencyKey) {
+            this.idempotencyKey = this.generateIdempotencyKey();
+        }
+
+        if (!this.idempotencyKey) {
+            alert('This browser cannot start a secure donation. Please update it or try a different browser.');
+            form.find('button.wpm_submit_button').removeAttr('disabled');
+
+            return;
+        }
+
         form.find('button.wpm_submit_button').attr('disabled', true);
         form.addClass('wpm_submitting_form');
         form.parent().find('.wpm_form_notices').hide();
@@ -122,6 +167,7 @@ class BmcFormHandler {
         const request = jQuery.post(window.buymecoffee_general.ajax_url, {
             action: 'buymecoffee_submit',
             buymecoffee_nonce: window.buymecoffee_general?.buymecoffee_nonce || '',
+            idempotency_key: this.idempotencyKey,
             payment_total: form.data('wpm_payment_total'),
             coffee_count: form.data('coffee_count'),
             payment_method: form.data('wpm_selected_payment_method'),
@@ -133,6 +179,8 @@ class BmcFormHandler {
 
         request.done((response) => {
                 loader.hide();
+                // The attempt is over: whatever comes next belongs to a new one.
+                this.idempotencyKey = null;
                 if (response.data?.redirectTo) {
                     const safeUrl = this.getSafeRedirectUrl(response.data.redirectTo);
                     if (!safeUrl) {

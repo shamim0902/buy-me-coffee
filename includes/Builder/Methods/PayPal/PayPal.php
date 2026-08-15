@@ -8,6 +8,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Builder\Methods\BaseMethods;
 use BuyMeCoffee\Classes\Vite;
+use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -168,6 +169,11 @@ class PayPal extends BaseMethods
                 'message' => __('Invalid request', 'buy-me-coffee'),
             ), 400);
         }
+
+        // Consumed before PayPal is contacted. The per-operation bucket is scoped
+        // to the caller as well as to the order, so replaying somebody else's
+        // order reference cannot exhaust the budget their browser needs.
+        PublicRequestGuard::enforce('payment_confirmation_paypal', ['identifier' => $hash]);
 
         $this->updatePayment($chargeId, $hash);
     }
@@ -552,19 +558,68 @@ class PayPal extends BaseMethods
     }
 
 
+    /**
+     * Verify and capture a PayPal order against the donation it belongs to.
+     *
+     * The lease is taken on the local transaction, not on the order reference
+     * the caller supplied. That is the point: two browser tabs holding two
+     * different PayPal orders for the same donation would otherwise both read a
+     * pending transaction, both reach PayPal, and both capture. Because the
+     * lease belongs to the transaction, the second one waits; and because the
+     * transaction is re-read *inside* the lease, by the time it runs the payment
+     * is already recorded as paid against the first order and its own order is
+     * refused instead of captured.
+     *
+     * @param string $chargeId PayPal order id supplied by the browser.
+     * @param string $hash     Local order reference.
+     * @return void
+     */
     public function updatePayment($chargeId, $hash)
     {
-        $transaction = (new Transactions())->find($hash, 'entry_hash');
+        $transactions = new Transactions();
+
+        // Prove the reference maps to local state before taking any lease, so an
+        // invented reference can never hold one against a real donor.
+        $transaction = $transactions->find($hash, 'entry_hash');
         if (!$transaction || $transaction->payment_method !== 'paypal') {
             wp_send_json_error(array(
                 'message' => __('Transaction not found', 'buy-me-coffee'),
             ), 404);
         }
 
+        $transactionId = (int) $transaction->id;
+
+        $claim = PublicRequestGuard::claim('paypal_confirmation', 'transaction|' . $transactionId);
+        if (!$claim['acquired']) {
+            $this->refuseUnclaimedConfirmation($claim, $transactionId, $chargeId);
+        }
+
+        // Re-read under the lease: a confirmation that queued behind another one
+        // must decide on the state that one left behind, not on what it saw
+        // before waiting.
+        $transaction = $transactions->find($transactionId);
+        if (!$transaction) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
+            wp_send_json_error(array(
+                'message' => __('Transaction not found', 'buy-me-coffee'),
+            ), 404);
+        }
+
+        // A confirmation that already settled is answered from local state. The
+        // capture PayPal recorded cannot change, so re-verifying and re-capturing
+        // would only repeat an outbound call and rewrite a finished payment.
+        if ($transaction->status === 'paid') {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+            $this->answerSettledPayment($transaction, $chargeId);
+        }
+
         $api = new API();
         try {
             $payment_intent = $api->verifyTransaction($chargeId);
         } catch (\Exception $e) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error(array(
                 'message' => esc_html($e->getMessage()),
             ), 400);
@@ -576,6 +631,8 @@ class PayPal extends BaseMethods
                 // Capture server-side to avoid browser token/runtime issues after buyer approval.
                 $payment_intent = $api->captureTransaction($chargeId);
             } catch (\Exception $e) {
+                PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
                 wp_send_json_error(array(
                     'message' => esc_html($e->getMessage()),
                 ), 400);
@@ -584,6 +641,8 @@ class PayPal extends BaseMethods
         }
 
         if ($orderStatus !== 'COMPLETED') {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             $statusMessage = $orderStatus ? $orderStatus : __('UNKNOWN', 'buy-me-coffee');
             wp_send_json_error(array(
                 /* translators: %s: PayPal order status (e.g. PENDING, VOIDED) */
@@ -594,6 +653,8 @@ class PayPal extends BaseMethods
         $purchaseUnit = ArrayHelper::get($payment_intent, 'purchase_units.0');
         $referenceId = sanitize_text_field(ArrayHelper::get($purchaseUnit, 'reference_id', ''));
         if ($referenceId !== $hash) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error(array(
                 'message' => __('Payment confirmation reference mismatch', 'buy-me-coffee'),
             ), 400);
@@ -608,12 +669,16 @@ class PayPal extends BaseMethods
         $mode = $this->getSettings('payment_mode');
 
         if (!empty($currencyCode) && strtoupper($transaction->currency) !== $currencyCode) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error(array(
                 'message' => __('Payment currency mismatch', 'buy-me-coffee'),
             ), 400);
         }
 
         if (!empty($transaction->payment_total) && abs((int)$transaction->payment_total - $amount) > 1) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error(array(
                 'message' => __('Payment amount mismatch', 'buy-me-coffee'),
             ), 400);
@@ -628,7 +693,7 @@ class PayPal extends BaseMethods
             'updated_at' => current_time('mysql'),
         );
 
-        (new Transactions())->updateData($transaction->id, $updateData);
+        $transactions->updateData($transactionId, $updateData);
 
         (new Supporters())->updateData($transaction->entry_id, [
             'payment_total' => $amount,
@@ -637,12 +702,115 @@ class PayPal extends BaseMethods
             'updated_at' => current_time('mysql')
         ]);
 
-        do_action('buymecoffee_payment_status_updated', $transaction->id, 'paid');
+        do_action('buymecoffee_payment_status_updated', $transactionId, 'paid');
+
+        // Settled before the response is written, because the response ends the
+        // request: nothing after it would run.
+        PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'paypal_confirmation');
 
         wp_send_json_success(array(
             'message' => __('Payment updated successfully', 'buy-me-coffee'),
-            'data' => $transaction->id
+            'data' => $transactionId
         ), 200);
+    }
+
+    /**
+     * Answer a confirmation that could not take the lease on its transaction.
+     *
+     * @param array  $claim         Refused claim record.
+     * @param int    $transactionId Local transaction the lease belongs to.
+     * @param string $chargeId      PayPal order id supplied by the browser.
+     * @return void
+     */
+    private function refuseUnclaimedConfirmation(array $claim, $transactionId, $chargeId)
+    {
+        if (!$claim['available']) {
+            $decision = PublicRequestGuard::unavailable();
+            PublicRequestGuard::sendRetryAfter($decision['retry_after']);
+
+            wp_send_json_error(array(
+                'message' => $decision['message'],
+                'code'    => $decision['code'],
+            ), $decision['http']);
+        }
+
+        if ($claim['state'] === PublicRequestGuard::STATE_COMPLETED) {
+            $transaction = (new Transactions())->find($transactionId);
+            if ($transaction && $transaction->status === 'paid') {
+                $this->answerSettledPayment($transaction, $chargeId);
+            }
+        }
+
+        PublicRequestGuard::sendRetryAfter($claim['retry_after']);
+
+        wp_send_json_error(array(
+            'message' => __('This payment is still being confirmed. Please try again in a moment.', 'buy-me-coffee'),
+            'code'    => 'confirmation_in_progress',
+        ), 409);
+    }
+
+    /**
+     * Answer a confirmation for a donation that is already paid.
+     *
+     * The order that paid it is the only one that may be replayed. Any other
+     * order presented for the same donation would, if sent on to PayPal, capture
+     * a second payment from the same donor, so it is refused here.
+     *
+     * @param object $transaction Local transaction, freshly read.
+     * @param string $chargeId    PayPal order id supplied by the browser.
+     * @return void
+     */
+    private function answerSettledPayment($transaction, $chargeId)
+    {
+        if (!$this->settledOrderMatches($transaction, $chargeId)) {
+            wp_send_json_error(array(
+                'message' => __('This donation has already been completed.', 'buy-me-coffee'),
+                'code'    => 'payment_already_completed',
+            ), 409);
+        }
+
+        wp_send_json_success(array(
+            'message'  => __('Payment updated successfully', 'buy-me-coffee'),
+            'data'     => $transaction->id,
+            'replayed' => true,
+        ), 200);
+    }
+
+    /**
+     * Whether the order a caller presents is the one that paid this donation.
+     *
+     * A settled transaction records the *capture*, not the order it came from,
+     * so the order id the browser replays never matches charge_id directly. The
+     * captured order was stored verbatim alongside it, so it is read back from
+     * there: the donor reloading their confirmation is recognised, while a
+     * second, different order is not.
+     *
+     * @param object $transaction Local transaction, freshly read.
+     * @param string $chargeId    PayPal order id supplied by the browser.
+     * @return bool
+     */
+    private function settledOrderMatches($transaction, $chargeId)
+    {
+        $chargeId = (string) $chargeId;
+        $recorded = (string) $transaction->charge_id;
+
+        if ($recorded !== '' && hash_equals($recorded, $chargeId)) {
+            return true;
+        }
+
+        $stored  = json_decode((string) $transaction->payment_note, true);
+        $orderId = (is_array($stored) && isset($stored['id']) && is_scalar($stored['id']))
+            ? (string) $stored['id']
+            : '';
+
+        if ($orderId !== '' && hash_equals($orderId, $chargeId)) {
+            return true;
+        }
+
+        // A payment settled without any order reference on file — a PayPal
+        // Standard donation confirmed by IPN, for instance. There is nothing to
+        // contradict, and nothing is captured either way, so the replay stands.
+        return $recorded === '' && $orderId === '';
     }
 
     /**
