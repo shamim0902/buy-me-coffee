@@ -33,6 +33,18 @@ class Activator
     public function registerMigrationHooks()
     {
         add_action(self::MIGRATION_HOOK, [$this, 'runMigrationBatch']);
+
+        // A site added after a network activation has to be installed into as
+        // well. Priority 100 puts this after core has finished creating the
+        // site's own tables. WordPress 5.1 replaced 'wpmu_new_blog' with
+        // 'wp_initialize_site' and still fires the old name from the new hook
+        // for back compatibility, so only one of the two may ever be
+        // registered or a new site would be installed into twice.
+        if (version_compare(get_bloginfo('version'), '5.1', '<')) {
+            add_action('wpmu_new_blog', [$this, 'installNewSite'], 100);
+        } else {
+            add_action('wp_initialize_site', [$this, 'installNewSite'], 100);
+        }
     }
 
     /**
@@ -73,6 +85,61 @@ class Activator
         } else {
             $this->activateSite();
         }
+    }
+
+    /**
+     * Give a site created after network activation its schema straight away.
+     *
+     * A network activation installs into the sites that exist at that moment,
+     * and nothing installs into the ones created later: the request-time check
+     * only ever schedules cron, so until that event runs the plugin is querying
+     * and writing tables the new site does not have. On a network with cron
+     * disabled or driven externally, that is not a delay but a permanent
+     * broken state for every site added from then on.
+     *
+     * Installing here closes the gap at the only moment the network tells us a
+     * site exists, and matches what activation would have done had the site
+     * been there at the time.
+     *
+     * @param \WP_Site|int $site Newly created site, or its ID.
+     * @return void
+     */
+    public function installNewSite($site)
+    {
+        if (!is_multisite()) {
+            return;
+        }
+
+        // Only a network-active plugin is expected on a brand new site. When it
+        // is activated per site instead, the site owner's own activation is
+        // what installs it, and pre-empting that would put the schema on sites
+        // that never asked for the plugin.
+        if (!$this->isNetworkActive()) {
+            return;
+        }
+
+        $siteId = ($site instanceof \WP_Site) ? (int) $site->blog_id : (int) $site;
+        if (!$siteId) {
+            return;
+        }
+
+        switch_to_blog($siteId);
+        $this->activateSite();
+        restore_current_blog();
+    }
+
+    /**
+     * Whether this plugin is active for the whole network.
+     *
+     * @return bool
+     */
+    private function isNetworkActive()
+    {
+        if (!function_exists('is_plugin_active_for_network')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        return is_plugin_active_for_network(plugin_basename(BUYMECOFFEE_MAIN_FILE));
     }
 
     /**
@@ -855,7 +922,9 @@ class Activator
         // IGNORE covers the single collision this cannot resolve: a different
         // row already owns the canonical subscription_id. That other row is the
         // one a cancellation finds, so the duplicate has to be skipped instead
-        // of failing this range on every retry forever.
+        // of failing this range on every retry forever. Skipping it is only
+        // half an answer, though — see retireSupersededAccess() below, which
+        // stops the row this leaves behind from granting on its own.
         $reconcileSql = "
             UPDATE IGNORE {$access} existing
             JOIN ({$sourceSql}) src
@@ -896,7 +965,75 @@ class Activator
             );
         }
 
-        return (int) $repaired;
+        $retired = $this->retireSupersededAccess($sourceSql, $cursor, $lastId, $now);
+        if (is_wp_error($retired)) {
+            return $retired;
+        }
+
+        return (int) $repaired + (int) $retired;
+    }
+
+    /**
+     * Stop a collided legacy row from granting the access it no longer owns.
+     *
+     * The reconcile above has to skip a row whose canonical subscription_id is
+     * already held by another row, and skipping it means it keeps every legacy
+     * value it arrived with. That is the dangerous half: a 'one_time' or
+     * 'manual' row left at status 'active' grants its level with no expiry at
+     * all, and the cancellation that should end the entitlement only ever
+     * updates the subscription-owned row. The customer keeps the content after
+     * cancelling, indefinitely, and nothing later in the plugin looks at the
+     * duplicate again.
+     *
+     * So the duplicate is retired here, in the same bounded range and by the
+     * same set-based means. It keeps its columns — this is migration data, and
+     * the row is still the record of how the entitlement was originally
+     * granted — but it moves to a status no grant path reads, leaving the
+     * canonical row as the only one that answers for the subscription.
+     *
+     * @param string $sourceSql Source projection with four ID-range placeholders.
+     * @param int    $cursor    Exclusive lower source ID bound.
+     * @param int    $lastId    Inclusive upper source ID bound.
+     * @param string $now       Timestamp for this batch.
+     * @return int|\WP_Error Number of retired rows.
+     */
+    private function retireSupersededAccess($sourceSql, $cursor, $lastId, $now)
+    {
+        global $wpdb;
+
+        $access = $wpdb->prefix . 'buymecoffee_membership_access';
+
+        // The owner join is what identifies a collision after the fact: a
+        // different row already holding this source's subscription_id is
+        // exactly the condition IGNORE swallowed. A row that reconciled
+        // normally owns that id itself and is excluded by owner.id <> existing.id,
+        // and the status guard keeps replaying a range free of writes.
+        $retireSql = "
+            UPDATE {$access} existing
+            JOIN ({$sourceSql}) src
+                ON src.transaction_id IS NOT NULL
+                AND existing.transaction_id = src.transaction_id
+            JOIN {$access} owner
+                ON owner.subscription_id = src.source_id
+                AND owner.id <> existing.id
+            SET
+                existing.status = 'superseded',
+                existing.updated_at = %s
+            WHERE src.access_type = 'subscription'
+                AND existing.status <> 'superseded'";
+
+        $wpdb->last_error = '';
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- All table names are plugin-owned; the source ID range is prepared and bounded.
+        $retired = $wpdb->query($wpdb->prepare($retireSql, $cursor, $lastId, $cursor, $lastId, $now));
+
+        if ($retired === false) {
+            return new \WP_Error(
+                'buymecoffee_migration_query_failed',
+                $wpdb->last_error ?: __('Superseded membership access rows could not be retired.', 'buy-me-coffee')
+            );
+        }
+
+        return (int) $retired;
     }
 
     /**
