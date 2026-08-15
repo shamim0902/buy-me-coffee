@@ -5570,4 +5570,61 @@ $suite->test('a stale paid announcement cannot re-open the access a refund has a
     }
 });
 
+$suite->test('a refund landing before the announcement is what gets announced, not the paid it replaced', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase();
+    $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    // The refund is committed at the one moment that matters: after the paid
+    // write and before the announcement. The supporter update sits in exactly
+    // that gap and happens however the announcement is later decided, so the
+    // window is entered without the test knowing how the service reads it back.
+    $injected = false;
+    $supporters = $wpdb->prefix . 'buymecoffee_supporters';
+    $injectRefund = function ($query) use (&$injected, $wpdb, $txTable, $supporters, $purchase) {
+        if (!$injected && stripos($query, 'UPDATE') === 0 && strpos($query, $supporters) !== false) {
+            $injected = true;
+            $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $purchase['transaction_id']]);
+        }
+
+        return $query;
+    };
+    add_filter('query', $injectRefund);
+
+    try {
+        $result = (new OneTimePaymentStatusService())->apply(
+            (object) ['id' => $purchase['transaction_id']],
+            'paid'
+        );
+
+        $test->assertTrue($injected, 'The refund must have been injected at the read');
+        $test->assertFalse(is_wp_error($result), 'The transition itself still succeeded');
+
+        // What is announced is what is stored. Anything else hands the email and
+        // activity consumers a payment status the site has already replaced.
+        $test->assertSame(
+            [[$purchase['transaction_id'], 'refunded']],
+            $log['status'],
+            'The announcement must carry the stored status, not the requested one'
+        );
+        $test->assertSame('refunded', $result['to'], 'The caller is told the outcome that stands, not the one it asked for');
+        $test->assertSame(0, $result['membership_access_id'], 'No access may be reported granted');
+        $test->assertSame([], $log['activated'], 'No entitlement may be announced for a refunded payment');
+        $test->assertSame([], $log['mail'], 'No paid-payment email may be sent for a refunded payment');
+        $test->assertSame(0, $bmcPaymentActivityCount($purchase['transaction_id'], 'payment_completed'), 'No payment_completed entry may be written');
+
+        $state = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame([], $state['levels'], 'And the access it revoked stays revoked');
+    } finally {
+        remove_filter('query', $injectRefund);
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());
