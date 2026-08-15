@@ -221,7 +221,20 @@ class OneTimePaymentStatusService
         // here, and a refund revokes through the canonical hook below.
         $membershipAccessId = 0;
         if ($status === 'paid') {
-            $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
+            // The row lock was released at COMMIT above, so a concurrent refund
+            // can transition the transaction to 'refunded' (and revoke access)
+            // before this line runs. Re-read the durable status and only grant
+            // access while the transaction is still paid, so we never revive
+            // access for a transaction that has since been refunded.
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table name from $wpdb->prefix; fresh uncached read required to re-check status after commit.
+            $durableStatus = $wpdb->get_var($wpdb->prepare(
+                "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+                $transactionId
+            ));
+
+            if (sanitize_key((string) $durableStatus) === 'paid') {
+                $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
+            }
         }
 
         do_action('buymecoffee_payment_status_updated', $transactionId, $status);
