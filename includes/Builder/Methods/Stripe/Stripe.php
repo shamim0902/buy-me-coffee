@@ -55,7 +55,7 @@ class Stripe extends BaseMethods
         $paymentArgs = array(
             'supporter_id' => $supporter->id,
             'client_reference_id' => $hash,
-            'amount' => (int) round($transaction->payment_total, 0),
+            'amount' => PaymentHelper::toStripeAmount($transaction->payment_total, $transaction->currency),
             'currency' => strtolower($transaction->currency),
             'description' => "Buy coffee from {$supporter->supporters_name}",
             'supporters_email' => $supporter->supporters_email,
