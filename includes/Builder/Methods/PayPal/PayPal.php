@@ -406,7 +406,11 @@ class PayPal extends BaseMethods
     {
         $txnType = sanitize_text_field($data['txn_type'] ?? '');
         $paymentStatusRaw = sanitize_text_field($data['payment_status'] ?? '');
-        if ($txnType != 'web_accept' && $txnType != 'cart' && $paymentStatusRaw != 'Refunded') {
+        // Reversal IPNs arrive as txn_type=reversal / payment_status=Reversed, so
+        // 'Reversed' must pass this guard alongside 'Refunded' — otherwise reversals
+        // return early and never reach the revocation branch below.
+        if ($txnType != 'web_accept' && $txnType != 'cart'
+            && $paymentStatusRaw != 'Refunded' && $paymentStatusRaw != 'Reversed') {
             return;
         }
 
@@ -451,6 +455,7 @@ class PayPal extends BaseMethods
         // before the amount comparison and can never be read as a payment.
         if (in_array($payment_status, array('refunded', 'reversed'), true)) {
             $this->changeStatus('refunded', $transaction);
+            do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
             return;
         }
 
