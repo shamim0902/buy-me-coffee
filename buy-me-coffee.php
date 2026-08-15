@@ -2,11 +2,11 @@
 
 /*
 Plugin Name: Buy Me a Coffee – Membership, Paywall & Fundraiser with Stripe & PayPal
-Plugin URI: https://wpminers.com/buymecoffee/
+Plugin URI: https://wpminers.dev/buymecoffee/
 Description: Easy way to collect donations like "buy me a coffee" directly your own Stripe and PayPal for free
 Version: 1.2.7
 Author: wpminers
-Author URI: http://www.wpminers.com/
+Author URI: http://www.wpminers.dev/
 License: GPLv2 or later
 Text Domain: buy-me-coffee
 */
@@ -266,8 +266,8 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         if ('buy-me-coffee/buy-me-coffee.php' == $file) {
             $row_meta = [
                 'preview' => '<a rel="noopener" href="'. esc_url(site_url('?share_coffee')) . '" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('Preview', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Preview', 'buy-me-coffee') . '</a>',
-                'docs' => '<a rel="noopener" href="https://wpminers.com/buymecoffee/docs/installation/install-buy-me-coffee-plugin/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('View Documentation', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Docs', 'buy-me-coffee') . '</a>',
-                'demo' => '<a rel="noopener" href="https://wpminers.com/buymecoffee-demo/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('Demo', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Demo', 'buy-me-coffee') . '</a>',
+                'docs' => '<a rel="noopener" href="https://wpminers.dev/buymecoffee/docs/installation/install-buy-me-coffee-plugin/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('View Documentation', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Docs', 'buy-me-coffee') . '</a>',
+                'demo' => '<a rel="noopener" href="https://wpminers.dev/buymecoffee-demo/" style="color: #8BC34A;font-weight: 600;" aria-label="' . esc_attr__('Demo', 'buy-me-coffee') . '" target="_blank">' . esc_html__('Demo', 'buy-me-coffee') . '</a>',
             ];
             return array_merge($links, $row_meta);
         }

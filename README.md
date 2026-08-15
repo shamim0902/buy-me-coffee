@@ -13,7 +13,7 @@
 
 **Current version:** `1.2.6` · [Full Changelog](CHANGELOG.md)
 
-[Plugin Site](https://wpminers.com/buymecoffee/) · [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.com/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
+[Plugin Site](https://wpminers.dev/buymecoffee/) · [User Guide](https://wpminers.dev/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.dev/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
 
 ## Quick Navigation
 
@@ -150,7 +150,7 @@ Built assets output to `assets/` with a `manifest.json` for cache-busted URLs. E
 <details>
 <summary><strong>Need setup help?</strong></summary>
 
-Use the [User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) for a complete walkthrough, including gateway configuration and shortcode placement.
+Use the [User Guide](https://wpminers.dev/buymecoffee/docs/getting-started/quick-setup/) for a complete walkthrough, including gateway configuration and shortcode placement.
 
 </details>
 

@@ -291,7 +291,7 @@
         <div class="bmc-card">
           <h3 class="bmc-sc__title" style="margin-bottom:4px">Helpful Links</h3>
           <div class="bmc-guide-links">
-            <a href="https://wpminers.com/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-guide-link">
+            <a href="https://wpminers.dev/buymecoffee/docs/" target="_blank" rel="noopener" class="bmc-guide-link">
               <FileText :size="15" />
               Full documentation
             </a>

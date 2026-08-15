@@ -315,11 +315,11 @@ msgid ""
 msgstr ""
 
 #. Author URI of the plugin
-msgid "http://www.wpminers.com/"
+msgid "http://www.wpminers.dev/"
 msgstr ""
 
 #. URI of the plugin
-msgid "https://wpminers.com/buymecoffee/"
+msgid "https://wpminers.dev/buymecoffee/"
 msgstr ""
 
 #: includes/views/admin/deactivate-feedback.php:33

@@ -2,7 +2,7 @@
 Contributors: wpminers, hasanuzzamanshamim
 Tags: membership, paywall, donations, subscriptions, stripe payments
 Requires at least: 5.7
-Tested up to: 6.9
+Tested up to: 7.0
 Stable tag: 1.2.7
 Requires PHP: 7.4
 License: GPLv2 or later
@@ -11,7 +11,7 @@ WordPress membership, paywall, donation, and subscription plugin for creators. M
 
 == Description ==
 
-[User Guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.com/buymecoffee-demo) | [Visit Plugin Site](https://wpminers.com/buymecoffee)
+[User Guide](https://wpminers.dev/buymecoffee/docs/getting-started/quick-setup/) | [Demo](https://wpminers.dev/buymecoffee-demo) | [Visit Plugin Site](https://wpminers.dev/buymecoffee)
 
 **Buy Me Coffee** is a free WordPress membership plugin, paywall plugin, donation plugin, and creator monetization tool in one lightweight package. Sell paid memberships, protect premium posts and pages, accept tips, collect one-time donations, and run recurring monthly or yearly subscriptions directly through your own Stripe and PayPal accounts — with **zero commission** and no third-party platform in between.
 

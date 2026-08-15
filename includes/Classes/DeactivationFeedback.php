@@ -98,7 +98,7 @@ class DeactivationFeedback
         ];
 
         $response = wp_safe_remote_post(
-            'https://wpminers.com/?buymecoffee_deactivation_feedback=1',
+            'https://wpminers.dev/?buymecoffee_deactivation_feedback=1',
             [
                 'timeout'    => 5,
                 'body'       => $body,

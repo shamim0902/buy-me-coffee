@@ -44,7 +44,7 @@
         <!-- Footer CTA -->
         <div class="wn-footer">
           <button class="wn-btn-primary" @click="dismiss">Got it — let's go!</button>
-          <a href="https://wpminers.com/buy-me-coffee-content-monetization-memberships/" target="_blank" rel="noopener" class="wn-more-link">Read the release post→</a>
+          <a href="https://wpminers.dev/buy-me-coffee-content-monetization-memberships/" target="_blank" rel="noopener" class="wn-more-link">Read the release post→</a>
         </div>
 
       </div>

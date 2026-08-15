@@ -159,7 +159,7 @@ $bmcBannerVars      = '--bmc-banner-position-x: ' . $bmcBannerPositionX . '%; --
     <!-- ── Footer ── -->
     <div class="bmc-footer">
         <p><?php esc_html_e('Powered by', 'buy-me-coffee'); ?>
-            <a href="https://wpminers.com/buymecoffee/" target="_blank" rel="noopener">Buy Me Coffee</a>
+            <a href="https://wpminers.dev/buymecoffee/" target="_blank" rel="noopener">Buy Me Coffee</a>
         </p>
     </div>
 </div>

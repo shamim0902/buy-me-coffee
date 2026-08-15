@@ -202,9 +202,9 @@ If you are a creator, writer, educator, blogger, nonprofit, or publisher looking
 
 Get started with Buy Me Coffee today:
 
-- [Plugin website](https://wpminers.com/buymecoffee/)
-- [User guide](https://wpminers.com/buymecoffee/docs/getting-started/quick-setup/)
-- [Demo](https://wpminers.com/buymecoffee-demo)
+- [Plugin website](https://wpminers.dev/buymecoffee/)
+- [User guide](https://wpminers.dev/buymecoffee/docs/getting-started/quick-setup/)
+- [Demo](https://wpminers.dev/buymecoffee-demo)
 - [WordPress.org plugin page](https://wordpress.org/plugins/buy-me-a-coffee/)
 
 ---
