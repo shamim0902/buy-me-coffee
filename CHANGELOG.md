@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 ---
 
+## [1.2.8] — 2026-08-15
+
+### Fixed
+- Improved Stripe payment handling for zero-decimal currencies such as JPY and KRW.
+- Improved Membership access handling for refunds, restored payments, and removed supporters.
+- Improved Membership access updates when a subscription period ends.
+- Fixed Membership and email notification toggles so they save reliably.
+- Improved Setup of the default membership level on new installs.
+
+---
+
+## [1.2.7] — 2026-05-17
+
+### Added
+- Added dedicated membership access management covering one-time lifetime access, manual access, and subscription-backed access.
+- Added one-time membership payments with lifetime access.
+- Added automatic WordPress user account creation and linking for membership payments.
+
+### Changed
+- Improved recurring membership access sync with subscription renewal dates.
+- Improved one-time membership button labels, using `Join` on paywalls and checkout.
+
+---
+
 ## [1.2.6] — 2026-05-17
 
 ### Added

@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: membership, paywall, donations, subscriptions, stripe payments
 Requires at least: 5.7
 Tested up to: 7.0
-Stable tag: 1.2.7
+Stable tag: 1.2.8
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -237,28 +237,35 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 
 == Changelog ==
 
+= 1.2.8 August 15, 2026 =
+- Improves Stripe payment handling for zero-decimal currencies such as JPY and KRW.
+- Improves Membership access handling for refunds, restored payments, and removed supporters.
+- Improves Membership access updates when a subscription period ends.
+- Fixes Membership and email notification toggles so they save reliably.
+- Improves Setup of the default membership level on new installs.
+
 = 1.2.7 May 17, 2026 =
-- Adds dedicated membership access management for one-time lifetime access, manual access, and subscription-backed access.
-- Adds one-time membership payments with lifetime access
-- Adds automatic WordPress user account creation/linking for membership payments.
-- Improves recurring membership access sync with subscription renewal dates.
-- Improves one-time membership button labels with Join text on paywalls and checkout.
+- Adds Dedicated membership access management for one-time lifetime access, manual access, and subscription-backed access.
+- Adds One-time membership payments with lifetime access
+- Adds Automatic WordPress user account creation/linking for membership payments.
+- Improves Recurring membership access sync with subscription renewal dates.
+- Improves One-time membership button labels with Join text on paywalls and checkout.
 
 = 1.2.6 May 03, 2026 =
 - Adds Memberships as the headline monetization feature for paid content.
-- Adds membership levels with monthly or yearly pricing, descriptions, rewards, status controls, and checkout preview links.
-- Adds members-only post and page access controls in the editor with allowed membership levels and preview word counts.
-- Adds paywall CTA for restricted content with teaser content, level pricing, reward bullets, and return-to-content checkout flow.
-- Adds active members dashboard with search, level, renewal date, billing interval, subscription status, and quick subscription actions.
-- Adds membership members API and subscription detail links from member records.
-- Adds top navigation and admin UI refinements for a cleaner membership workflow.
-- Improves supporter/subscription links by using safer link tokens in admin tables.
-- Improves frontend route guards and disables development mode for production builds.
+- Adds Membership levels with monthly or yearly pricing, descriptions, rewards, status controls, and checkout preview links.
+- Adds Members-only post and page access controls in the editor with allowed membership levels and preview word counts.
+- Adds Paywall CTA for restricted content with teaser content, level pricing, reward bullets, and return-to-content checkout flow.
+- Adds Active members dashboard with search, level, renewal date, billing interval, subscription status, and quick subscription actions.
+- Adds Membership members API and subscription detail links from member records.
+- Adds Top navigation and admin UI refinements for a cleaner membership workflow.
+- Improves Supporter/subscription links by using safer link tokens in admin tables.
+- Improves Frontend route guards and disables development mode for production builds.
 - Fixes PayPal live-mode checkout and currency handling improvements from the release range.
 
 = 1.2.5 May 02, 2026 =
 - Fixes Security audits
-- Improves different modules.
+- Improves Different modules.
 - Fixes Stripe subscription confirmation mismatch errors and subscriber account creation emails.
 - Fixes PayPal live-mode checkout by using the current live REST endpoint, safer redirect URL generation, single-item Standard checkout, and supported-currency validation.
 
@@ -266,7 +273,7 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 - Adds Deactivation feedback modal with WPMiners feedback collection
 - Improves Quick Setup visibility so it hides after setup is complete
 - Improves Buy Me Coffee admin page by suppressing stray WordPress notices
-- Fixes release compatibility issue for translated placeholder text
+- Fixes Release compatibility issue for translated placeholder text
 
 = 1.2.3 May 01, 2026 =
 - Adds Currency and number formatting

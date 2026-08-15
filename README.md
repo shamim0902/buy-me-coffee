@@ -11,7 +11,7 @@
 
 <img width="2752" height="1536" alt="example-section" src="https://github.com/user-attachments/assets/0b63171f-2212-4524-a079-4c36a506c629" />
 
-**Current version:** `1.2.6` · [Full Changelog](CHANGELOG.md)
+**Current version:** `1.2.8` · [Full Changelog](CHANGELOG.md)
 
 [Plugin Site](https://wpminers.dev/buymecoffee/) · [User Guide](https://wpminers.dev/buymecoffee/docs/getting-started/quick-setup/) · [Demo](https://wpminers.dev/buymecoffee-demo) · [WordPress.org](https://wordpress.org/plugins/buy-me-a-coffee/)
 
@@ -49,6 +49,12 @@
 ---
 
 ## What's New in 1.2.x
+
+### 1.2.8
+- **Payment handling** — smoother Stripe payments for zero-decimal currencies like JPY and KRW
+- **Membership access** — improved handling for refunds, restored payments, removed supporters, and subscription period changes
+- **Settings** — membership and email notification toggles now save reliably
+- **Setup** — improved default membership level setup on new installs
 
 ### 1.2.7
 - **Onetime membership access** - Now onetime membership access can be managed
