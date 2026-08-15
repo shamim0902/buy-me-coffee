@@ -256,13 +256,11 @@ class PaymentTransitionService
         $membershipAccessId = 0;
         if ($status === 'paid' && !$subscriptionId) {
             // The row lock was released at COMMIT above, so a concurrent refund
-            // can transition the transaction to 'refunded' (and revoke access)
-            // before this line runs. Re-read the durable status and only grant
-            // access while the transaction is still paid, so we never revive
-            // access for a transaction that has since been refunded.
-            if ($this->storedStatus($transactionId) === 'paid') {
-                $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
-            }
+            // may be transitioning this transaction — and revoking its access —
+            // right now. activateByTransaction() therefore grants in one
+            // statement conditional on the transaction still being stored as
+            // paid, so nothing here can revive access a refund just took away.
+            $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
         }
 
         do_action('buymecoffee_payment_status_updated', $transactionId, $status);
@@ -468,25 +466,6 @@ class PaymentTransitionService
             ->where('payment_method', 'stripe')
             ->where('payment_note', 'like', '%"invoice_id":"' . addcslashes($invoiceId, '%_') . '"%')
             ->first();
-    }
-
-    /**
-     * The payment status currently stored for a transaction.
-     *
-     * @param int $transactionId Transaction row ID.
-     * @return string Empty when the row is gone.
-     */
-    private function storedStatus($transactionId)
-    {
-        global $wpdb;
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table name from $wpdb->prefix; fresh uncached read required to re-check status after commit.
-        $stored = $wpdb->get_var($wpdb->prepare(
-            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
-            (int) $transactionId
-        ));
-
-        return sanitize_key((string) $stored);
     }
 
     /**

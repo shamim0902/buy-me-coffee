@@ -26,6 +26,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PaymentTransitionService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 use BuyMeCoffee\Services\SupporterDeletionService;
 
@@ -6422,6 +6423,98 @@ $suite->test('a stale paid announcement cannot re-open the access a refund has a
         $test->assertSame([$purchase['access_id']], $log['activated'], 'The activation that moved the row announces it once');
     } finally {
         $stopWatching();
+    }
+});
+
+$suite->test('a refund landing during a browser confirmation must not activate the subscription', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcStripeSettings, $bmcStripeBody, $bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.91';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    // The confirmation reads the transaction before it reaches Stripe, so the
+    // refund is landed while the intent is being fetched: exactly the window in
+    // which the confirmation's own copy of the payment goes stale.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $checkout, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            $transaction = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('id', $checkout['transaction_id'])
+                ->first();
+
+            (new PaymentTransitionService())->apply($transaction, 'refunded');
+
+            // A refunded PaymentIntent keeps reporting "succeeded" for good.
+            return $bmcStripeBody([
+                'id'              => $checkout['intent_id'],
+                'object'          => 'payment_intent',
+                'status'          => 'succeeded',
+                'amount'          => 2500,
+                'amount_received' => 2500,
+                'currency'        => 'usd',
+                'livemode'        => false,
+                'metadata'        => ['ref_id' => $checkout['hash']],
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            return $bmcStripeBody([
+                'id'                 => $checkout['stripe_sub_id'],
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request: ' . $url]], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $checkout['intent_id'],
+            'subscriptionId'    => $checkout['subscription_id'],
+        ];
+
+        $captured = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(403, $captured['status'], 'A confirmation of a payment that is no longer live is refused');
+        $test->assertFalse($captured['body']['success'], 'A refused confirmation must not report success');
+        $test->assertSame(1, count($requests), 'The refusal happens on the transition, before any further Stripe call');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame('incomplete', $state['subscription'], 'A terminal refusal must not activate the subscription');
+        $test->assertSame('', (string) $state['period_end'], 'A refused confirmation must not advance the billing period');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded first payment must not hand back membership access'
+        );
+        $test->assertSame([], $activated['ids'], 'No subscription activation may be announced');
+        $test->assertSame([], $log['activated'], 'No entitlement may be announced');
+        $test->assertSame(
+            [[$checkout['transaction_id'], 'refunded']],
+            $log['status'],
+            'The refund is the only transition this request produced'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
     }
 });
 

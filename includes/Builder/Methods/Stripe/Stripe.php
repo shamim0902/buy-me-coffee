@@ -331,7 +331,13 @@ class Stripe extends BaseMethods
         $service    = new PaymentTransitionService();
         $transition = $service->apply($transaction, $intentStatus === 'succeeded' ? 'paid' : 'pending');
 
-        if (is_wp_error($transition) && $transition->get_error_code() === 'bmc_payment_write_failed') {
+        // Every refusal stops the confirmation here, because what follows grants
+        // recurring membership entitlement. A write failure never stored the
+        // status at all; a terminal refusal — a refund that landed between the
+        // lookup above and this call — is a durable decision. Neither may go on
+        // to activate the subscription and hand back access the site has
+        // already taken away.
+        if (is_wp_error($transition)) {
             return false;
         }
 
