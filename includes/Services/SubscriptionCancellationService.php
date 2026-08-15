@@ -26,6 +26,17 @@ class SubscriptionCancellationService
     const TERMINAL_STATUSES = ['cancelled', 'canceled', 'expired', 'incomplete_expired'];
 
     /**
+     * Statuses that originate from Stripe's own subscription lifecycle and
+     * therefore reliably mean the agreement can no longer bill. A local
+     * 'cancelled'/'canceled' is deliberately excluded: the legacy donor flow
+     * could set it without Stripe ever confirming the cancellation, so it is
+     * not proof the remote agreement stopped billing.
+     *
+     * @var string[]
+     */
+    const PROVIDER_TERMINAL_STATUSES = ['expired', 'incomplete_expired'];
+
+    /**
      * Is this local subscription already in a state that cannot bill again?
      *
      * @param object $subscription Local subscription row.
@@ -52,7 +63,14 @@ class SubscriptionCancellationService
             return false;
         }
 
-        return !self::isTerminal($subscription);
+        // Only Stripe-sourced expiry states may skip remote verification. A local
+        // 'cancelled'/'canceled' is not trusted here — it may have been written
+        // locally without Stripe confirming, so the agreement is still verified
+        // (and cancelled) remotely. cancelRemote() treats an already-cancelled
+        // agreement as success, so this adds no failures for genuine cancels.
+        $status = isset($subscription->status) ? strtolower((string) $subscription->status) : '';
+
+        return !in_array($status, self::PROVIDER_TERMINAL_STATUSES, true);
     }
 
     /**
