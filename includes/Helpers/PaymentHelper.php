@@ -234,6 +234,27 @@ class PaymentHelper
         return $storedTotal;
     }
 
+    /**
+     * Inverse of toStripeAmount(): convert a Stripe amount (as returned in
+     * invoices/payment intents) back into the ×100 minor-unit value the plugin
+     * stores in payment_total / subscription amount, so stored amounts stay in
+     * one consistent scale regardless of currency.
+     *
+     * @param int|float $stripeAmount Amount from a Stripe object.
+     * @param string    $currency     ISO currency code.
+     * @return int Stored (×100 minor unit) amount.
+     */
+    public static function fromStripeAmount($stripeAmount, $currency): int
+    {
+        $stripeAmount = (int) round((float) $stripeAmount);
+
+        if (self::isStripeZeroDecimalCurrency($currency)) {
+            return $stripeAmount * 100;
+        }
+
+        return $stripeAmount;
+    }
+
     public static function getFormattedAmount($amount, $currency)
     {
         $settings = self::getFormattingSettings();

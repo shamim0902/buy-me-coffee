@@ -7,6 +7,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
+use BuyMeCoffee\Helpers\PaymentHelper;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -51,7 +52,9 @@ class StripeSubscriptions
             // Build subscription payload
             $priceData = [
                 'currency'    => strtolower($paymentArgs['currency']),
-                'unit_amount' => (int) $paymentArgs['amount'],
+                // amount is stored in ×100 minor units; convert to the Stripe
+                // native amount for this currency (zero-decimal must not be ×100).
+                'unit_amount' => PaymentHelper::toStripeAmount((int) $paymentArgs['amount'], $paymentArgs['currency']),
                 'recurring'   => ['interval' => $interval],
             ];
 
@@ -276,6 +279,8 @@ class StripeSubscriptions
         // Renewal: create a new transaction record
         $amountPaid      = isset($object->amount_paid) ? (int) $object->amount_paid : 0;
         $currency        = isset($object->currency) ? sanitize_text_field($object->currency) : 'usd';
+        // Stripe amounts are in the currency's native scale; store in ×100 minor units.
+        $storedAmount    = PaymentHelper::fromStripeAmount($amountPaid, $currency);
         $paymentIntentId = isset($object->payment_intent) ? sanitize_text_field($object->payment_intent) : '';
 
         $chargeId = '';
@@ -316,7 +321,7 @@ class StripeSubscriptions
             'transaction_type' => 'recurring',
             'payment_method'   => 'stripe',
             'charge_id'        => $chargeId,
-            'payment_total'    => $amountPaid,
+            'payment_total'    => $storedAmount,
             'status'           => 'paid',
             'currency'         => strtoupper($currency),
             'payment_mode'     => sanitize_text_field($subscription->payment_mode),
@@ -344,7 +349,7 @@ class StripeSubscriptions
             'context'    => [
                 'subscription_id' => $subscription->id,
                 'supporter_id'    => $subscription->supporter_id,
-                'amount'          => $amountPaid,
+                'amount'          => $storedAmount,
                 'currency'        => $currency,
                 'charge_id'       => $chargeId,
                 'invoice_id'      => $invoiceId,
@@ -630,7 +635,8 @@ class StripeSubscriptions
                     'transaction_type' => 'recurring',
                     'payment_method'   => 'stripe',
                     'charge_id'        => $chargeId,
-                    'payment_total'    => $amountPaid,
+                    // Stripe amounts are native scale; store in ×100 minor units.
+                    'payment_total'    => PaymentHelper::fromStripeAmount($amountPaid, $currency),
                     'status'           => 'paid',
                     'currency'         => strtoupper($currency),
                     'payment_mode'     => sanitize_text_field($subscription->payment_mode),
