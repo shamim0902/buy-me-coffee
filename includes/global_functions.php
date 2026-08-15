@@ -182,13 +182,27 @@ if (!function_exists('buymecoffee_user_get_active_level_ids')) {
 
         if (!$forceRefresh) {
             $cached = buymecoffee_get_supporter_meta($primarySupporterId, 'active_level_ids');
-            if (is_array($cached)) {
-                return $cached;
+            // New cache format is an envelope: ['level_ids' => [...], 'expires_at' => 'Y-m-d H:i:s'|null].
+            // A null/empty expiry means no time-bounded grant, so the cache stays valid until an
+            // event invalidates it. A past expiry forces a recompute (a subscription period lapsed
+            // with no further gateway event to clear the cache). Legacy plain-array caches fall
+            // through and get rewritten in the new format.
+            if (is_array($cached) && isset($cached['level_ids']) && is_array($cached['level_ids'])) {
+                $expiresAt = !empty($cached['expires_at']) ? $cached['expires_at'] : null;
+                if ($expiresAt === null || strtotime($expiresAt) > time()) {
+                    return $cached['level_ids'];
+                }
             }
         }
 
-        $levelIds = (new \BuyMeCoffee\Models\MembershipAccess())->getActiveLevelIdsForUser($userId);
-        buymecoffee_update_supporter_meta($primarySupporterId, 'active_level_ids', $levelIds);
+        $model    = new \BuyMeCoffee\Models\MembershipAccess();
+        $levelIds = $model->getActiveLevelIdsForUser($userId);
+        $expiresAt = $model->getNextAccessExpiryForUser($userId);
+
+        buymecoffee_update_supporter_meta($primarySupporterId, 'active_level_ids', [
+            'level_ids'  => $levelIds,
+            'expires_at' => $expiresAt,
+        ]);
 
         return $levelIds;
     }

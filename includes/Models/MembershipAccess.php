@@ -215,6 +215,44 @@ class MembershipAccess extends Model
         return array_values(array_unique($levelIds));
     }
 
+    /**
+     * Earliest future expiry among the user's time-bounded (subscription) access
+     * rows, or null when the user only has non-expiring grants (one-time/manual).
+     *
+     * Used to give the cached level list a TTL so that when a subscription
+     * period lapses — after which no further gateway event fires — the cache is
+     * recomputed instead of granting access forever.
+     *
+     * @param int $userId WordPress user ID.
+     * @return string|null MySQL datetime (UTC) or null.
+     */
+    public function getNextAccessExpiryForUser($userId)
+    {
+        $userId = absint($userId);
+        if (!$userId) {
+            return null;
+        }
+
+        $supporterIds = buymecoffee_get_supporter_ids_for_user($userId);
+        if (empty($supporterIds)) {
+            return null;
+        }
+
+        $now = current_time('mysql', true);
+
+        $row = $this->getQuery()
+            ->select(['expires_at'])
+            ->whereIn('supporter_id', $supporterIds)
+            ->where('access_type', 'subscription')
+            ->whereIn('status', ['active', 'cancelled'])
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '>', $now)
+            ->orderBy('expires_at', 'ASC')
+            ->first();
+
+        return ($row && !empty($row->expires_at)) ? $row->expires_at : null;
+    }
+
     private function upsert(array $data, array $identity, $fireAction)
     {
         global $wpdb;
@@ -285,8 +323,31 @@ class MembershipAccess extends Model
 
     private function invalidateSupporterAccessCache($supporterId)
     {
-        if ($supporterId && function_exists('buymecoffee_delete_supporter_meta')) {
-            buymecoffee_delete_supporter_meta((int) $supporterId, 'active_level_ids');
+        $supporterId = absint($supporterId);
+        if (!$supporterId || !function_exists('buymecoffee_delete_supporter_meta')) {
+            return;
+        }
+
+        // The read cache is keyed to the user's *primary* supporter row, which may
+        // differ from the row that changed. Clear this supporter plus every sibling
+        // row belonging to the same WP user so the primary key is always cleared.
+        $supporterIds = [$supporterId];
+
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('id', $supporterId)
+            ->select(['wp_user_id'])
+            ->first();
+
+        if ($supporter && !empty($supporter->wp_user_id) && function_exists('buymecoffee_get_supporter_ids_for_user')) {
+            $supporterIds = array_unique(array_merge(
+                $supporterIds,
+                buymecoffee_get_supporter_ids_for_user((int) $supporter->wp_user_id)
+            ));
+        }
+
+        foreach ($supporterIds as $id) {
+            buymecoffee_delete_supporter_meta((int) $id, 'active_level_ids');
         }
     }
 }
