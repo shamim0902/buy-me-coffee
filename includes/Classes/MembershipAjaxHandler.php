@@ -267,7 +267,12 @@ class MembershipAjaxHandler
         ];
 
         foreach ($boolKeys as $key) {
-            $updated[$key] = isset($data[$key]) ? (bool) $data[$key] : $current[$key];
+            // Values arrive form-encoded, so a JS `false` reaches PHP as the
+            // string "false", which (bool) casts to true. Parse it properly so
+            // toggles can actually be turned off.
+            $updated[$key] = isset($data[$key])
+                ? filter_var($data[$key], FILTER_VALIDATE_BOOLEAN)
+                : $current[$key];
         }
 
         update_option('buymecoffee_membership_settings', $updated, false);
