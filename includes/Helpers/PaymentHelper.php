@@ -6,11 +6,11 @@ use BuyMeCoffee\Builder\Methods\Stripe\API;
 use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
 use BuyMeCoffee\Controllers\SubmissionHandler;
 use BuyMeCoffee\Models\Buttons;
-use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\OneTimePaymentStatusService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -27,6 +27,24 @@ class PaymentHelper
         return (new Supporters())->getByHash($hash);
     }
 
+    /**
+     * Record a Stripe PaymentIntent against the order it was created for.
+     *
+     * This runs from the browser after checkout and can be replayed at will — a
+     * customer can reload the confirmation page long after the payment was
+     * refunded. A refunded PaymentIntent still reports `status: succeeded`
+     * forever, so the reported status is treated as a claim, not an outcome: for
+     * one-time payments the transition is decided by
+     * OneTimePaymentStatusService, which refuses to move a refunded payment back
+     * to paid. Only the descriptive Stripe fields (card, charge reference, raw
+     * payload) are written unconditionally; they describe the payment whatever
+     * became of it. The returned state is read back from storage, so a refused
+     * confirmation reports refunded and no access rather than the paid state the
+     * intent claimed.
+     *
+     * @param string $intentId Stripe PaymentIntent id.
+     * @return array|\WP_Error
+     */
     public function updatePaymentData($intentId)
     {
         $path = 'payment_intents/' . $intentId;
@@ -60,12 +78,17 @@ class PaymentHelper
         }
 
         $stripeStatus = sanitize_text_field(Arr::get($response, 'status', ''));
-        $status = $stripeStatus === 'succeeded' ? 'paid' : 'pending';
+        $reportedStatus = $stripeStatus === 'succeeded' ? 'paid' : 'pending';
+        $transactionId = (int) $order->transaction->id;
+        $subscriptionId = !empty($order->transaction->subscription_id) ? (int) $order->transaction->subscription_id : 0;
         $card = Arr::get($response, 'charges.data.0.payment_method_details.card');
         $last4 = Arr::get($card, 'last4');
         $cardBand = Arr::get($card, 'brand');
-        $updateData = [
-            'status' => sanitize_text_field($status),
+
+        // Descriptive only: which card paid, which intent it was, what Stripe
+        // returned. None of it grants anything, so it is safe to store even for a
+        // confirmation whose status claim is refused below.
+        $paymentDetails = [
             'charge_id' => sanitize_text_field($intentId),
             'payment_mode' => Arr::get($response, 'livemode') ? 'live' : 'test',
             'payment_note' => json_encode($response),
@@ -73,47 +96,68 @@ class PaymentHelper
             'card_brand' => sanitize_text_field($cardBand)
         ];
 
-        (new Supporters())->updateData($order->id, [
-            'payment_status' => $status,
-            'updated_at' => current_time('mysql')
-        ]);
-        (new Transactions())->updateData($order->transaction->id, $updateData);
+        $status = $reportedStatus;
+
+        if ($subscriptionId) {
+            // Subscription-linked transactions keep their own lifecycle.
+            (new Supporters())->updateData($order->id, [
+                'payment_status' => $status,
+                'updated_at' => current_time('mysql')
+            ]);
+            (new Transactions())->updateData($transactionId, array_merge(
+                ['status' => sanitize_text_field($status)],
+                $paymentDetails
+            ));
+        } else {
+            (new Transactions())->updateData($transactionId, $paymentDetails);
+
+            $applied = (new OneTimePaymentStatusService())->apply($order->transaction, $reportedStatus);
+
+            if (is_wp_error($applied) && $applied->get_error_code() === 'bmc_payment_write_failed') {
+                // The status could not be stored at all, so nothing may be
+                // reported about it — the caller retries instead.
+                return $applied;
+            }
+
+            // Whatever the intent claimed, the stored status is the truth: a
+            // refused transition leaves the refund in place.
+            $status = $this->storedTransactionStatus($transactionId) ?: $reportedStatus;
+        }
 
         // If this transaction belongs to a subscription, activate it now.
         // Webhooks also do this, but the frontend confirmation fires first and
         // without this the subscription stays 'incomplete' until the webhook arrives.
-        if ($status === 'paid' && !empty($order->transaction->subscription_id)) {
+        if ($status === 'paid' && $subscriptionId) {
             $subscriptionUpdate = [
                 'status'     => 'active',
                 'updated_at' => current_time('mysql'),
             ];
 
-            $periodEnd = $this->resolveStripeSubscriptionPeriodEnd((int) $order->transaction->subscription_id);
+            $periodEnd = $this->resolveStripeSubscriptionPeriodEnd($subscriptionId);
             if ($periodEnd) {
                 $subscriptionUpdate['current_period_end'] = $periodEnd;
             }
 
-            (new Subscriptions())->updateData((int) $order->transaction->subscription_id, $subscriptionUpdate);
-            do_action('buymecoffee_subscription_activated', (int) $order->transaction->subscription_id);
+            (new Subscriptions())->updateData($subscriptionId, $subscriptionUpdate);
+            do_action('buymecoffee_subscription_activated', $subscriptionId);
         }
 
-        $membershipAccess = $this->getMembershipAccessByTransaction((int) $order->transaction->id);
+        // Read after the transition: for a one-time payment the service has
+        // already activated or left the access row alone.
+        $membershipAccess = $this->getMembershipAccessByTransaction($transactionId);
         $membershipAccessId = $membershipAccess ? (int) $membershipAccess->id : 0;
 
-        if ($status === 'paid' && empty($order->transaction->subscription_id)) {
-            $membershipAccessId = (new MembershipAccess())->activateByTransaction((int) $order->transaction->id);
-            $membershipAccess = $membershipAccessId ? (new MembershipAccess())->find($membershipAccessId) : $membershipAccess;
-        }
-
-        do_action('buymecoffee_payment_status_updated', $order->transaction->id, $status);
-
         $subscription = null;
-        if (!empty($order->transaction->subscription_id)) {
+        if ($subscriptionId) {
+            // One-time transitions fire this from the service instead, exactly
+            // once and only when the status actually moved.
+            do_action('buymecoffee_payment_status_updated', $transactionId, $status);
+
             $subscription = buyMeCoffeeQuery()
                 ->table('buymecoffee_subscriptions')
-                ->where('id', (int) $order->transaction->subscription_id)
+                ->where('id', $subscriptionId)
                 ->first();
-            $membershipAccess = $this->getMembershipAccessBySubscription((int) $order->transaction->subscription_id) ?: $membershipAccess;
+            $membershipAccess = $this->getMembershipAccessBySubscription($subscriptionId) ?: $membershipAccess;
             if ($membershipAccess && !$membershipAccessId) {
                 $membershipAccessId = (int) $membershipAccess->id;
             }
@@ -128,14 +172,27 @@ class PaymentHelper
         return [
             'payment_status'           => $status,
             'stripe_status'            => $stripeStatus,
-            'transaction_id'           => (int) $order->transaction->id,
-            'subscription_id'          => !empty($order->transaction->subscription_id) ? (int) $order->transaction->subscription_id : 0,
-            'is_subscription'          => !empty($order->transaction->subscription_id),
+            'transaction_id'           => $transactionId,
+            'subscription_id'          => $subscriptionId,
+            'is_subscription'          => (bool) $subscriptionId,
             'is_membership'            => $isMembership,
             'membership_access_id'     => $membershipAccessId,
             'membership_access_status' => !empty($membershipAccess->status) ? sanitize_text_field($membershipAccess->status) : '',
             'access_active'            => (bool) $accessActive,
         ];
+    }
+
+    /**
+     * The payment status currently stored for a transaction.
+     *
+     * @param int $transactionId Transaction row ID.
+     * @return string Empty when the row is gone.
+     */
+    private function storedTransactionStatus(int $transactionId): string
+    {
+        $transaction = (new Transactions())->find($transactionId);
+
+        return ($transaction && !empty($transaction->status)) ? sanitize_text_field($transaction->status) : '';
     }
 
     private function getMembershipAccessByTransaction(int $transactionId)

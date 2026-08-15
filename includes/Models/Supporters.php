@@ -126,6 +126,46 @@ class Supporters extends Model
         return $supporters;
     }
 
+    /**
+     * The payment status that describes a supporter's whole transaction history.
+     *
+     * A supporter row is a summary of every transaction attached to it, so one
+     * refunded transaction must not hide a payment they still made, and one
+     * settled payment outranks anything still in flight.
+     *
+     * @param int $entryId Supporter row ID.
+     * @return string One of paid, pending, failed, refunded.
+     */
+    public static function aggregatePaymentStatus($entryId)
+    {
+        $transactions = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('entry_id', absint($entryId))
+            ->select('status')
+            ->get();
+
+        $statuses = [];
+        foreach ($transactions as $transaction) {
+            if (!empty($transaction->status)) {
+                $statuses[] = sanitize_text_field($transaction->status);
+            }
+        }
+
+        if (in_array('paid', $statuses, true)) {
+            return 'paid';
+        }
+
+        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true) || in_array('refunding', $statuses, true)) {
+            return 'pending';
+        }
+
+        if (in_array('failed', $statuses, true)) {
+            return 'failed';
+        }
+
+        return 'refunded';
+    }
+
     public function find($id)
     {
         $supporter = $this->getQuery()

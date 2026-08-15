@@ -11,6 +11,7 @@ use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\OneTimePaymentStatusService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -398,117 +399,261 @@ class Stripe extends BaseMethods
         return 'https://dashboard.stripe.com/' . $transaction->payment_mode . '/payments/' . $transaction->charge_id;
     }
 
+    /**
+     * Public Stripe webhook endpoint. Terminates the request.
+     *
+     * The decision itself lives in processIncomingEvent() so every outcome can
+     * be asserted in tests without exit() ending the process.
+     */
     public function verifyIpn()
+    {
+        $outcome = $this->processIncomingEvent();
+
+        self::debugLog('Webhook outcome: ' . $outcome['code'] . ' (HTTP ' . $outcome['http'] . ') — ' . $outcome['message']);
+
+        status_header((int) $outcome['http']);
+        exit;
+    }
+
+    /**
+     * Authenticate an incoming webhook payload and process the real event.
+     *
+     * The posted payload is unauthenticated, so its claimed type is used for
+     * nothing but deciding whether the event is worth fetching. Everything after
+     * the fetch — the type dispatched on, the id locked against replay, the
+     * object read for the payment outcome — comes from Stripe's own copy.
+     *
+     * @param object|null $payload Decoded payload; read from the request when null.
+     * @return array Outcome, see outcome().
+     */
+    public function processIncomingEvent($payload = null)
     {
         self::debugLog('--- Webhook handler triggered ---');
 
-        $data = (new IPN())->IPNData();
-        if (!$data || is_wp_error($data)) {
-            $error = is_wp_error($data) ? $data->get_error_message() : 'empty payload';
-            self::debugLog('Aborting: payload invalid — ' . $error);
-            status_header(400);
-            exit;
+        if ($payload === null) {
+            $payload = (new IPN())->IPNData();
         }
 
-        $eventType = isset($data->type) ? sanitize_text_field($data->type) : '';
-        if (!$eventType) {
-            self::debugLog('Aborting: event type missing from payload');
-            status_header(400);
-            exit;
+        if (!$payload || is_wp_error($payload)) {
+            $error = is_wp_error($payload) ? $payload->get_error_message() : 'empty payload';
+            return self::outcome('invalid_payload', 400, ['message' => $error]);
         }
 
-        $acceptedEvents = [
-            'invoice.payment_succeeded',
-            'customer.subscription.deleted',
-            'customer.subscription.updated',
-            'charge.succeeded',
-            'charge.refunded',
-            'checkout.session.completed',
-            'invoice.paid',
-        ];
-
-        if (!in_array($eventType, $acceptedEvents, true)) {
-            self::debugLog('Skipping unhandled event type: ' . $eventType);
-            status_header(200);
-            exit;
+        $claimedType = isset($payload->type) ? sanitize_text_field($payload->type) : '';
+        if (!$claimedType) {
+            return self::outcome('missing_event_type', 400, ['message' => 'event type missing from payload']);
         }
 
-        // Re-fetch the event from Stripe API to verify authenticity.
-        // This confirms the event is genuine without requiring a webhook secret.
-        $eventId = sanitize_text_field($data->id);
-        self::debugLog('Re-fetching event from Stripe API — event_id: ' . $eventId);
-        $event = (new API())->getEvent($eventId);
+        // Cheap pre-filter only: an unhandled claimed type is not worth a
+        // round trip to Stripe. It never decides how the event is handled.
+        if (!StripeEventMap::isSupported($claimedType)) {
+            return self::outcome('unsupported_event', 200, ['message' => 'unhandled claimed type: ' . $claimedType]);
+        }
+
+        $claimedId = isset($payload->id) ? sanitize_text_field($payload->id) : '';
+        if (!$claimedId) {
+            return self::outcome('missing_event_id', 400, ['message' => 'event id missing from payload']);
+        }
+
+        self::debugLog('Re-fetching event from Stripe API — event_id: ' . $claimedId);
+        $event = (new API())->getEvent($claimedId);
 
         if (!$event || is_wp_error($event)) {
             $error = is_wp_error($event) ? $event->get_error_message() : 'empty response';
-            self::debugLog('Aborting: Stripe API re-fetch failed — ' . $error);
-            status_header(400);
-            exit;
+            return self::outcome('event_fetch_failed', 400, ['message' => 'Stripe API re-fetch failed — ' . $error]);
+        }
+
+        return $this->processAuthenticatedEvent($event);
+    }
+
+    /**
+     * Process an event that Stripe itself returned.
+     *
+     * @param array|object $event Authenticated Stripe event.
+     * @return array Outcome, see outcome().
+     */
+    public function processAuthenticatedEvent($event)
+    {
+        $event = StripeEventMap::normalize($event);
+
+        $eventId   = ($event && isset($event->id) && is_scalar($event->id)) ? sanitize_text_field((string) $event->id) : '';
+        $eventType = ($event && isset($event->type) && is_scalar($event->type)) ? sanitize_text_field((string) $event->type) : '';
+
+        if (!$eventId || !$eventType) {
+            return self::outcome('malformed_event', 400, ['message' => 'the fetched event has no id or type']);
+        }
+
+        if (!StripeEventMap::isSupported($eventType)) {
+            return self::outcome('unsupported_event', 200, [
+                'event_id'   => $eventId,
+                'event_type' => $eventType,
+                'message'    => 'unhandled event type: ' . $eventType,
+            ]);
         }
 
         self::debugLog('Event verified via Stripe API — type: ' . $eventType);
 
-        // Convert array response to object for consistent downstream handling
-        $event = json_decode(wp_json_encode($event));
-
-        // Handle subscription-specific webhook events
-        $subscriptionEvents = [
-            'invoice.payment_succeeded',
-            'customer.subscription.deleted',
-            'customer.subscription.updated',
-        ];
-
-        if (in_array($eventType, $subscriptionEvents, true)) {
-            if (!$this->acquireEventLock($eventId)) {
-                self::debugLog('Duplicate event, already processed — event_id: ' . $eventId);
-                status_header(200);
-                exit;
-            }
-
-            self::debugLog('Processing subscription event: ' . $eventType);
-            $keys    = StripeSettings::getKeys();
-            $handler = new StripeSubscriptions();
-
-            if ($eventType === 'invoice.payment_succeeded') {
-                $handler->handleRenewalWebhook($event, $keys['secret']);
-            } elseif ($eventType === 'customer.subscription.deleted') {
-                $handler->handleSubscriptionCancelled($event);
-            } elseif ($eventType === 'customer.subscription.updated') {
-                $handler->handleSubscriptionUpdated($event);
-            }
-
-            self::debugLog('Subscription event processed successfully: ' . $eventType);
-            status_header(200);
-            exit;
+        if (StripeEventMap::isSubscriptionEvent($eventType)) {
+            return $this->processSubscriptionEvent($event, $eventId, $eventType);
         }
 
-        // One-time payment event handling
-        $orderHash = $this->getOrderHash($event);
-        if (!$orderHash) {
-            self::debugLog('No order hash (ref_id) found in event metadata — event_type: ' . $eventType);
-            status_header(200);
-            exit;
-        }
-
-        self::debugLog('Order hash extracted: ' . $orderHash);
-
-        $status = isset($event->data->object->status) ? sanitize_text_field($event->data->object->status) : '';
-        if (!$status) {
-            self::debugLog('Aborting: no status field on event data.object — event_type: ' . $eventType);
-            status_header(400);
-            exit;
-        }
-
-        if ($status === 'succeeded') {
-            $status = 'paid';
-        }
-
-        self::debugLog('Updating payment status to "' . $status . '" for order: ' . $orderHash);
-        $this->updateStatus($orderHash, $status);
-        status_header(200);
-        exit;
+        return $this->processOneTimeEvent($event, $eventId, $eventType);
     }
 
+    /**
+     * @param object $event     Authenticated Stripe event.
+     * @param string $eventId   Event id as returned by Stripe.
+     * @param string $eventType Event type as returned by Stripe.
+     * @return array Outcome, see outcome().
+     */
+    private function processSubscriptionEvent($event, $eventId, $eventType)
+    {
+        if (!$this->acquireEventLock($eventId)) {
+            return self::outcome('duplicate_event', 200, [
+                'event_id'   => $eventId,
+                'event_type' => $eventType,
+                'message'    => 'event already processed',
+            ]);
+        }
+
+        self::debugLog('Processing subscription event: ' . $eventType);
+        $keys    = StripeSettings::getKeys();
+        $handler = new StripeSubscriptions();
+
+        if ($eventType === 'invoice.payment_succeeded') {
+            $handler->handleRenewalWebhook($event, $keys['secret']);
+        } elseif ($eventType === 'customer.subscription.deleted') {
+            $handler->handleSubscriptionCancelled($event);
+        } elseif ($eventType === 'customer.subscription.updated') {
+            $handler->handleSubscriptionUpdated($event);
+        }
+
+        return self::outcome('subscription_event_processed', 200, [
+            'event_id'   => $eventId,
+            'event_type' => $eventType,
+            'message'    => 'subscription event processed',
+        ]);
+    }
+
+    /**
+     * @param object $event     Authenticated Stripe event.
+     * @param string $eventId   Event id as returned by Stripe.
+     * @param string $eventType Event type as returned by Stripe.
+     * @return array Outcome, see outcome().
+     */
+    private function processOneTimeEvent($event, $eventId, $eventType)
+    {
+        $context = ['event_id' => $eventId, 'event_type' => $eventType];
+
+        $status = StripeEventMap::resolveLocalStatus($event);
+        if (is_wp_error($status)) {
+            // Nothing is written and no event is consumed: an event this build
+            // cannot read must never be able to change local state.
+            return self::outcome('unmapped_event', 400, array_merge($context, [
+                'message' => $status->get_error_code() . ' — ' . $status->get_error_message(),
+            ]));
+        }
+
+        $orderHash = self::getOrderHash($event);
+        if (!$orderHash) {
+            return self::outcome('missing_reference', 200, array_merge($context, [
+                'message' => 'no order hash (ref_id) in event metadata',
+            ]));
+        }
+
+        $transaction = (new Transactions())->find($orderHash, 'entry_hash');
+        if (!$transaction) {
+            return self::outcome('transaction_not_found', 200, array_merge($context, [
+                'message' => 'no transaction for entry_hash: ' . $orderHash,
+            ]));
+        }
+
+        $context['transaction_id'] = (int) $transaction->id;
+        $context['status']         = $status;
+
+        // Claimed only now: the event is authentic, readable and matched to a
+        // local transaction, so it is safe to mark it consumed.
+        if (!$this->acquireEventLock($eventId)) {
+            return self::outcome('duplicate_event', 200, array_merge($context, [
+                'status'  => '',
+                'message' => 'event already processed',
+            ]));
+        }
+
+        // Subscription-linked transactions keep their existing lifecycle.
+        if (!empty($transaction->subscription_id)) {
+            $this->updateStatus($orderHash, $status);
+
+            return self::outcome('subscription_transaction_updated', 200, array_merge($context, [
+                'changed' => true,
+                'message' => 'subscription-linked transaction updated to ' . $status,
+            ]));
+        }
+
+        $result = (new OneTimePaymentStatusService())->apply($transaction, $status);
+
+        if (is_wp_error($result)) {
+            if ($result->get_error_code() === 'bmc_payment_write_failed') {
+                // The event was never applied, so let Stripe's retry try again.
+                $this->releaseEventLock($eventId);
+
+                return self::outcome('update_failed', 500, array_merge($context, [
+                    'message' => $result->get_error_message(),
+                ]));
+            }
+
+            return self::outcome('transition_refused', 200, array_merge($context, [
+                'status'  => '',
+                'message' => $result->get_error_code() . ' — ' . $result->get_error_message(),
+            ]));
+        }
+
+        if (!$result['changed']) {
+            return self::outcome('status_unchanged', 200, array_merge($context, [
+                'message' => 'transaction is already ' . $result['to'],
+            ]));
+        }
+
+        return self::outcome('payment_status_updated', 200, array_merge($context, [
+            'changed' => true,
+            'message' => 'transaction moved from ' . $result['from'] . ' to ' . $result['to'],
+        ]));
+    }
+
+    /**
+     * Build the record of what a webhook request decided.
+     *
+     * @param string $code  Machine-readable outcome.
+     * @param int    $http  Status code the endpoint answers with.
+     * @param array  $extra Outcome details.
+     * @return array
+     */
+    private static function outcome($code, $http, array $extra = [])
+    {
+        return array_merge([
+            'code'           => $code,
+            'http'           => (int) $http,
+            'message'        => '',
+            'event_id'       => '',
+            'event_type'     => '',
+            'status'         => '',
+            'transaction_id' => 0,
+            'changed'        => false,
+        ], $extra);
+    }
+
+    /**
+     * Write a payment status straight onto an order.
+     *
+     * The webhook only routes subscription-linked transactions here, so the
+     * subscription activation below keeps working exactly as before. One-time
+     * transactions go through OneTimePaymentStatusService instead, which
+     * enforces the local transition policy this method has no notion of.
+     *
+     * @param string $orderHash Transaction entry_hash.
+     * @param string $status    Local payment status.
+     * @return void
+     */
     public function updateStatus($orderHash, $status)
     {
         $transactions = new Transactions();
@@ -547,37 +692,61 @@ class Stripe extends BaseMethods
         self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' status updated and action fired');
     }
 
+    /**
+     * The order reference stamped on a one-time event's object.
+     *
+     * @param array|object $event Authenticated Stripe event.
+     * @return string|false Order hash, or false when the event carries none.
+     */
     public static function getOrderHash($event)
     {
-        $eventType = $event->type;
+        $reference = StripeEventMap::orderReference($event);
 
-        $metaDataEvents = [
-            'checkout.session.completed',
-            'charge.refunded',
-            'charge.succeeded',
-            'invoice.paid'
-        ];
-
-        if (in_array($eventType, $metaDataEvents)) {
-            $data = $event->data->object;
-            $metaData = (array)$data->metadata;
-            $refId = ArrayHelper::get($metaData, 'ref_id');
-            self::debugLog('getOrderHash: event_type=' . $eventType . ', metadata=' . wp_json_encode($metaData) . ', ref_id=' . ($refId ?: '(empty)'));
-            return $refId;
+        if (!$reference) {
+            self::debugLog('getOrderHash: no ref_id on this event');
+            return false;
         }
 
-        self::debugLog('getOrderHash: event_type "' . $eventType . '" not in metadata-events list');
-        return false;
+        self::debugLog('getOrderHash: ref_id=' . $reference);
+
+        return $reference;
     }
 
+    /**
+     * Claim an event id so a redelivery of the same event does nothing.
+     *
+     * @param string $eventId Stripe event id.
+     * @return bool False when the event was already claimed.
+     */
     private function acquireEventLock($eventId)
     {
-        $lockKey = 'buymecoffee_stripe_event_lock_' . md5($eventId);
+        $lockKey = self::eventLockKey($eventId);
         if (get_transient($lockKey)) {
             return false;
         }
 
         return set_transient($lockKey, 1, DAY_IN_SECONDS * 14);
+    }
+
+    /**
+     * Give a claimed event id back after processing failed for a reason a retry
+     * could fix, so Stripe's redelivery is not silently discarded.
+     *
+     * @param string $eventId Stripe event id.
+     * @return void
+     */
+    private function releaseEventLock($eventId)
+    {
+        delete_transient(self::eventLockKey($eventId));
+    }
+
+    /**
+     * @param string $eventId Stripe event id.
+     * @return string
+     */
+    private static function eventLockKey($eventId)
+    {
+        return 'buymecoffee_stripe_event_lock_' . md5((string) $eventId);
     }
 
     public function sanitize($settings)
