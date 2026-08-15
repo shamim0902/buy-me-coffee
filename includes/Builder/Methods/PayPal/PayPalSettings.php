@@ -19,10 +19,13 @@ class PayPalSettings
             'live_public_key' => '',
             'live_secret_key' => '',
             'paypal_email' => '',
-            'disable_ipn_verification' => 'no',
         );
 
         $data = wp_parse_args($settings, $defaults);
+
+        // Legacy option from an earlier release. IPN verification is always
+        // enforced now, so any stored value is dropped instead of honoured.
+        unset($data['disable_ipn_verification']);
         return $key && isset($data[$key]) ? $data[$key] : $data;
     }
 

@@ -39,12 +39,12 @@ class IPN
             // phpcs:enable WordPress.Security.NonceVerification.Missing
         }
 
-        if (!$this->isVerificationDisabled()) {
-            $verified = $this->verifyWithPayPal($encoded_data);
-            if (is_wp_error($verified) || $verified !== true) {
-                status_header(400);
-                exit;
-            }
+        // Every IPN, sandbox or live, must be echoed back to PayPal and answered
+        // with VERIFIED before any transaction state is touched.
+        $verified = $this->verifyWithPayPal($encoded_data);
+        if (is_wp_error($verified) || $verified !== true) {
+            status_header(400);
+            exit;
         }
 
         parse_str($encoded_data, $encoded_data_array);
@@ -111,22 +111,6 @@ class IPN
         }
 
         return true;
-    }
-
-    private function isVerificationDisabled()
-    {
-        $settings = $this->getSettings();
-        if (!$this->isTestMode()) {
-            return false;
-        }
-
-        return isset($settings['disable_ipn_verification']) && $settings['disable_ipn_verification'] === 'yes';
-    }
-
-    private function getSettings()
-    {
-        $settings = get_option('buymecoffee_payment_settings_paypal', []);
-        return $settings;
     }
 
     private function isTestMode()

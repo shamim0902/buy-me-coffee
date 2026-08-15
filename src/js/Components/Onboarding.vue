@@ -339,7 +339,7 @@ export default {
       template: { advanced: {}, currency: 'USD', defaultAmount: 5, enableName: 'yes', enableEmail: 'no', enableMessage: 'yes', allow_recurring: 'no' },
       currencies: {},
       stripeSettings: { enable: 'no', payment_mode: 'test', test_pub_key: '', test_secret_key: '', live_pub_key: '', live_secret_key: '', has_test_secret_key: false, has_live_secret_key: false },
-      paypalSettings: { enable: 'no', payment_mode: 'test', payment_type: 'standard', test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '', paypal_email: '', disable_ipn_verification: 'no', has_test_secret_key: false, has_live_secret_key: false },
+      paypalSettings: { enable: 'no', payment_mode: 'test', payment_type: 'standard', test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '', paypal_email: '', has_test_secret_key: false, has_live_secret_key: false },
       touchedGateways: { stripe: false, paypal: false },
     };
   },
