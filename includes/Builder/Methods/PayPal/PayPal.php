@@ -451,6 +451,7 @@ class PayPal extends BaseMethods
         // before the amount comparison and can never be read as a payment.
         if (in_array($payment_status, array('refunded', 'reversed'), true)) {
             $this->changeStatus('refunded', $transaction);
+            do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
             return;
         }
 
