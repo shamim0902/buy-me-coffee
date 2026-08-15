@@ -488,16 +488,17 @@ class Activator
                 'updated_at'    => $now,
             ],
             [
-                '%s',
-                '%s',
-                '%d',
-                '%s',
-                '%s',
-                '%s',
-                '%s',
-                '%d',
-                '%s',
-                '%s',
+                '%s', // name
+                '%s', // description
+                '%d', // price
+                '%s', // payment_type
+                '%s', // interval_type
+                '%s', // status
+                '%s', // rewards (JSON)
+                '%s', // access_rules (JSON)
+                '%d', // sort_order
+                '%s', // created_at
+                '%s', // updated_at
             ]
         );
 
