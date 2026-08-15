@@ -14,6 +14,37 @@ class UserManager
         add_action('buymecoffee_subscription_cancelled', [$this, 'handleSubscriptionCancelled']);
         add_action('buymecoffee_subscription_status_changed', [$this, 'handleSubscriptionStatusChanged'], 10, 3);
         add_action('buymecoffee_membership_access_activated', [$this, 'handleMembershipAccessActivated']);
+        add_action('buymecoffee_payment_status_updated', [$this, 'handlePaymentStatusUpdated'], 10, 2);
+    }
+
+    /**
+     * Keep membership access in sync with a transaction's payment status.
+     *
+     * A refunded/failed one-time (or manual) membership must lose content
+     * access; without this the access row stays 'active' forever because no
+     * further gateway event fires after a refund. Conversely, restoring a
+     * transaction to 'paid' re-grants the access that a prior refund revoked.
+     *
+     * @param int    $transactionId Transaction row ID.
+     * @param string $status        New payment status.
+     */
+    public function handlePaymentStatusUpdated($transactionId, $status)
+    {
+        $transactionId = (int) $transactionId;
+        if (!$transactionId) {
+            return;
+        }
+
+        if (in_array($status, ['refunded', 'failed'], true)) {
+            (new MembershipAccess())->revokeByTransaction($transactionId, $status);
+            return;
+        }
+
+        // Re-grant access if a previously refunded/failed transaction is set
+        // back to paid, so the buyer isn't left locked out of gated content.
+        if ($status === 'paid') {
+            (new MembershipAccess())->activateByTransaction($transactionId);
+        }
     }
 
     private function isEnabled(): bool

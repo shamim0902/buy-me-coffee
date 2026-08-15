@@ -146,6 +146,12 @@ class MembershipAccess extends Model
             return 0;
         }
 
+        // Already active — nothing to do. Avoids redundant re-activation side
+        // effects when this runs on every paid confirmation.
+        if ($access->status === 'active') {
+            return (int) $access->id;
+        }
+
         $this->updateData((int) $access->id, [
             'status'     => 'active',
             'updated_at' => current_time('mysql'),
@@ -166,6 +172,46 @@ class MembershipAccess extends Model
             $data,
             ['id' => absint($id)]
         );
+    }
+
+    /**
+     * Revoke the access granted by a transaction (e.g. after a refund).
+     *
+     * Moves the access row out of any access-granting status so that
+     * getActiveLevelIdsForUser() stops returning its level, and clears the
+     * cached level list. Used for one-time / manual grants keyed to a
+     * transaction; subscription access is revoked through its own lifecycle.
+     *
+     * @param int    $transactionId Transaction row ID.
+     * @param string $status        New access status (default 'refunded').
+     * @return int Access row ID that was revoked, or 0 if none.
+     */
+    public function revokeByTransaction($transactionId, $status = 'refunded')
+    {
+        $transactionId = absint($transactionId);
+        if (!$transactionId) {
+            return 0;
+        }
+
+        $access = $this->getQuery()
+            ->where('transaction_id', $transactionId)
+            ->first();
+
+        if (!$access) {
+            return 0;
+        }
+
+        $status = sanitize_key($status) ?: 'refunded';
+
+        $this->updateData((int) $access->id, [
+            'status'     => $status,
+            'updated_at' => current_time('mysql'),
+        ]);
+
+        $this->invalidateSupporterAccessCache((int) $access->supporter_id);
+        do_action('buymecoffee_membership_access_revoked', (int) $access->id, $status);
+
+        return (int) $access->id;
     }
 
     public function getActiveLevelIdsForUser($userId)

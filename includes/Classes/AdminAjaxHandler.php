@@ -399,6 +399,19 @@ class AdminAjaxHandler
                 ->delete();
         }
 
+        // Delete membership access rows for this supporter so a deleted member
+        // can no longer unlock gated content via wp_user_id / cached level IDs.
+        buyMeCoffeeQuery()
+            ->table('buymecoffee_membership_access')
+            ->where('supporter_id', $id)
+            ->delete();
+
+        // Delete supporter meta (includes the cached active_level_ids list)
+        buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters_meta')
+            ->where('supporter_id', $id)
+            ->delete();
+
         // Delete transactions
         (new Transactions())->delete($id, 'entry_id');
 
