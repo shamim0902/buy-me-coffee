@@ -244,7 +244,8 @@ class PaymentHelper
         if ($status === 'paid' && $subscriptionId) {
             (new PaymentTransitionService())->activateSubscription(
                 $subscriptionId,
-                $this->resolveStripeSubscriptionPeriodEnd($subscriptionId)
+                $this->resolveStripeSubscriptionPeriodEnd($subscriptionId),
+                $transactionId
             );
         }
 

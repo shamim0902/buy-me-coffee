@@ -324,7 +324,9 @@ class StripeSubscriptions
         // The billing period this invoice paid for, and the access it keeps
         // alive, are refreshed on every renewal; the activation announcement is
         // not, because the subscription was already active.
-        (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd);
+        // The renewal transaction that paid for this period is what the period
+        // refresh is bound to, so a refund of it refuses the refresh as well.
+        (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd, (int) $recorded['transaction_id']);
 
         if (empty($recorded['created'])) {
             self::debugLog('handleRenewalWebhook: invoice "' . $invoiceId . '" was already recorded');
@@ -403,7 +405,7 @@ class StripeSubscriptions
             ]);
         }
 
-        $activation = (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd);
+        $activation = (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd, (int) $original->id);
 
         if (!empty($activation['activated'])) {
             ActivityLogger::logSubscription((int) $subscription->id, 'subscription_activated', 'Subscription activated', [

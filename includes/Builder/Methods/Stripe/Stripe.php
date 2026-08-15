@@ -365,7 +365,9 @@ class Stripe extends BaseMethods
 
         // Announced once: a first invoice webhook arriving before or after this
         // confirmation finds the subscription already active and stays quiet.
-        $service->activateSubscription($requestedSubscriptionId, $periodEnd);
+        // Bound to the payment that bought it: a refund committing between the
+        // transition above and this call refuses the activation at the database.
+        $service->activateSubscription($requestedSubscriptionId, $periodEnd, (int) $transaction->id);
 
         return true;
     }
@@ -961,7 +963,7 @@ class Stripe extends BaseMethods
         // Idempotent, so a subscription whose first payment was already
         // confirmed by the browser is not activated — or announced — twice.
         if ($result['to'] === 'paid' && !empty($transaction->subscription_id)) {
-            $service->activateSubscription((int) $transaction->subscription_id);
+            $service->activateSubscription((int) $transaction->subscription_id, null, (int) $transaction->id);
         }
 
         self::debugLog('updateStatus: done — transaction #' . $transaction->id . ' changed=' . ($result['changed'] ? 'yes' : 'no'));

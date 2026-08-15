@@ -289,13 +289,17 @@ class PaymentTransitionService
      *
      * @param int         $subscriptionId Local subscription row ID.
      * @param string|null $periodEnd      Billing period end (MySQL datetime), when known.
+     * @param int         $paidBy         Transaction that paid for this activation, when
+     *                                    one did. Activation is then conditional on that
+     *                                    payment still standing, decided by the database
+     *                                    rather than by anything read here.
      * @return array {
      *     @type int    $subscription_id
      *     @type bool   $activated Whether this call moved the subscription to active.
      *     @type string $from      Status before this call.
      * }
      */
-    public function activateSubscription($subscriptionId, $periodEnd = null)
+    public function activateSubscription($subscriptionId, $periodEnd = null, $paidBy = 0)
     {
         global $wpdb;
 
@@ -313,20 +317,26 @@ class PaymentTransitionService
         $now       = current_time('mysql');
         $periodEnd = $periodEnd ? sanitize_text_field($periodEnd) : '';
 
-        // An agreement that has ended cannot be brought back by a payment event.
-        // Stripe redelivers invoices, and a renewal recorded before the customer
-        // cancelled can arrive after: activating on it would move 'cancelled'
-        // back to 'active', fire the activation hook, and hand the entitlement
-        // back to somebody who ended their membership. Only the provider
-        // starting a new agreement creates a subscription that may go active,
-        // and that arrives as its own row.
-        if (SubscriptionCancellationService::isTerminal($subscription)) {
-            return [
-                'subscription_id' => $subscriptionId,
-                'activated'       => false,
-                'from'            => $from,
-            ];
-        }
+        $paidBy    = absint($paidBy);
+        $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+        $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+
+        // The two conditions this activation depends on are both things another
+        // request can change while this one runs, so neither may be read here
+        // and acted on afterwards. They go into the statements themselves:
+        //
+        //  - the agreement must not have ended. Stripe redelivers invoices, so a
+        //    renewal recorded before the customer cancelled can arrive after;
+        //    activating on it would hand the entitlement back to somebody who
+        //    ended their membership. Only a new agreement may go active, and
+        //    that arrives as its own row.
+        //  - the payment that bought this activation, when one did, must still
+        //    stand. A refund committing after the transition released its lock
+        //    would otherwise still be followed by an activation here.
+        $terminal = "status NOT IN ('" . implode("', '", array_map('esc_sql', SubscriptionCancellationService::TERMINAL_STATUSES)) . "')";
+
+        $paidJoin  = $paidBy ? " INNER JOIN {$txTable} t ON t.id = %d AND t.status = 'paid'" : '';
+        $paidArgs  = $paidBy ? [$paidBy] : [];
 
         // A period end identical to the stored one is a repeat announcement of a
         // period the site already knows about, so it is not written and the
@@ -334,28 +344,35 @@ class PaymentTransitionService
         $periodMoved = $periodEnd !== '' && (string) $subscription->current_period_end !== $periodEnd;
 
         if ($periodMoved) {
-            (new Subscriptions())->updateData($subscriptionId, [
-                'current_period_end' => $periodEnd,
-                'updated_at'         => $now,
-            ]);
+            // Advancing the billing period is a grant of time, so it is bound by
+            // exactly the same two conditions as the activation below.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic conditional update on plugin tables.
+            $periodMoved = (bool) $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix; the status list is a class constant.
+                "UPDATE {$subsTable} s{$paidJoin}
+                    SET s.current_period_end = %s, s.updated_at = %s
+                  WHERE s.id = %d AND s." . $terminal,
+                array_merge($paidArgs, [$periodEnd, $now, $subscriptionId])
+            ));
         }
 
         // One statement, so of two paid events for the same period exactly one
         // is told it activated the subscription.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic compare-and-set on a plugin table.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic compare-and-set on plugin tables.
         $activated = $wpdb->query($wpdb->prepare(
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name comes from $wpdb->prefix.
-            "UPDATE {$wpdb->prefix}buymecoffee_subscriptions
-                SET status = 'active', updated_at = %s
-              WHERE id = %d AND status <> 'active'",
-            $now,
-            $subscriptionId
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix; the status list is a class constant.
+            "UPDATE {$subsTable} s{$paidJoin}
+                SET s.status = 'active', s.updated_at = %s
+              WHERE s.id = %d AND s.status <> 'active' AND s." . $terminal,
+            array_merge($paidArgs, [$now, $subscriptionId])
         ));
 
         // Initial entitlement activation is owned by the canonical
         // subscription_activated hook below. Updating it here as well would run
         // the same upsert twice. A renewal has no activation hook, so only an
-        // already-active subscription whose period moved refreshes access here.
+        // already-active subscription whose period actually moved refreshes
+        // access here — and $periodMoved is now the statement's own verdict, so
+        // a cancellation that landed first has already refused it.
         if (!empty($subscription->level_id) && !$activated && $periodMoved) {
             (new MembershipAccess())->upsertFromSubscription($subscriptionId);
         }

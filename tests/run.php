@@ -6649,4 +6649,86 @@ $suite->test('a renewal redelivered after a cancellation cannot bring the subscr
     }
 });
 
+$suite->test('a refund landing after the transition still cannot activate the subscription', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcStripeSettings, $bmcStripeBody, $bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.92';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    // The intent confirms cleanly, so the paid transition succeeds and releases
+    // its lock. The refund is landed on the *next* Stripe call — the period
+    // lookup that sits between the transition and the activation — which is
+    // precisely the window the transition can no longer hold closed.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $checkout, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            return $bmcStripeBody([
+                'id'              => $checkout['intent_id'],
+                'object'          => 'payment_intent',
+                'status'          => 'succeeded',
+                'amount'          => 2500,
+                'amount_received' => 2500,
+                'currency'        => 'usd',
+                'livemode'        => false,
+                'metadata'        => ['ref_id' => $checkout['hash']],
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            $transaction = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('id', $checkout['transaction_id'])
+                ->first();
+
+            (new PaymentTransitionService())->apply($transaction, 'refunded');
+
+            return $bmcStripeBody([
+                'id'                 => $checkout['stripe_sub_id'],
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request: ' . $url]], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $checkout['intent_id'],
+            'subscriptionId'    => $checkout['subscription_id'],
+        ];
+
+        $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame('incomplete', $state['subscription'], 'A refunded payment must not leave the subscription active');
+        $test->assertSame('', (string) $state['period_end'], 'Nor may it advance the billing period');
+        $test->assertSame([], $activated['ids'], 'No activation may be announced');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded first payment must not hand back membership access'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());
