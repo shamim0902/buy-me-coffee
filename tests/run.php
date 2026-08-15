@@ -292,6 +292,17 @@ $suite->test('one-time membership activation and refund update user access', fun
     $test->assertNotEmpty($accessId);
     $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
 
+    // Access follows the payment: while the transaction is not stored as paid
+    // there is nothing to activate, however often activation is asked for.
+    $test->assertSame(0, $access->activateByTransaction($transactionId), 'An unpaid transaction must not grant access');
+    $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['status' => 'paid'],
+        ['id' => $transactionId]
+    );
+
     $test->assertSame((int) $accessId, $access->activateByTransaction($transactionId));
     $test->assertSame([(int) $levelId], buymecoffee_user_get_active_level_ids($userId, true));
 
@@ -5548,6 +5559,66 @@ $suite->test('a payment left unbound by an upgrade is recovered from the intent,
         $test->assertSame($before, count($requests), 'With nothing recent left unbound, a refusal must cost no Stripe call');
     } finally {
         remove_filter('pre_http_request', $stub, 10);
+    }
+});
+
+$suite->test('a stale paid announcement cannot re-open the access a refund has already taken back', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects) {
+    global $wpdb;
+
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $access   = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+
+        // The refund commits and revokes the access it bought. An activation
+        // that was already in flight — its paid transition committed, its row
+        // lock long released — only reaches the access row now.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'refunded'],
+            ['id' => $purchase['transaction_id']]
+        );
+        $access->revokeByTransaction($purchase['transaction_id']);
+
+        $revoked = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $revoked['access']);
+        $test->assertSame([], $revoked['levels']);
+
+        $test->assertSame(
+            0,
+            $access->activateByTransaction($purchase['transaction_id']),
+            'A payment that is no longer paid may not grant access'
+        );
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'The late activation must change nothing');
+        $test->assertSame([], $log['activated'], 'A refused activation must announce no entitlement');
+
+        // The same guarantee has to hold for the announcement itself. A 'paid'
+        // hook published before the refund committed still reaches UserManager,
+        // which acts on the status it was handed rather than re-reading the
+        // payment — so the guard has to live where every caller passes.
+        do_action('buymecoffee_payment_status_updated', $purchase['transaction_id'], 'paid');
+
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'A stale paid announcement must not restore access');
+        $test->assertSame([], $log['activated'], 'A stale announcement must announce no entitlement either');
+
+        // The guard is on the stored payment, not on the access row: put the
+        // payment back to paid — an admin reversing the refund — and the very
+        // same call is allowed again.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'paid'],
+            ['id' => $purchase['transaction_id']]
+        );
+
+        $test->assertSame($purchase['access_id'], $access->activateByTransaction($purchase['transaction_id']));
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+        $test->assertSame([(int) $purchase['level_id']], $bmcPaymentState($purchase)['levels']);
+        $test->assertSame([$purchase['access_id']], $log['activated'], 'The activation that moved the row announces it once');
+    } finally {
+        $stopWatching();
     }
 });
 
