@@ -253,19 +253,26 @@ class PaymentTransitionService
         //
         // Only a real first move into paid grants access. Repeats never reach
         // here, and a refund revokes through the canonical hook below.
+        // The row lock was released at COMMIT above, so a concurrent refund may
+        // be transitioning this transaction — and revoking its access — right
+        // now. Everything from here reports the status that is durably stored,
+        // never the one this call asked for: announcing 'paid' for a payment
+        // already stored as refunded is not a stale detail, it is a paid-payment
+        // email, a payment_completed entry, and a request to re-grant the access
+        // the refund has just taken away.
+        $announced = $this->storedStatus($transactionId) ?: $status;
+
         $membershipAccessId = 0;
-        if ($status === 'paid' && !$subscriptionId) {
-            // The row lock was released at COMMIT above, so a concurrent refund
-            // may be transitioning this transaction — and revoking its access —
-            // right now. activateByTransaction() therefore grants in one
-            // statement conditional on the transaction still being stored as
-            // paid, so nothing here can revive access a refund just took away.
+        if ($announced === 'paid' && !$subscriptionId) {
+            // Still conditional inside activateByTransaction(): the read above
+            // is history by the time the grant runs, so the database decides it
+            // against the refund's committed state rather than against this.
             $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
         }
 
-        do_action('buymecoffee_payment_status_updated', $transactionId, $status);
+        do_action('buymecoffee_payment_status_updated', $transactionId, $announced);
 
-        return $this->result($transactionId, $current, $status, true, $supporterStatus, $membershipAccessId, $subscriptionId);
+        return $this->result($transactionId, $current, $announced, true, $supporterStatus, $membershipAccessId, $subscriptionId);
     }
 
     /**
@@ -572,6 +579,28 @@ class PaymentTransitionService
         }
 
         PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+    }
+
+    /**
+     * The payment status currently stored for a transaction.
+     *
+     * Read after the commit and outside any lock, so it answers what the row
+     * says now rather than what this call wrote.
+     *
+     * @param int $transactionId Transaction row ID.
+     * @return string Empty when the row is gone.
+     */
+    private function storedStatus($transactionId)
+    {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table name from $wpdb->prefix; fresh uncached read required to re-check status after commit.
+        $stored = $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+            (int) $transactionId
+        ));
+
+        return sanitize_key((string) $stored);
     }
 
     /**
