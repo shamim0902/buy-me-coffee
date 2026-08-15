@@ -146,6 +146,12 @@ class MembershipAccess extends Model
             return 0;
         }
 
+        // Already active — nothing to do. Avoids redundant re-activation side
+        // effects when this runs on every paid confirmation.
+        if ($access->status === 'active') {
+            return (int) $access->id;
+        }
+
         $this->updateData((int) $access->id, [
             'status'     => 'active',
             'updated_at' => current_time('mysql'),

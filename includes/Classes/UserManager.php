@@ -18,22 +18,33 @@ class UserManager
     }
 
     /**
-     * Revoke membership access when a transaction stops being a valid payment.
+     * Keep membership access in sync with a transaction's payment status.
      *
      * A refunded/failed one-time (or manual) membership must lose content
      * access; without this the access row stays 'active' forever because no
-     * further gateway event fires after a refund.
+     * further gateway event fires after a refund. Conversely, restoring a
+     * transaction to 'paid' re-grants the access that a prior refund revoked.
      *
      * @param int    $transactionId Transaction row ID.
      * @param string $status        New payment status.
      */
     public function handlePaymentStatusUpdated($transactionId, $status)
     {
-        if (!in_array($status, ['refunded', 'failed'], true)) {
+        $transactionId = (int) $transactionId;
+        if (!$transactionId) {
             return;
         }
 
-        (new MembershipAccess())->revokeByTransaction((int) $transactionId, $status);
+        if (in_array($status, ['refunded', 'failed'], true)) {
+            (new MembershipAccess())->revokeByTransaction($transactionId, $status);
+            return;
+        }
+
+        // Re-grant access if a previously refunded/failed transaction is set
+        // back to paid, so the buyer isn't left locked out of gated content.
+        if ($status === 'paid') {
+            (new MembershipAccess())->activateByTransaction($transactionId);
+        }
     }
 
     private function isEnabled(): bool
