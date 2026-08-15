@@ -414,7 +414,11 @@ class PayPal extends BaseMethods
     {
         $txnType = sanitize_text_field($data['txn_type'] ?? '');
         $paymentStatusRaw = sanitize_text_field($data['payment_status'] ?? '');
-        if ($txnType != 'web_accept' && $txnType != 'cart' && $paymentStatusRaw != 'Refunded') {
+        // Reversal IPNs arrive as txn_type=reversal / payment_status=Reversed, so
+        // 'Reversed' must pass this guard alongside 'Refunded' — otherwise reversals
+        // return early and never reach the revocation branch below.
+        if ($txnType != 'web_accept' && $txnType != 'cart'
+            && $paymentStatusRaw != 'Refunded' && $paymentStatusRaw != 'Reversed') {
             return;
         }
 
