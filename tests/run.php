@@ -5449,116 +5449,64 @@ $suite->test('a settled PayPal order still replays from its minimized note', fun
     );
 });
 
-$suite->test('a payment left unbound by an upgrade is recovered from the intent, and nothing else is', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcClearGuard, $bmcGuardRows) {
+$suite->test('a payment left unbound by the upgrade is refused in the browser and still settled by the webhook', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcClearGuard, $bmcGuardRows, $bmcServiceSharesTestTransaction) {
     global $wpdb;
 
     $bmcClearGuard();
     $bmcStripeSettings();
-    $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.78';
 
-    $txTable = $wpdb->prefix . 'buymecoffee_transactions';
-    $helper  = new PaymentHelper();
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
 
-    // A payment that was already in flight when the site upgraded: checkout
-    // created it before binding existed, so Stripe holds an intent for it and
-    // the row knows nothing about that intent.
+    // A payment already in flight when the site upgraded: Stripe holds an
+    // intent for it, the row predates checkout-time binding and knows nothing
+    // about that intent.
     $stranded = $bmcMakeOneTimePurchase();
-    $wpdb->update($txTable, ['charge_id' => ''], ['id' => $stranded['transaction_id']]);
-
-    $strandedIntent = 'pi_stranded_' . $stranded['suffix'];
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['charge_id' => ''], ['id' => $stranded['transaction_id']]);
 
     $requests = [];
-    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $strandedIntent, $stranded) {
+    $stub = function ($pre, $args, $url) use (&$requests) {
         $requests[] = $url;
 
-        if (strpos($url, 'payment_intents/' . $strandedIntent) !== false) {
-            return $bmcStripeBody([
-                'id'       => $strandedIntent,
-                'object'   => 'payment_intent',
-                'status'   => 'requires_payment_method',
-                'amount'   => 2500,
-                'currency' => 'usd',
-                'livemode' => false,
-                'metadata' => ['ref_id' => $stranded['order_hash']],
-            ]);
-        }
-
-        // Any other intent is one this site never created, so Stripe answers
-        // as it would for an id belonging to somebody else's account.
-        return $bmcStripeBody(['error' => ['message' => 'No such payment_intent']], 404);
+        return $pre;
     };
     add_filter('pre_http_request', $stub, 10, 3);
 
     try {
-        $recovered = $helper->findStripeTransactionByIntent($strandedIntent);
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => 'pi_stranded_' . $stranded['suffix'],
+        ];
 
-        $test->assertNotEmpty($recovered, 'A payment stranded by the upgrade must still be recognised');
-        $test->assertSame($stranded['transaction_id'], (int) $recovered->id, 'It must be the transaction the intent names');
-        $test->assertSame($strandedIntent, $recovered->charge_id, 'The recovered transaction carries its intent');
+        $refused = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
 
-        $stored = $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $stranded['transaction_id']));
-        $test->assertSame($strandedIntent, $stored, 'The missing binding is written, so the recovery happens once');
+        // Refusing costs nothing and grants nothing. Rebuilding the binding here
+        // would mean asking Stripe about an id the caller chose, which is the
+        // amplification the binding exists to prevent.
+        $test->assertSame(404, $refused['status'], 'A confirmation with no binding is refused');
+        $test->assertSame('payment_intent_not_recognized', $refused['body']['data']['code']);
+        $test->assertSame(0, count($requests), 'The refusal must not reach Stripe');
+        $test->assertSame(0, count($bmcGuardRows('claim')), 'The refusal must not take a lease');
+        $test->assertSame('pending', $bmcPaymentState($stranded)['transaction'], 'Nothing is settled by the refusal');
 
-        $costOfRecovery = count($requests);
-        $test->assertSame(1, $costOfRecovery, 'Recovery costs exactly one lookup');
-
-        // Bound now, so the fast path answers and Stripe is not asked again.
-        $again = $helper->findStripeTransactionByIntent($strandedIntent);
-        $test->assertSame($stranded['transaction_id'], (int) $again->id);
-        $test->assertSame($costOfRecovery, count($requests), 'A bound intent must never reach Stripe again');
-
-        // An intent this site never created stays refused. It is allowed to
-        // cost a lookup while the window is open — it may not be recognised.
-        $test->assertSame(null, $helper->findStripeTransactionByIntent('pi_never_created_here'), 'An unknown intent must not be matched to an order');
-
-        // An intent naming a transaction that already has a different binding
-        // is a mismatch, not an upgrade case.
-        $hijack = 'pi_hijack_' . $stranded['suffix'];
-        $hijackStub = function ($pre, $args, $url) use ($bmcStripeBody, $hijack, $stranded) {
-            if (strpos($url, 'payment_intents/' . $hijack) !== false) {
-                return $bmcStripeBody([
-                    'id'       => $hijack,
-                    'object'   => 'payment_intent',
-                    'status'   => 'requires_payment_method',
-                    'metadata' => ['ref_id' => $stranded['order_hash']],
-                ]);
-            }
-
-            return $bmcStripeBody(['error' => ['message' => 'No such payment_intent']], 404);
-        };
-        add_filter('pre_http_request', $hijackStub, 9, 3);
-
-        $test->assertSame(null, $helper->findStripeTransactionByIntent($hijack), 'A transaction already bound to an intent must not adopt another');
-
-        $keptBinding = $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $stranded['transaction_id']));
-        $test->assertSame($strandedIntent, $keptBinding, 'The original binding must survive the attempt');
-
-        remove_filter('pre_http_request', $hijackStub, 9);
-
-        // The window closes on age. An unbound payment old enough that no
-        // browser is still waiting on it is abandoned, not stranded, and every
-        // site accumulates those forever — so it must not reopen the recovery.
-        $abandoned = $bmcMakeOneTimePurchase();
-        $wpdb->update($txTable, ['charge_id' => ''], ['id' => $abandoned['transaction_id']]);
-
-        // Age out every open unbound Stripe payment, not only this test's, so
-        // the assertion below describes a drained window rather than whatever
-        // the fixtures before it happened to leave behind.
-        $aged = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - (3 * DAY_IN_SECONDS));
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Test fixture.
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$txTable} SET created_at = %s
-              WHERE payment_method = 'stripe'
-                AND status IN ('pending', 'processing')
-                AND (charge_id IS NULL OR charge_id = '')",
-            $aged
+        // The payment is not lost by that refusal. The webhook resolves the
+        // transaction from the order hash in the event's own metadata, so it
+        // settles the donation the browser could not confirm.
+        (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_unbound_' . $stranded['suffix'],
+            'charge.succeeded',
+            $bmcStripeCharge($stranded['order_hash'])
         ));
 
-        $before = count($requests);
-        $test->assertSame(null, $helper->findStripeTransactionByIntent('pi_after_the_window'), 'A closed window must refuse');
-        $test->assertSame($before, count($requests), 'With nothing recent left unbound, a refusal must cost no Stripe call');
+        $settled = $bmcPaymentState($stranded);
+        $test->assertSame('paid', $settled['transaction'], 'The webhook settles a payment that has no binding');
+        $test->assertSame('active', $settled['access'], 'And grants the entitlement it paid for');
+        $test->assertSame([(int) $stranded['level_id']], $settled['levels']);
     } finally {
         remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
     }
 });
 

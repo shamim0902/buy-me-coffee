@@ -37,6 +37,16 @@ class PaymentHelper
      * from being turned into a claim, a provider call, or a lock on somebody
      * else's donation.
      *
+     * A payment that was already in flight when this shipped has no binding, so
+     * its confirmation is refused here. That is deliberate. The binding cannot
+     * be rebuilt without asking Stripe who the intent belongs to, and doing that
+     * on a miss would hand every unrecognised id a provider call — reopening the
+     * amplification the binding closed, permanently, for a window that lasts one
+     * checkout. Nothing is lost by refusing: the webhook settles those payments
+     * from the order hash in the event's own metadata (see processOneTimeEvent(),
+     * which resolves by entry_hash and never by charge_id), so the donor sees a
+     * confirmation error while the payment still reconciles server-side.
+     *
      * @param string $intentId Stripe PaymentIntent id.
      * @return object|null
      */
@@ -47,144 +57,11 @@ class PaymentHelper
             return null;
         }
 
-        $transaction = buyMeCoffeeQuery()
+        return buyMeCoffeeQuery()
             ->table('buymecoffee_transactions')
             ->where('charge_id', $intentId)
             ->where('payment_method', 'stripe')
             ->first();
-
-        if ($transaction) {
-            return $transaction;
-        }
-
-        return $this->adoptUnboundStripeTransaction($intentId);
-    }
-
-    /**
-     * Recover the transaction of an intent created before checkout bound it.
-     *
-     * Binding the intent at checkout is what makes the fast path above possible,
-     * but it only applies to intents created since that behaviour shipped. A
-     * payment that was already in flight when the site upgraded has no binding
-     * at all, and refusing it would strand a donation Stripe went on to process:
-     * the money is taken and the local transaction never leaves pending, with no
-     * further browser confirmation ever coming for it.
-     *
-     * The intent's own metadata carries the order hash checkout wrote into it,
-     * so the missing binding can be rebuilt from Stripe's copy of it. That does
-     * not weaken the ownership check it stands in for — the intent is fetched
-     * with this site's own secret key, so an intent belonging to anybody else's
-     * account cannot be read here at all, and the hash still has to name a
-     * transaction this site created. The binding is then written, so an intent
-     * only ever costs this recovery once.
-     *
-     * @param string $intentId Stripe PaymentIntent id.
-     * @return object|null
-     */
-    private function adoptUnboundStripeTransaction($intentId)
-    {
-        // Refusing an unknown intent must stay free: turning every bogus id into
-        // a provider round trip would make this endpoint an amplifier, which is
-        // exactly what binding at checkout was introduced to prevent. So the
-        // recovery is attempted only while the site actually holds a payment it
-        // could apply to, and otherwise costs one indexed local read.
-        if (!$this->hasRecentUnboundStripePayments()) {
-            return null;
-        }
-
-        $intent = (new API())->makeRequest(
-            'payment_intents/' . $intentId,
-            [],
-            (new StripeSettings())->getKeys('secret')
-        );
-
-        if (is_wp_error($intent)) {
-            return null;
-        }
-
-        $orderHash = sanitize_text_field(Arr::get($intent, 'metadata.ref_id', ''));
-        if (!$orderHash) {
-            return null;
-        }
-
-        $transaction = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->where('entry_hash', $orderHash)
-            ->where('payment_method', 'stripe')
-            ->first();
-
-        if (!$transaction) {
-            return null;
-        }
-
-        // Only a transaction that never took a binding may adopt one. A row
-        // already bound to a different intent is a mismatch, not an upgrade
-        // case, and must stay refused.
-        if (!empty($transaction->charge_id)) {
-            return null;
-        }
-
-        // And only one still waiting for its confirmation. A settled payment
-        // has already been answered; letting an intent attach itself to one
-        // afterwards would rewrite the record of how it was paid.
-        if (!in_array((string) $transaction->status, ['pending', 'processing'], true)) {
-            return null;
-        }
-
-        (new Transactions())->updateData((int) $transaction->id, [
-            'charge_id'  => $intentId,
-            'updated_at' => current_time('mysql'),
-        ]);
-        $transaction->charge_id = $intentId;
-
-        return $transaction;
-    }
-
-    /**
-     * Whether a Stripe payment opened recently is still without its binding.
-     *
-     * Age is what makes this drain. Unbound open transactions are not rare and
-     * never disappear — every abandoned checkout leaves one behind forever — so
-     * asking only whether any exists would hold the door open on essentially
-     * every site for good. But a browser confirmation follows its checkout by
-     * minutes, so only a recent unbound payment can still be waiting for one.
-     * The rows this admits are therefore the ones the missing binding actually
-     * stranded: payments in flight across the upgrade. A day after it, there
-     * are none left and the recovery costs nothing again.
-     *
-     * @return bool
-     */
-    private function hasRecentUnboundStripePayments()
-    {
-        global $wpdb;
-
-        /**
-         * How far back a confirmation may still adopt an unbound intent.
-         *
-         * @param int $seconds Default one day.
-         */
-        $window = (int) apply_filters('buymecoffee_stripe_unbound_intent_window', DAY_IN_SECONDS);
-        if ($window < 1) {
-            return false;
-        }
-
-        // created_at is written with current_time('mysql'), so the threshold is
-        // computed on that same clock rather than on UTC.
-        $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - $window);
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; a fresh read is required to decide whether a confirmation may reach Stripe.
-        $unbound = $wpdb->get_var($wpdb->prepare(
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name from $wpdb->prefix.
-            "SELECT 1 FROM {$wpdb->prefix}buymecoffee_transactions
-              WHERE payment_method = 'stripe'
-                AND status IN ('pending', 'processing')
-                AND (charge_id IS NULL OR charge_id = '')
-                AND created_at >= %s
-              LIMIT 1",
-            $since
-        ));
-
-        return !empty($unbound);
     }
 
     /**
