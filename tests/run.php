@@ -8,6 +8,7 @@ use BuyMeCoffee\Builder\Methods\PayPal\PayPal;
 use BuyMeCoffee\Builder\Methods\PayPal\PayPalSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\Stripe;
 use BuyMeCoffee\Classes\AccessControl;
+use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Classes\AdminAjaxHandler;
 use BuyMeCoffee\Classes\EmailNotifications;
 use BuyMeCoffee\Classes\PostAccessMetaBox;
@@ -20,6 +21,7 @@ use BuyMeCoffee\Helpers\SanitizeHelper;
 use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Models\Subscriptions;
+use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Services\SupporterDeletionService;
 
 $suite = new BmcFeatureTestRunner();
@@ -718,6 +720,410 @@ $suite->test('only a completed PayPal payment can transition a transaction to pa
     $transactionId = $makeTransaction('test');
     $paypal->updateStatus(array_merge($baseIpn, ['payment_status' => 'Completed', 'mc_gross' => '0.01']), $transactionId);
     $test->assertSame('failed', $statusOf($transactionId), 'A tampered amount must not settle');
+});
+
+// ── HIGH-02: supporter deletion must never leave a live Stripe subscription ──
+
+/**
+ * Store Stripe credentials for both modes. The UI mode defaults to 'test' so the
+ * tests can prove that stored per-subscription modes pick the credentials.
+ */
+$bmcStripeSettings = function (array $overrides = []) {
+    update_option('buymecoffee_payment_settings_stripe', array_merge([
+        'enable'          => 'yes',
+        'payment_mode'    => 'test',
+        'live_pub_key'    => 'pk_live_bmc',
+        'live_secret_key' => 'sk_live_bmc',
+        'test_pub_key'    => 'pk_test_bmc',
+        'test_secret_key' => 'sk_test_bmc',
+    ], $overrides), false);
+};
+
+/** Build a wp_remote_request() response array for a Stripe JSON body. */
+$bmcStripeBody = function (array $body, $code = 200) {
+    return [
+        'headers'  => [],
+        'body'     => wp_json_encode($body),
+        'response' => ['code' => $code, 'message' => 'OK'],
+        'cookies'  => [],
+        'filename' => null,
+    ];
+};
+
+/** Create a supporter with transactions, access, meta, activities and subscriptions. */
+$bmcMakeSupporter = function (array $subscriptionSpecs = [], $wpUserId = null) {
+    $suffix = wp_generate_password(12, false, false);
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'HIGH02 Donor',
+        'supporters_email' => 'bmc-high02-' . $suffix . '@example.com',
+        'payment_status'   => 'paid',
+        'entry_hash'       => 'bmc_high02_' . $suffix,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'live',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+        'wp_user_id'       => $wpUserId,
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => 'bmc_high02_tx_' . $suffix,
+        'transaction_type' => 'recurring',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => 'paid',
+        'currency'         => 'USD',
+        'payment_mode'     => 'live',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    buyMeCoffeeQuery()->table('buymecoffee_membership_access')->insert([
+        'supporter_id' => $supporterId,
+        'wp_user_id'   => $wpUserId,
+        'level_id'     => 4242,
+        'access_type'  => 'manual',
+        'status'       => 'active',
+        'created_at'   => current_time('mysql'),
+        'updated_at'   => current_time('mysql'),
+    ]);
+
+    buymecoffee_update_supporter_meta($supporterId, 'active_level_ids', [
+        'level_ids'  => [4242],
+        'expires_at' => null,
+    ]);
+
+    ActivityLogger::logSubmission($supporterId, 'submission_created', 'Donation received');
+    ActivityLogger::logPayment($transactionId, 'payment_paid', 'Payment captured');
+
+    $subscriptionIds = [];
+
+    foreach ($subscriptionSpecs as $key => $spec) {
+        $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+            'supporter_id'           => $supporterId,
+            'stripe_subscription_id' => isset($spec['stripe_id']) ? $spec['stripe_id'] . '_' . $suffix : null,
+            'stripe_customer_id'     => 'cus_' . $suffix,
+            'interval_type'          => 'month',
+            'amount'                 => 2500,
+            'currency'               => 'usd',
+            'status'                 => $spec['status'],
+            'payment_mode'           => isset($spec['payment_mode']) ? $spec['payment_mode'] : 'live',
+            'created_at'             => current_time('mysql'),
+            'updated_at'             => current_time('mysql'),
+        ]);
+
+        ActivityLogger::logSubscription($subscriptionId, 'subscription_created', 'Subscription created');
+        $subscriptionIds[$key] = $subscriptionId;
+    }
+
+    return [
+        'supporter_id'     => $supporterId,
+        'transaction_id'   => $transactionId,
+        'subscription_ids' => $subscriptionIds,
+    ];
+};
+
+/** Count every row that a supporter deletion is expected to remove. */
+$bmcCountRows = function (array $graph) {
+    global $wpdb;
+
+    $supporterId = (int) $graph['supporter_id'];
+    $prefix      = $wpdb->prefix;
+
+    $counts = [
+        'supporters' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_supporters WHERE id = %d",
+            $supporterId
+        )),
+        'subscriptions' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_subscriptions WHERE supporter_id = %d",
+            $supporterId
+        )),
+        'transactions' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_transactions WHERE entry_id = %d",
+            $supporterId
+        )),
+        'membership_access' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_membership_access WHERE supporter_id = %d",
+            $supporterId
+        )),
+        'supporters_meta' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_supporters_meta WHERE supporter_id = %d",
+            $supporterId
+        )),
+    ];
+
+    $activities = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$prefix}buymecoffee_activities
+         WHERE (object_type IN ('submission', 'email') AND object_id = %d)
+            OR (object_type = 'payment' AND object_id = %d)",
+        $supporterId,
+        (int) $graph['transaction_id']
+    ));
+
+    $subscriptionIds = array_values($graph['subscription_ids']);
+    if ($subscriptionIds) {
+        $placeholders = implode(', ', array_fill(0, count($subscriptionIds), '%d'));
+        $activities  += (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_activities
+             WHERE object_type = 'subscription' AND object_id IN ({$placeholders})",
+            $subscriptionIds
+        ));
+    }
+
+    $counts['activities'] = $activities;
+
+    return $counts;
+};
+
+/**
+ * Record every outbound HTTP call and answer it from $responder — no request
+ * ever reaches Stripe.
+ */
+$bmcStripeStub = function (&$requests, &$responder) {
+    return function ($pre, $args, $url) use (&$requests, &$responder) {
+        $requests[] = [
+            'url'    => $url,
+            'method' => isset($args['method']) ? $args['method'] : 'GET',
+            'auth'   => isset($args['headers']['Authorization']) ? $args['headers']['Authorization'] : '',
+        ];
+
+        return $responder($url, $args);
+    };
+};
+
+$suite->test('supporter deletion cancels the live Stripe subscription with the stored mode key and invalidates caches once', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+    $bmcStripeSettings();
+
+    // The subscription was created in live mode while the settings UI is on test.
+    $graph = $bmcMakeSupporter([
+        'live' => ['stripe_id' => 'sub_high02_active', 'status' => 'active', 'payment_mode' => 'live'],
+    ], 906001);
+
+    // A second supporter row for the same WP user: it survives, but its cached
+    // level list is computed from rows that are about to disappear.
+    $sibling = $bmcMakeSupporter([], 906001);
+
+    $publicVersionBefore = absint(get_option(Supporters::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, 1));
+    $reportVersionBefore = absint(get_option(Supporters::ADMIN_REPORT_CACHE_VERSION_OPTION, 1));
+
+    $requests  = [];
+    $responder = function () use ($bmcStripeBody) {
+        return $bmcStripeBody(['id' => 'sub_high02_active', 'object' => 'subscription', 'status' => 'canceled']);
+    };
+    $stub = $bmcStripeStub($requests, $responder);
+
+    add_filter('pre_http_request', $stub, 10, 3);
+    add_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+
+    try {
+        $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+        $test->assertFalse(is_wp_error($result), 'Deletion must proceed once Stripe confirms the cancellation');
+        $test->assertSame([$graph['subscription_ids']['live']], $result['cancelled_subscription_ids']);
+
+        $test->assertSame(1, count($requests), 'Exactly one Stripe call is needed to cancel one subscription');
+        $test->assertSame('DELETE', $requests[0]['method'], 'The agreement must be cancelled, not just read');
+        $test->assertContains('subscriptions/sub_high02_active', $requests[0]['url']);
+        $test->assertSame(
+            'Bearer sk_live_bmc',
+            $requests[0]['auth'],
+            'The stored subscription payment_mode must select the key, not the mode selected in the UI'
+        );
+
+        foreach ($bmcCountRows($graph) as $table => $count) {
+            $test->assertSame(0, $count, "Rows survived deletion in {$table}");
+        }
+
+        $test->assertSame(
+            $publicVersionBefore + 1,
+            absint(get_option(Supporters::PUBLIC_SUPPORTERS_CACHE_VERSION_OPTION, 1)),
+            'The public supporters cache must be invalidated exactly once'
+        );
+        $test->assertSame(
+            $reportVersionBefore + 1,
+            absint(get_option(Supporters::ADMIN_REPORT_CACHE_VERSION_OPTION, 1)),
+            'The admin report cache must be invalidated exactly once'
+        );
+        $test->assertSame(
+            null,
+            buymecoffee_get_supporter_meta($sibling['supporter_id'], 'active_level_ids'),
+            'The surviving sibling row must lose its cached membership levels'
+        );
+        $test->assertSame(1, $bmcCountRows($sibling)['supporters'], 'Unrelated supporter rows must not be deleted');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+    }
+});
+
+$suite->test('an unconfirmed Stripe cancellation aborts deletion and keeps every local row', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+    $scenarios = [
+        'a transport failure' => [
+            'settings'  => [],
+            'responder' => function () {
+                return new WP_Error('http_request_failed', 'Connection timed out');
+            },
+            'failure_code' => 'bmc_stripe_cancel_failed',
+            // The DELETE fails, then one read confirms the agreement is still live.
+            'requests' => 2,
+        ],
+        'a non-canceled status' => [
+            'settings'  => [],
+            'responder' => function () use ($bmcStripeBody) {
+                return $bmcStripeBody(['id' => 'sub_high02_x', 'object' => 'subscription', 'status' => 'active']);
+            },
+            'failure_code' => 'bmc_stripe_cancel_unconfirmed',
+            'requests'     => 1,
+        ],
+        'a missing key for the stored mode' => [
+            'settings'  => ['live_secret_key' => ''],
+            'responder' => function () use ($bmcStripeBody) {
+                return $bmcStripeBody(['id' => 'sub_high02_x', 'object' => 'subscription', 'status' => 'canceled']);
+            },
+            'failure_code' => 'bmc_stripe_key_missing',
+            'requests'     => 0,
+        ],
+    ];
+
+    foreach ($scenarios as $label => $scenario) {
+        $bmcStripeSettings($scenario['settings']);
+
+        $graph = $bmcMakeSupporter([
+            'live' => ['stripe_id' => 'sub_high02_blocked', 'status' => 'active', 'payment_mode' => 'live'],
+        ]);
+        $countsBefore = $bmcCountRows($graph);
+
+        $requests  = [];
+        $responder = $scenario['responder'];
+        $stub      = $bmcStripeStub($requests, $responder);
+
+        add_filter('pre_http_request', $stub, 10, 3);
+        add_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+
+        try {
+            $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+            $test->assertTrue(is_wp_error($result), "Deletion must abort on {$label}");
+            $test->assertSame('bmc_supporter_delete_blocked', $result->get_error_code());
+
+            $data = $result->get_error_data();
+            $test->assertSame([], $data['cancelled_subscription_ids'], "Nothing may be reported cancelled on {$label}");
+            $test->assertSame(1, count($data['failed_subscriptions']));
+            $test->assertSame($scenario['failure_code'], $data['failed_subscriptions'][0]['code'], "Wrong failure code for {$label}");
+            $test->assertSame($scenario['requests'], count($requests), "Unexpected Stripe call count for {$label}");
+
+            $test->assertSame($countsBefore, $bmcCountRows($graph), "Local rows were lost on {$label}");
+            $test->assertSame(1, $countsBefore['supporters'], 'The fixture must exist before deletion is attempted');
+
+            $subscription = (new Subscriptions())->find($graph['subscription_ids']['live']);
+            $test->assertSame('active', $subscription->status, "The subscription must not be marked cancelled on {$label}");
+        } finally {
+            remove_filter('pre_http_request', $stub, 10);
+            remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+        }
+    }
+});
+
+$suite->test('already cancelled and local-only subscriptions are deleted without calling Stripe', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+    $bmcStripeSettings();
+
+    $graph = $bmcMakeSupporter([
+        'terminal'  => ['stripe_id' => 'sub_high02_terminal', 'status' => 'cancelled', 'payment_mode' => 'live'],
+        'localonly' => ['status' => 'active'],
+    ]);
+
+    $requests  = [];
+    $responder = function () use ($bmcStripeBody) {
+        return $bmcStripeBody(['id' => 'sub_high02_terminal', 'object' => 'subscription', 'status' => 'canceled']);
+    };
+    $stub = $bmcStripeStub($requests, $responder);
+
+    add_filter('pre_http_request', $stub, 10, 3);
+    add_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+
+    try {
+        $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+        $test->assertFalse(is_wp_error($result), 'Rows that cannot bill must not block deletion');
+        $test->assertSame([], $result['cancelled_subscription_ids']);
+        $test->assertSame(0, count($requests), 'Terminal and local-only subscriptions must not reach the provider');
+
+        foreach ($bmcCountRows($graph) as $table => $count) {
+            $test->assertSame(0, $count, "Rows survived deletion in {$table}");
+        }
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+    }
+});
+
+$suite->test('one failing subscription blocks deletion and the confirmed one is not cancelled twice on retry', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+    $bmcStripeSettings();
+
+    $graph = $bmcMakeSupporter([
+        'ok'  => ['stripe_id' => 'sub_high02_ok', 'status' => 'active', 'payment_mode' => 'live'],
+        'bad' => ['stripe_id' => 'sub_high02_bad', 'status' => 'past_due', 'payment_mode' => 'live'],
+    ]);
+    $countsBefore = $bmcCountRows($graph);
+
+    $requests  = [];
+    $responder = function ($url) use ($bmcStripeBody) {
+        if (strpos($url, 'sub_high02_bad') !== false) {
+            return $bmcStripeBody(['error' => ['message' => 'Stripe is unavailable']], 500);
+        }
+
+        return $bmcStripeBody(['id' => 'sub_high02_ok', 'object' => 'subscription', 'status' => 'canceled']);
+    };
+    $stub = $bmcStripeStub($requests, $responder);
+
+    add_filter('pre_http_request', $stub, 10, 3);
+    add_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+
+    try {
+        $blocked = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+        $test->assertTrue(is_wp_error($blocked), 'A single unconfirmed subscription must block the whole deletion');
+        $data = $blocked->get_error_data();
+        $test->assertSame([$graph['subscription_ids']['ok']], $data['cancelled_subscription_ids'], 'Partial success must be reported');
+        $test->assertSame(1, count($data['failed_subscriptions']));
+        $test->assertSame($graph['subscription_ids']['bad'], $data['failed_subscriptions'][0]['subscription_id']);
+
+        // Nothing is removed; the confirmed cancellation only adds an audit entry.
+        $countsAfter = $bmcCountRows($graph);
+        $test->assertSame($countsBefore['activities'] + 1, $countsAfter['activities'], 'The confirmed cancellation must be logged');
+        unset($countsBefore['activities'], $countsAfter['activities']);
+        $test->assertSame($countsBefore, $countsAfter, 'Every local row must remain so the delete can be retried');
+
+        // The confirmed cancellation is persisted, so a retry reconciles instead
+        // of asking Stripe to cancel the same agreement again.
+        $test->assertSame('cancelled', (new Subscriptions())->find($graph['subscription_ids']['ok'])->status);
+        $test->assertSame('past_due', (new Subscriptions())->find($graph['subscription_ids']['bad'])->status);
+
+        // Retry once Stripe is reachable again.
+        $requests  = [];
+        $responder = function () use ($bmcStripeBody) {
+            return $bmcStripeBody(['id' => 'sub_high02_bad', 'object' => 'subscription', 'status' => 'canceled']);
+        };
+
+        $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+        $test->assertFalse(is_wp_error($result), 'The retry must succeed once every agreement is cancelled');
+        $test->assertSame([$graph['subscription_ids']['bad']], $result['cancelled_subscription_ids']);
+        $test->assertSame(1, count($requests), 'The already cancelled subscription must not be cancelled again');
+        $test->assertContains('sub_high02_bad', $requests[0]['url']);
+
+        foreach ($bmcCountRows($graph) as $table => $count) {
+            $test->assertSame(0, $count, "Rows survived deletion in {$table}");
+        }
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+    }
 });
 
 exit($suite->run());

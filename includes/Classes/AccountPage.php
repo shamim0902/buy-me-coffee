@@ -4,8 +4,7 @@ namespace BuyMeCoffee\Classes;
 
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Subscriptions;
-use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
-use BuyMeCoffee\Builder\Methods\Stripe\API as StripeAPI;
+use BuyMeCoffee\Services\SubscriptionCancellationService;
 
 if (!defined('ABSPATH')) exit;
 
@@ -52,28 +51,14 @@ class AccountPage
             wp_send_json_error(['message' => __('Subscription is already cancelled.', 'buy-me-coffee')]);
         }
 
-        // Cancel on Stripe
-        if (!empty($subscription->stripe_subscription_id)) {
-            $keys = StripeSettings::getKeys();
-            $response = (new StripeAPI())->makeRequest(
-                'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
-                [],
-                $keys['secret'],
-                'DELETE'
-            );
-
-            if (is_wp_error($response)) {
-                wp_send_json_error(['message' => $response->get_error_message()]);
-            }
-        }
-
-        (new Subscriptions())->updateData($subscriptionId, [
-            'status'       => 'cancelled',
-            'cancelled_at' => current_time('mysql'),
-            'updated_at'   => current_time('mysql'),
+        $result = (new SubscriptionCancellationService())->cancel($subscription, [
+            'log_title' => __('Subscription cancelled by supporter', 'buy-me-coffee'),
+            'context'   => ['by_supporter' => true],
         ]);
 
-        do_action('buymecoffee_subscription_cancelled', $subscriptionId);
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
 
         wp_send_json_success(['message' => __('Subscription cancelled successfully.', 'buy-me-coffee')]);
     }
