@@ -6523,4 +6523,75 @@ $suite->test('a refund landing before the announcement is what gets announced, n
     }
 });
 
+$suite->test('a renewal redelivered after a cancellation cannot bring the subscription back', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'active'], ['id' => $checkout['subscription_id']]);
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        // A renewal is recorded while the membership is live.
+        $invoiceId = 'in_med03_cancelled_' . $checkout['suffix'];
+        $invoice   = $bmcStripeInvoice($checkout['stripe_sub_id'], ['id' => $invoiceId]);
+
+        $recorded = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_cancel_1_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+        $test->assertSame('subscription_event_processed', $recorded['code']);
+
+        // The customer then cancels, and the entitlement ends with the agreement.
+        $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'cancelled'], ['id' => $checkout['subscription_id']]);
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_membership_access',
+            ['status' => 'cancelled', 'expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS)],
+            ['subscription_id' => $checkout['subscription_id']]
+        );
+
+        $test->assertSame('cancelled', $bmcSubscriptionState($checkout)['subscription']);
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true), 'The cancellation ends the entitlement');
+
+        $activated['ids'] = [];
+
+        // Stripe redelivers the renewal it already delivered. A payment event
+        // for an agreement that has ended cannot restart it.
+        $redelivered = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_cancel_2_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+
+        $test->assertFalse(is_wp_error($redelivered), 'The redelivery is answered, not failed');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('cancelled', $state['subscription'], 'A cancelled agreement must stay cancelled');
+        $test->assertSame([], $activated['ids'], 'No activation may be announced for it');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A cancelled member must not get the level back from a redelivered invoice'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());

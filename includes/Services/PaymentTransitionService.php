@@ -313,6 +313,21 @@ class PaymentTransitionService
         $now       = current_time('mysql');
         $periodEnd = $periodEnd ? sanitize_text_field($periodEnd) : '';
 
+        // An agreement that has ended cannot be brought back by a payment event.
+        // Stripe redelivers invoices, and a renewal recorded before the customer
+        // cancelled can arrive after: activating on it would move 'cancelled'
+        // back to 'active', fire the activation hook, and hand the entitlement
+        // back to somebody who ended their membership. Only the provider
+        // starting a new agreement creates a subscription that may go active,
+        // and that arrives as its own row.
+        if (SubscriptionCancellationService::isTerminal($subscription)) {
+            return [
+                'subscription_id' => $subscriptionId,
+                'activated'       => false,
+                'from'            => $from,
+            ];
+        }
+
         // A period end identical to the stored one is a repeat announcement of a
         // period the site already knows about, so it is not written and the
         // access row it projects is not touched.
