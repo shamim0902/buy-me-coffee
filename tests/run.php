@@ -1058,17 +1058,19 @@ $suite->test('an unconfirmed Stripe cancellation aborts deletion and keeps every
     }
 });
 
-$suite->test('already cancelled and local-only subscriptions are deleted without calling Stripe', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+$suite->test('only provider-confirmed expiry and local-only subscriptions are deleted without calling Stripe', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
     $bmcStripeSettings();
 
+    // 'expired' comes from Stripe's own lifecycle, so it is proof the agreement
+    // can no longer bill. A local-only row never had an agreement at all.
     $graph = $bmcMakeSupporter([
-        'terminal'  => ['stripe_id' => 'sub_high02_terminal', 'status' => 'cancelled', 'payment_mode' => 'live'],
+        'expired'   => ['stripe_id' => 'sub_high02_expired', 'status' => 'expired', 'payment_mode' => 'live'],
         'localonly' => ['status' => 'active'],
     ]);
 
     $requests  = [];
     $responder = function () use ($bmcStripeBody) {
-        return $bmcStripeBody(['id' => 'sub_high02_terminal', 'object' => 'subscription', 'status' => 'canceled']);
+        return $bmcStripeBody(['id' => 'sub_high02_expired', 'object' => 'subscription', 'status' => 'canceled']);
     };
     $stub = $bmcStripeStub($requests, $responder);
 
@@ -1080,7 +1082,7 @@ $suite->test('already cancelled and local-only subscriptions are deleted without
 
         $test->assertFalse(is_wp_error($result), 'Rows that cannot bill must not block deletion');
         $test->assertSame([], $result['cancelled_subscription_ids']);
-        $test->assertSame(0, count($requests), 'Terminal and local-only subscriptions must not reach the provider');
+        $test->assertSame(0, count($requests), 'Provider-expired and local-only subscriptions must not reach the provider');
 
         foreach ($bmcCountRows($graph) as $table => $count) {
             $test->assertSame(0, $count, "Rows survived deletion in {$table}");
@@ -1091,7 +1093,47 @@ $suite->test('already cancelled and local-only subscriptions are deleted without
     }
 });
 
-$suite->test('one failing subscription blocks deletion and the confirmed one is not cancelled twice on retry', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+$suite->test('a locally cancelled subscription is still confirmed at Stripe before it is deleted', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
+    $bmcStripeSettings();
+
+    // A local 'cancelled' is not proof of anything: the legacy donor flow wrote
+    // it without Stripe ever confirming. Deleting on the strength of it loses
+    // the reconciliation id while the agreement carries on billing, so the
+    // agreement has to be confirmed gone before the row may go.
+    $graph = $bmcMakeSupporter([
+        'locallyCancelled' => ['stripe_id' => 'sub_high02_local_cancel', 'status' => 'cancelled', 'payment_mode' => 'live'],
+    ]);
+
+    $requests  = [];
+    $responder = function () use ($bmcStripeBody) {
+        return $bmcStripeBody(['id' => 'sub_high02_local_cancel', 'object' => 'subscription', 'status' => 'canceled']);
+    };
+    $stub = $bmcStripeStub($requests, $responder);
+
+    add_filter('pre_http_request', $stub, 10, 3);
+    add_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+
+    try {
+        $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
+
+        $test->assertFalse(is_wp_error($result), 'An agreement Stripe confirms is gone must not block deletion');
+        $test->assertSame(1, count($requests), 'A locally cancelled agreement must be verified at Stripe');
+        $test->assertSame(
+            [$graph['subscription_ids']['locallyCancelled']],
+            $result['cancelled_subscription_ids'],
+            'The verified cancellation is reported'
+        );
+
+        foreach ($bmcCountRows($graph) as $table => $count) {
+            $test->assertSame(0, $count, "Rows survived deletion in {$table}");
+        }
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+    }
+});
+
+$suite->test('one failing subscription blocks deletion and every agreement is re-confirmed on retry', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeSupporter, $bmcCountRows, $bmcStripeStub) {
     $bmcStripeSettings();
 
     $graph = $bmcMakeSupporter([
@@ -1128,8 +1170,7 @@ $suite->test('one failing subscription blocks deletion and the confirmed one is 
         unset($countsBefore['activities'], $countsAfter['activities']);
         $test->assertSame($countsBefore, $countsAfter, 'Every local row must remain so the delete can be retried');
 
-        // The confirmed cancellation is persisted, so a retry reconciles instead
-        // of asking Stripe to cancel the same agreement again.
+        // The confirmed cancellation is persisted.
         $test->assertSame('cancelled', (new Subscriptions())->find($graph['subscription_ids']['ok'])->status);
         $test->assertSame('past_due', (new Subscriptions())->find($graph['subscription_ids']['bad'])->status);
 
@@ -1142,9 +1183,23 @@ $suite->test('one failing subscription blocks deletion and the confirmed one is 
         $result = (new SupporterDeletionService())->delete($graph['supporter_id']);
 
         $test->assertFalse(is_wp_error($result), 'The retry must succeed once every agreement is cancelled');
-        $test->assertSame([$graph['subscription_ids']['bad']], $result['cancelled_subscription_ids']);
-        $test->assertSame(1, count($requests), 'The already cancelled subscription must not be cancelled again');
-        $test->assertContains('sub_high02_bad', $requests[0]['url']);
+
+        // A local 'cancelled' is not treated as proof, so the retry re-confirms
+        // the agreement this service cancelled a moment ago as well as the one
+        // that failed. Cancelling an already cancelled agreement is a success at
+        // Stripe, so the retry costs one extra call and nothing else — the
+        // alternative, trusting the local status, is exactly what let an
+        // unconfirmed cancellation delete a still-billing agreement.
+        $cancelled = $result['cancelled_subscription_ids'];
+        sort($cancelled);
+        $expected = [$graph['subscription_ids']['ok'], $graph['subscription_ids']['bad']];
+        sort($expected);
+        $test->assertSame($expected, $cancelled, 'Every agreement is confirmed gone before the rows go');
+        $test->assertSame(2, count($requests), 'Both agreements are confirmed at Stripe on the retry');
+
+        $urls = implode(' ', wp_list_pluck($requests, 'url'));
+        $test->assertContains('sub_high02_bad', $urls);
+        $test->assertContains('sub_high02_ok', $urls);
 
         foreach ($bmcCountRows($graph) as $table => $count) {
             $test->assertSame(0, $count, "Rows survived deletion in {$table}");
