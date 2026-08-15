@@ -17,10 +17,12 @@ Covered feature groups:
 - Public button, form, supporter wall, and account rendering
 - Delegated admin capability boundaries
 - Per-post metadata authorization
+- Supporter-detail response contract: an allowlisted projection that never returns the stored gateway payload, submission blob, entry hashes or IP address to anyone, and releases provider references (charge id, dashboard link, card brand/last four, live/test mode, Stripe subscription/customer ids) only to callers holding payment-data permission
+- Gateway audit notes: every payment_note projector keeps only the operational keys the plugin depends on and drops credentials, payer/customer contact and address data, merchant metadata, raw payloads and unknown future fields
 - Unique-supporter and top-supporter aggregates: exact lifetime totals under transaction/subscription fan-out, identity grouping, filters, stable pagination, and page-bounded query topology
 - Public-endpoint abuse controls: route ceilings enforced on the body that actually arrived, exact rate-limit boundaries with atomic increments, forwarded-IP handling, hashed-only guard storage, lease ownership, and a fail-closed 503 when the guard table is unusable
 - Submission idempotency: a mandatory high-entropy attempt key, no duplicate rows or provider payments on a retry or address change, concurrent attempts refused, and keys never burned by validation failures
-- Gateway replay safety: browser confirmations resolved to local state before any provider call, concurrent confirmations of one Stripe intent or one PayPal donation serialized to a single capture, duplicate authenticated Stripe events, and duplicate VERIFIED PayPal notifications
+- Gateway replay safety: browser confirmations resolved to local state before any provider call, concurrent confirmations of one Stripe intent or one PayPal donation serialized to a single capture, duplicate authenticated Stripe events, and duplicate VERIFIED PayPal notifications — including Stripe final-confirmation replay and PayPal settled-order replay driven by the minimized audit notes
 - Provider retryability: unauthenticated deliveries bounded per address without refusing genuine high-volume traffic from shared provider addresses
 
 See [FEATURE-MATRIX.md](FEATURE-MATRIX.md) for the complete automated and sandbox/staging release checklist.

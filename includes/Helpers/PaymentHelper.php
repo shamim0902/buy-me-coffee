@@ -10,6 +10,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Helpers\ArrayHelper as Arr;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -110,8 +111,9 @@ class PaymentHelper
             || ($membershipAccess && Subscriptions::hasAccessValidity($membershipAccess))
         );
 
-        // The intent Stripe returned for this charge was stored verbatim when the
-        // payment was recorded, so its status is replayed instead of re-fetched.
+        // The intent status Stripe reported for this charge was recorded in the
+        // transaction's audit note when the payment was stored, so it is
+        // replayed from there instead of re-fetched.
         $storedIntent = json_decode((string) $transaction->payment_note, true);
         $stripeStatus = (is_array($storedIntent) && isset($storedIntent['status']))
             ? sanitize_text_field($storedIntent['status'])
@@ -140,9 +142,10 @@ class PaymentHelper
      * forever, so the reported status is treated as a claim, not an outcome: for
      * one-time payments the transition is decided by
      * OneTimePaymentStatusService, which refuses to move a refunded payment back
-     * to paid. Only the descriptive Stripe fields (card, charge reference, raw
-     * payload) are written unconditionally; they describe the payment whatever
-     * became of it. The returned state is read back from storage, so a refused
+     * to paid. Only the descriptive Stripe fields (card, charge reference, and
+     * the projected audit note) are written unconditionally; they describe the
+     * payment whatever became of it. The returned state is read back from
+     * storage, so a refused
      * confirmation reports refunded and no access rather than the paid state the
      * intent claimed.
      *
@@ -189,13 +192,15 @@ class PaymentHelper
         $last4 = Arr::get($card, 'last4');
         $cardBand = Arr::get($card, 'brand');
 
-        // Descriptive only: which card paid, which intent it was, what Stripe
-        // returned. None of it grants anything, so it is safe to store even for a
-        // confirmation whose status claim is refused below.
+        // Descriptive only: which card paid, which intent it was, and the
+        // operational projection of what Stripe returned. None of it grants
+        // anything, so it is safe to store even for a confirmation whose status
+        // claim is refused below. The intent itself is never stored: it carries
+        // the client_secret and the customer's own details.
         $paymentDetails = [
             'charge_id' => sanitize_text_field($intentId),
             'payment_mode' => Arr::get($response, 'livemode') ? 'live' : 'test',
-            'payment_note' => json_encode($response),
+            'payment_note' => GatewayAuditData::stripePaymentIntentNote($response),
             'card_last_4' => sanitize_text_field($last4),
             'card_brand' => sanitize_text_field($cardBand)
         ];
