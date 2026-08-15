@@ -2347,29 +2347,39 @@ $suite->test('an access row that already owns a source transaction is reconciled
         // A rival row already owning the canonical subscription link is the one
         // a cancellation finds, so the batch must skip the duplicate instead of
         // failing this range on every retry forever.
-        $rival = $bmcMakeMigrationSource(['level_id' => $levelId, 'transactions' => 1]);
+        $rivalUserId = 424343;
+        $rival = $bmcMakeMigrationSource([
+            'level_id'     => $levelId,
+            'wp_user_id'   => $rivalUserId,
+            'transactions' => 1,
+        ]);
 
         $canonicalId = $insertAccess([
             'supporter_id'    => $rival['supporter_id'],
-            'wp_user_id'      => null,
+            'wp_user_id'      => $rivalUserId,
             'level_id'        => $levelId,
             'transaction_id'  => null,
             'subscription_id' => $rival['subscription_id'],
             'access_type'     => 'subscription',
             'status'          => 'active',
             'starts_at'       => null,
-            'expires_at'      => null,
+            'expires_at'      => $expires,
             'created_at'      => current_time('mysql'),
             'updated_at'      => current_time('mysql'),
         ]);
+        // The dangerous shape of a duplicate: 'active' and untyped as recurring,
+        // so every grant path reads it as a one-time purchase that never
+        // expires. Skipping it is not enough — a cancellation updates only the
+        // canonical row above, and this one would go on granting the level for
+        // good.
         $duplicateId = $insertAccess([
             'supporter_id'    => $rival['supporter_id'],
-            'wp_user_id'      => null,
+            'wp_user_id'      => $rivalUserId,
             'level_id'        => $levelId,
             'transaction_id'  => $rival['transaction_ids'][0],
             'subscription_id' => null,
             'access_type'     => 'one_time',
-            'status'          => 'incomplete',
+            'status'          => 'active',
             'starts_at'       => null,
             'expires_at'      => null,
             'created_at'      => current_time('mysql'),
@@ -2390,6 +2400,47 @@ $suite->test('an access row that already owns a source transaction is reconciled
         $test->assertSame((int) $rival['subscription_id'], (int) $rivalRows[0]->subscription_id, 'The canonical row must keep the subscription link');
         $test->assertSame($duplicateId, (int) $rivalRows[1]->id, 'The duplicate must be skipped, not deleted');
         $test->assertSame(null, $rivalRows[1]->subscription_id, 'The duplicate must not steal the unique subscription link');
+
+        // Skipped, but no longer granting: the canonical row is left as the one
+        // row that answers for this subscription, so a later cancellation of it
+        // actually ends the entitlement.
+        $test->assertSame('superseded', $rivalRows[1]->status, 'A duplicate the collision left behind must stop granting');
+        $test->assertSame($rival['transaction_ids'][0], (int) $rivalRows[1]->transaction_id, 'A retired duplicate stays on record');
+
+        $test->assertSame(
+            [$levelId],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'The canonical row alone grants the level'
+        );
+
+        // Cancelling the subscription and letting its paid period lapse has to
+        // take the access with it. Before the duplicate was retired, the
+        // cancellation reached only the canonical row and the level stayed
+        // granted forever through the one nothing else ever looks at.
+        $wpdb->update($accessTable, [
+            'status'     => 'cancelled',
+            'expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS),
+        ], ['id' => $canonicalId]);
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'A cancelled subscription must not keep granting through the duplicate'
+        );
+
+        // Replaying the range must not rewrite an already retired duplicate.
+        $wpdb->update($accessTable, ['updated_at' => '2003-03-03 00:00:00'], ['id' => $duplicateId]);
+
+        $rewound           = get_option(Activator::MIGRATION_STATE_OPTION);
+        $rewound['phase']  = Activator::PHASE_BACKFILL_ACCESS;
+        $rewound['cursor'] = $cursor;
+        update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+        $settled = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($settled), 'A replay over a retired duplicate must succeed: ' . (is_wp_error($settled) ? $settled->get_error_message() : ''));
+
+        $settledRows = $bmcAccessRowsFor($rival['supporter_id']);
+        $test->assertSame(2, count($settledRows), 'A replay must not add a row');
+        $test->assertSame('2003-03-03 00:00:00', $settledRows[1]->updated_at, 'An already retired duplicate must not be rewritten');
     } finally {
         remove_filter('buymecoffee_migration_batch_size', $batch);
         $restore();
