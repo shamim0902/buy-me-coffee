@@ -50,6 +50,45 @@ class PaymentHelper
      * @param string $intentId Stripe PaymentIntent id.
      * @return object|null
      */
+    /**
+     * Bind a PaymentIntent to the transaction it was created for.
+     *
+     * The confirmation matches on this binding and on nothing else, so a write
+     * that silently did nothing — a row that has gone, a column that refused
+     * the value — would leave the browser holding an intent whose confirmation
+     * is then refused as unrecognised, with the donation paid at Stripe and
+     * unreconciled locally until a webhook arrives. The write is therefore
+     * confirmed by reading it back rather than assumed from a return value:
+     * an update that changes nothing and an update that failed are the same
+     * number here, and only one of them is a problem.
+     *
+     * @param int    $transactionId Transaction row ID.
+     * @param string $intentId      Stripe PaymentIntent id.
+     * @param array  $extra         Further columns to write in the same update.
+     * @return bool Whether the transaction now carries this intent.
+     */
+    public function bindStripeIntent($transactionId, $intentId, array $extra = [])
+    {
+        $transactionId = absint($transactionId);
+        $intentId      = sanitize_text_field($intentId);
+
+        if (!$transactionId || !$intentId) {
+            return false;
+        }
+
+        (new Transactions())->updateData($transactionId, array_merge($extra, [
+            'charge_id'  => $intentId,
+            'updated_at' => current_time('mysql'),
+        ]));
+
+        $stored = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->first();
+
+        return $stored && (string) $stored->charge_id === $intentId;
+    }
+
     public function findStripeTransactionByIntent($intentId)
     {
         $intentId = sanitize_text_field($intentId);
