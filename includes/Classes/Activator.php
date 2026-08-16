@@ -964,12 +964,101 @@ class Activator
             );
         }
 
+        // Order matters: the row that survives a collision is brought to its
+        // source before the row that loses one is retired, so the entitlement
+        // is never carried by a stale row alone.
+        $ownersRepaired = $this->repairSupersededOwner($sourceSql, $cursor, $lastId, $now);
+        if (is_wp_error($ownersRepaired)) {
+            return $ownersRepaired;
+        }
+
         $retired = $this->retireSupersededAccess($sourceSql, $cursor, $lastId, $now);
         if (is_wp_error($retired)) {
             return $retired;
         }
 
-        return (int) $repaired + (int) $retired;
+        return (int) $repaired + (int) $ownersRepaired + (int) $retired;
+    }
+
+    /**
+     * Bring the row that wins a collision to the source it now answers for.
+     *
+     * Retiring the loser makes the winner the only row a cancellation, an
+     * expiry or an entitlement check will ever find, so it has to be the right
+     * row before that happens. Legacy data can split a subscription across two
+     * rows — one holding the subscription_id, another holding the transaction —
+     * and the one holding the subscription_id is not necessarily the one whose
+     * user, level, status or period is current. Retiring the other and trusting
+     * this one blindly would leave the wrong entitlement in effect with nothing
+     * left to correct it.
+     *
+     * So the winner is reconciled against the same source projection, by
+     * subscription_id rather than by transaction_id, and by the same null-safe
+     * comparison — a row that already describes its source is not written.
+     *
+     * @param string $sourceSql Source projection with four ID-range placeholders.
+     * @param int    $cursor    Exclusive lower source ID bound.
+     * @param int    $lastId    Inclusive upper source ID bound.
+     * @param string $now       Timestamp for this batch.
+     * @return int|\WP_Error Number of repaired owner rows.
+     */
+    private function repairSupersededOwner($sourceSql, $cursor, $lastId, $now)
+    {
+        global $wpdb;
+
+        $access = $wpdb->prefix . 'buymecoffee_membership_access';
+
+        $canonicalExpires = "CASE
+                    WHEN src.current_period_end IS NOT NULL
+                         AND src.current_period_end <> '0000-00-00 00:00:00'
+                    THEN src.current_period_end
+                    ELSE NULL
+                END";
+        $canonicalStarts = "COALESCE(NULLIF(src.created_at, '0000-00-00 00:00:00'), owner.starts_at, %s)";
+
+        // Only a genuine collision is repaired here: a row owning this source's
+        // subscription while a different row owns its transaction. Everything
+        // else is the reconcile's business and is left to it.
+        $repairSql = "
+            UPDATE {$access} owner
+            JOIN ({$sourceSql}) src
+                ON src.access_type = 'subscription'
+                AND owner.subscription_id = src.source_id
+            JOIN {$access} duplicate
+                ON src.transaction_id IS NOT NULL
+                AND duplicate.transaction_id = src.transaction_id
+                AND duplicate.id <> owner.id
+            SET
+                owner.supporter_id = src.supporter_id,
+                owner.wp_user_id = src.wp_user_id,
+                owner.level_id = src.level_id,
+                owner.access_type = src.access_type,
+                owner.status = src.access_status,
+                owner.starts_at = {$canonicalStarts},
+                owner.expires_at = {$canonicalExpires},
+                owner.updated_at = %s
+            WHERE NOT (
+                owner.supporter_id <=> src.supporter_id
+                AND owner.wp_user_id <=> src.wp_user_id
+                AND owner.level_id <=> src.level_id
+                AND owner.access_type <=> src.access_type
+                AND owner.status <=> src.access_status
+                AND owner.starts_at <=> ({$canonicalStarts})
+                AND owner.expires_at <=> ({$canonicalExpires})
+            )";
+
+        $wpdb->last_error = '';
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- All table names are plugin-owned; the source ID range is prepared and bounded.
+        $repaired = $wpdb->query($wpdb->prepare($repairSql, $cursor, $lastId, $cursor, $lastId, $now, $now, $now));
+
+        if ($repaired === false) {
+            return new \WP_Error(
+                'buymecoffee_migration_query_failed',
+                $wpdb->last_error ?: __('The surviving membership access row could not be reconciled.', 'buy-me-coffee')
+            );
+        }
+
+        return (int) $repaired;
     }
 
     /**
