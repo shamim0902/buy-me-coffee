@@ -11,37 +11,213 @@ class MonetizationController
     public function register()
     {
         add_filter('the_content', [$this, 'filterContent'], 10, 1);
+        add_filter('get_the_excerpt', [$this, 'filterExcerpt'], PHP_INT_MAX, 2);
+        add_filter('the_content_feed', [$this, 'filterFeedContent'], PHP_INT_MAX, 2);
+        add_filter('the_excerpt_rss', [$this, 'filterFeedExcerpt'], PHP_INT_MAX, 1);
         add_filter('buymecoffee_form_render_args', [$this, 'prePopulateFormFromLevel']);
+
+        // Public post types registered by themes/plugins are not all known on
+        // plugins_loaded. Register their dynamic REST response filters only
+        // after all ordinary post-type registration has completed, while still
+        // supporting late-boot environments where REST initialization ran.
+        if (did_action('rest_api_init')) {
+            $this->registerRestFilters();
+        } else {
+            add_action('rest_api_init', [$this, 'registerRestFilters'], PHP_INT_MAX);
+        }
     }
 
     public function filterContent($content)
     {
-        if (is_admin() || !is_singular()) {
+        $post = get_post();
+
+        if (!$post) {
             return $content;
         }
 
-        $postId = get_the_ID();
-        if (!$postId) {
+        return $this->protectContent($content, $post, true);
+    }
+
+    /**
+     * Protect custom and generated excerpts in archives, search, feeds and REST.
+     *
+     * WordPress may build an automatic excerpt by running `the_content` first,
+     * but a hand-written excerpt bypasses that path. Always derive an
+     * unauthorized preview from the protected post body instead of trusting the
+     * supplied excerpt.
+     *
+     * @param string       $excerpt Current excerpt.
+     * @param \WP_Post|null $post    Post being rendered.
+     * @return string
+     */
+    public function filterExcerpt($excerpt, $post = null)
+    {
+        $post = get_post($post);
+
+        if (!$post) {
+            return $excerpt;
+        }
+
+        return $this->protectContent($excerpt, $post, true);
+    }
+
+    /**
+     * Keep full paid content out of full-content feeds even when another plugin
+     * supplies feed content without going through the ordinary content filter.
+     *
+     * @param string $content  Feed content.
+     * @param string $feedType Feed type.
+     * @return string
+     */
+    public function filterFeedContent($content, $feedType = '')
+    {
+        $post = get_post();
+
+        if (!$post) {
             return $content;
         }
 
-        $access = get_post_meta($postId, '_buymecoffee_access', true);
-        if ($access !== 'paid') {
+        return $this->protectContent($content, $post, false);
+    }
+
+    /**
+     * Protect excerpt-only feeds as well as full-content feeds.
+     *
+     * @param string $excerpt Feed excerpt.
+     * @return string
+     */
+    public function filterFeedExcerpt($excerpt)
+    {
+        $post = get_post();
+
+        if (!$post) {
+            return $excerpt;
+        }
+
+        return $this->protectContent($excerpt, $post, false);
+    }
+
+    /**
+     * Register the dynamic rest_prepare_{post_type} filters for every public
+     * REST-enabled post type, including custom types.
+     *
+     * @return void
+     */
+    public function registerRestFilters()
+    {
+        $postTypes = get_post_types([
+            'public'       => true,
+            'show_in_rest' => true,
+        ], 'names');
+
+        foreach ($postTypes as $postType) {
+            add_filter('rest_prepare_' . $postType, [$this, 'filterRestResponse'], PHP_INT_MAX, 3);
+        }
+    }
+
+    /**
+     * Remove raw paid content from public REST response fields. Editors retain
+     * the ordinary edit-context representation through edit_post capability.
+     *
+     * @param \WP_REST_Response $response REST response.
+     * @param \WP_Post          $post     Post represented by the response.
+     * @param \WP_REST_Request  $request  REST request.
+     * @return \WP_REST_Response
+     */
+    public function filterRestResponse($response, $post, $request)
+    {
+        if (!$post instanceof \WP_Post
+            || !$this->isPaidPost((int) $post->ID)
+            || $this->canViewFullContent((int) $post->ID)
+            || !is_object($response)
+            || !method_exists($response, 'get_data')
+            || !method_exists($response, 'set_data')) {
+            return $response;
+        }
+
+        $data = $response->get_data();
+        if (!is_array($data)) {
+            return $response;
+        }
+
+        $teaserText = $this->getTeaserText($post->post_content, (int) $post->ID);
+        $teaserHtml = $this->renderTeaser($teaserText);
+
+        if (isset($data['content']) && is_array($data['content'])) {
+            if (array_key_exists('raw', $data['content'])) {
+                $data['content']['raw'] = $teaserText;
+            }
+            if (array_key_exists('rendered', $data['content'])) {
+                $data['content']['rendered'] = $teaserHtml . $this->renderPaywallCta((int) $post->ID);
+            }
+        }
+
+        if (isset($data['excerpt']) && is_array($data['excerpt'])) {
+            if (array_key_exists('raw', $data['excerpt'])) {
+                $data['excerpt']['raw'] = $teaserText;
+            }
+            if (array_key_exists('rendered', $data['excerpt'])) {
+                $data['excerpt']['rendered'] = $teaserHtml;
+            }
+        }
+
+        $response->set_data($data);
+
+        return $response;
+    }
+
+    /**
+     * Apply the common paid-content policy to a known post.
+     *
+     * @param string   $content Current representation.
+     * @param \WP_Post $post    Post being represented.
+     * @param bool     $withCta Whether the interactive membership CTA is useful.
+     * @return string
+     */
+    private function protectContent($content, $post, $withCta)
+    {
+        $postId = (int) $post->ID;
+
+        if (!$this->isPaidPost($postId) || $this->canViewFullContent($postId)) {
             return $content;
+        }
+
+        $teaserText = $this->getTeaserText($post->post_content, $postId);
+        $protected  = $this->renderTeaser($teaserText);
+
+        if ($withCta) {
+            $protected .= $this->renderPaywallCta($postId);
+        }
+
+        return $protected;
+    }
+
+    private function isPaidPost($postId)
+    {
+        return get_post_meta($postId, '_buymecoffee_access', true) === 'paid';
+    }
+
+    private function canViewFullContent($postId)
+    {
+        if (current_user_can('edit_post', $postId)) {
+            return true;
         }
 
         $userId = get_current_user_id();
-        if ($userId && $this->userHasAccess($userId, $postId)) {
-            return $content;
-        }
 
+        return $userId && $this->userHasAccess($userId, $postId);
+    }
+
+    private function getTeaserText($content, $postId)
+    {
         $wordCount = $this->getPreviewWordCount($postId);
-        $teaser    = wp_trim_words(wp_strip_all_tags($content, true), $wordCount, '');
-        $teaser    = '<p>' . esc_html($teaser) . '&hellip;</p>';
 
-        $paywall = $this->renderPaywallCta($postId);
+        return wp_trim_words(wp_strip_all_tags(strip_shortcodes($content), true), $wordCount, '');
+    }
 
-        return '<div class="bmc-gated-content">' . $teaser . '</div>' . $paywall;
+    private function renderTeaser($teaserText)
+    {
+        return '<div class="bmc-gated-content"><p>' . esc_html($teaserText) . '&hellip;</p></div>';
     }
 
     private function userHasAccess($userId, $postId)

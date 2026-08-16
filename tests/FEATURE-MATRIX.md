@@ -13,7 +13,7 @@ Use this matrix as the release gate. `npm test` and `npm run test:http` cover de
 | Currency | Stripe normal- and zero-decimal conversion round trips | `npm test` |
 | Membership checkout | Saved level overrides attacker-controlled amount, quantity, interval, and recurring mode | `npm test` |
 | Entitlements | Pending one-time access, activation, cache refresh, refund revocation, subscription expiry/cancellation rules, a duplicate the backfill collision skips retired so a cancellation actually ends the entitlement | `npm test` |
-| Paywall | Guest teaser/CTA, global preview fallback, entitled-member full content | `npm test` |
+| Paywall | Guest teaser/CTA and no paid-body leakage through singular, archive/search, custom excerpt, full/excerpt feed, or REST raw/rendered representations; global preview fallback; entitled-member and post-editor full content | `npm test` |
 | Public rendering | Button escaping, donation form, supporter wall, logged-out account form | `npm test` |
 | Authorization | Delegated menu/supporter/settings/financial boundaries and exact-post meta authorization | `npm test` |
 | Supporter detail response | Allowlisted `get_supporter` projection: no `payment_note`, `form_data_raw`, `other_infos`, entry hash, IP address or reference for any caller; provider references (charge id, http(s)-only dashboard link, card brand/last four, payment mode, Stripe subscription/customer ids, membership `transaction_charge_id`) released only with payment-data permission, at every depth including payment history, membership access and other donations; supporter contact/message, amounts, statuses, dates, lifetime statistics, subscription and membership rows unchanged | `npm test` |
