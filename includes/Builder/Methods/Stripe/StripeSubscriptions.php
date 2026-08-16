@@ -8,7 +8,11 @@ use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Helpers\PaymentHelper;
+<<<<<<< HEAD
 use BuyMeCoffee\Services\GatewayAuditData;
+=======
+use BuyMeCoffee\Services\SubscriptionCancellationService;
+>>>>>>> agent/fix-medium-01
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -162,6 +166,15 @@ class StripeSubscriptions
             );
 
             if (!$bound) {
+                // Stripe has an agreement and this site cannot reach the payment
+                // that belongs to it. Telling the donor to try again without
+                // undoing that would leave the agreement behind and open a
+                // second one on the retry — two subscriptions for one intent to
+                // subscribe, one of which nobody is watching. So the attempt is
+                // withdrawn at Stripe and locally before the donor is asked to
+                // make it again.
+                $this->abandonSubscription((int) $localSubscriptionId);
+
                 wp_send_json_error([
                     'status'  => 'failed',
                     'message' => __('This subscription could not be started. Please try again.', 'buy-me-coffee'),
@@ -203,6 +216,68 @@ class StripeSubscriptions
      * @param string $mode    'test' or 'live'
      * @return string|null    Stripe product ID, or null on failure
      */
+    /**
+     * Withdraw a subscription attempt that could not be completed.
+     *
+     * Called when checkout has created the agreement at Stripe but cannot
+     * finish setting it up locally. Both sides are undone so the donor's retry
+     * starts one subscription rather than adding a second alongside an
+     * incomplete one nobody is watching.
+     *
+     * The local row is marked rather than deleted when Stripe will not let go
+     * of the agreement: a row that still names a live agreement is the only
+     * record anyone has of it, and losing that is worse than keeping a row
+     * that grants nothing.
+     *
+     * @param int $subscriptionId Local subscription row ID.
+     * @return void
+     */
+    private function abandonSubscription($subscriptionId)
+    {
+        $subscriptionId = absint($subscriptionId);
+        if (!$subscriptionId) {
+            return;
+        }
+
+        $subscriptions = new Subscriptions();
+        $subscription  = $subscriptions->getQuery()->where('id', $subscriptionId)->first();
+
+        if (!$subscription) {
+            return;
+        }
+
+        $cancelled = (new SubscriptionCancellationService())->cancelRemote($subscription);
+
+        if (is_wp_error($cancelled)) {
+            $subscriptions->getQuery()->where('id', $subscriptionId)->update([
+                'status'     => 'incomplete_expired',
+                'updated_at' => current_time('mysql'),
+            ]);
+
+            ActivityLogger::logSubscription($subscriptionId, 'subscription_abandoned', 'Subscription abandoned but still live at Stripe', [
+                'status'  => 'error',
+                'context' => [
+                    'subscription_id'        => $subscriptionId,
+                    'stripe_subscription_id' => $subscription->stripe_subscription_id,
+                    'error'                  => $cancelled->get_error_message(),
+                ],
+            ]);
+
+            return;
+        }
+
+        (new MembershipAccess())->getQuery()->where('subscription_id', $subscriptionId)->delete();
+        $subscriptions->getQuery()->where('id', $subscriptionId)->delete();
+
+        ActivityLogger::logSubscription($subscriptionId, 'subscription_abandoned', 'Subscription withdrawn before checkout completed', [
+            'status'  => 'info',
+            'context' => [
+                'subscription_id'        => $subscriptionId,
+                'stripe_subscription_id' => $subscription->stripe_subscription_id,
+            ],
+        ]);
+    }
+
     private function getOrCreateProduct($apiKey, $mode)
     {
         $optionKey = 'buymecoffee_stripe_recurring_product_' . $mode;
