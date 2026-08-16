@@ -316,6 +316,51 @@ class MembershipAccess extends Model
         return (int) $access->id;
     }
 
+    /**
+     * End the access a subscription grants.
+     *
+     * A subscription's access row is keyed by the subscription, not by whichever
+     * payment happened to fund the period, so a refunded renewal cannot be
+     * revoked through revokeByTransaction(): that looks the row up by
+     * transaction_id, which holds the subscription's first payment and not the
+     * renewal at all.
+     *
+     * @param int    $subscriptionId Local subscription row ID.
+     * @param string $status         Status to leave the access row in.
+     * @return int Access row ID, 0 when there was nothing to revoke.
+     */
+    public function revokeBySubscription($subscriptionId, $status = 'refunded')
+    {
+        $subscriptionId = absint($subscriptionId);
+        if (!$subscriptionId) {
+            return 0;
+        }
+
+        $access = $this->getQuery()
+            ->where('subscription_id', $subscriptionId)
+            ->first();
+
+        if (!$access) {
+            return 0;
+        }
+
+        $status = sanitize_key($status) ?: 'refunded';
+
+        if (sanitize_key((string) $access->status) === $status) {
+            return (int) $access->id;
+        }
+
+        $this->updateData((int) $access->id, [
+            'status'     => $status,
+            'updated_at' => current_time('mysql'),
+        ]);
+
+        $this->invalidateSupporterAccessCache((int) $access->supporter_id);
+        do_action('buymecoffee_membership_access_revoked', (int) $access->id, $status);
+
+        return (int) $access->id;
+    }
+
     public function getActiveLevelIdsForUser($userId)
     {
         $userId = absint($userId);

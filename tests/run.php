@@ -6839,4 +6839,98 @@ $suite->test('a refunded payment cannot be projected back into access by its sub
     }
 });
 
+$suite->test('refunding the payment a subscription is running on ends its access', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+    $access    = new MembershipAccess();
+
+    $addRenewal = function ($status) use ($wpdb, $checkout) {
+        return (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $checkout['supporter_id'],
+            'entry_hash'       => $checkout['hash'],
+            'subscription_id'  => $checkout['subscription_id'],
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => $status,
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+    };
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The live subscription grants the level'
+        );
+
+        // A renewal pays for the period now running, and is then refunded. The
+        // subscription is not cancelled — the agreement is untouched — so
+        // nothing in its own lifecycle will end the entitlement, and the period
+        // would otherwise simply run to term.
+        $renewalId = $addRenewal('paid');
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'paid');
+
+        $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $renewalId]);
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'refunded');
+
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'Refunding the payment the current period rests on ends the access'
+        );
+        $test->assertSame(1, count($log['revoked']), 'The revocation is announced once');
+
+        // An older payment losing its money says nothing about a period a later
+        // payment has since covered: a new renewal restores the entitlement,
+        // and refunding the superseded one must not take it away again.
+        $laterId = $addRenewal('paid');
+        do_action('buymecoffee_payment_status_updated', $laterId, 'paid');
+        $access->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The newer payment covers the period again'
+        );
+
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'refunded');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A superseded refund must not revoke a period a later payment covers'
+        );
+
+        // A failed renewal is dunning, not a refund: Stripe retries, and the
+        // subscription lifecycle owns that outcome. It must not cut the member
+        // off on the first miss.
+        $failedId = $addRenewal('failed');
+        do_action('buymecoffee_payment_status_updated', $failedId, 'failed');
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A failed renewal must not revoke a live subscription'
+        );
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());

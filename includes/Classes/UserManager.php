@@ -40,11 +40,27 @@ class UserManager
             ->where('id', $transactionId)
             ->first();
 
+        if (!$transaction) {
+            return;
+        }
+
         // Subscription entitlement follows the subscription lifecycle and its
-        // billing period. Handling the linked transaction here as well would
-        // duplicate the activation performed by subscription_activated (and
-        // could revoke a still-live subscription because one renewal failed).
-        if (!$transaction || !empty($transaction->subscription_id)) {
+        // billing period, so the linked transaction is not handled here the way
+        // a one-time payment is: activation belongs to subscription_activated,
+        // and a single failed renewal must not cut off a member Stripe is still
+        // retrying.
+        //
+        // A refund is the exception, because nothing else ends it. The
+        // cancellation hook only fires when the agreement itself ends, and the
+        // period would otherwise simply run to term — so a refunded subscriber
+        // keeps the content they were refunded for. Only the payment covering
+        // the current period may decide that, so an older refunded renewal
+        // cannot revoke a period a later payment has already covered.
+        if (!empty($transaction->subscription_id)) {
+            if ($status === 'refunded' && $this->coversCurrentPeriod($transaction)) {
+                (new MembershipAccess())->revokeBySubscription((int) $transaction->subscription_id, $status);
+            }
+
             return;
         }
 
@@ -58,6 +74,27 @@ class UserManager
         if ($status === 'paid') {
             (new MembershipAccess())->activateByTransaction($transactionId);
         }
+    }
+
+    /**
+     * Whether a transaction is the payment that bought the period now running.
+     *
+     * The subscription's most recent payment is the one its current period
+     * rests on. An older one losing its money says nothing about a period a
+     * later payment has since covered.
+     *
+     * @param object $transaction Transaction row, carrying a subscription_id.
+     * @return bool
+     */
+    private function coversCurrentPeriod($transaction)
+    {
+        $latest = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', (int) $transaction->subscription_id)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        return $latest && (int) $latest->id === (int) $transaction->id;
     }
 
     private function isEnabled(): bool
