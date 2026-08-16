@@ -126,6 +126,46 @@ class Supporters extends Model
         return $supporters;
     }
 
+    /**
+     * Resolve the supporter-level status from every transaction on the entry.
+     *
+     * A refund or reversal applies to one payment, not to the donor as a whole.
+     * Paid therefore wins while any settled transaction remains; work still in
+     * flight wins over failed/refunded history.
+     *
+     * @param int $entryId Supporter row ID.
+     * @return string One of paid, pending, failed, refunded.
+     */
+    public static function aggregatePaymentStatus($entryId)
+    {
+        $transactions = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('entry_id', absint($entryId))
+            ->select('status')
+            ->get();
+
+        $statuses = [];
+        foreach ($transactions as $transaction) {
+            if (!empty($transaction->status)) {
+                $statuses[] = sanitize_text_field($transaction->status);
+            }
+        }
+
+        if (in_array('paid', $statuses, true)) {
+            return 'paid';
+        }
+
+        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true) || in_array('refunding', $statuses, true)) {
+            return 'pending';
+        }
+
+        if (in_array('failed', $statuses, true)) {
+            return 'failed';
+        }
+
+        return 'refunded';
+    }
+
     public function find($id)
     {
         $supporter = $this->getQuery()
