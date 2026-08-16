@@ -8,6 +8,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Builder\Methods\BaseMethods;
 use BuyMeCoffee\Classes\Vite;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -502,7 +503,10 @@ class PayPal extends BaseMethods
         );
 
         if (!empty($data) && isset($data['txn_id'])) {
-            $transactionUpdate['payment_note'] = wp_json_encode($data);
+            // A verified IPN body is a PayPal account record — payer name,
+            // email and address included. Only the transaction and status
+            // fields this plugin reasons about are kept.
+            $transactionUpdate['payment_note'] = GatewayAuditData::payPalIpnNote($data);
             $transactionUpdate['charge_id'] = sanitize_text_field($data['txn_id']);
         }
 
@@ -696,7 +700,10 @@ class PayPal extends BaseMethods
             'charge_id' => sanitize_text_field($vendorChargeId),
             'payment_mode' => sanitize_text_field($mode),
             'payment_total' => $amount,
-            'payment_note' => wp_json_encode($payment_intent),
+            // The captured order is recorded by reference only: its id is what
+            // settledOrderMatches() replays against, and the payer block it
+            // arrives with is never stored.
+            'payment_note' => GatewayAuditData::payPalOrderNote($payment_intent),
             'status' => 'paid',
             'updated_at' => current_time('mysql'),
         );
@@ -789,9 +796,9 @@ class PayPal extends BaseMethods
      *
      * A settled transaction records the *capture*, not the order it came from,
      * so the order id the browser replays never matches charge_id directly. The
-     * captured order was stored verbatim alongside it, so it is read back from
-     * there: the donor reloading their confirmation is recognised, while a
-     * second, different order is not.
+     * captured order's id was recorded alongside it in the audit note, so it is
+     * read back from there: the donor reloading their confirmation is
+     * recognised, while a second, different order is not.
      *
      * @param object $transaction Local transaction, freshly read.
      * @param string $chargeId    PayPal order id supplied by the browser.

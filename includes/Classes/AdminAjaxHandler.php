@@ -18,7 +18,9 @@ use BuyMeCoffee\Classes\EmailNotifications;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\API as StripeAPI;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\SubscriptionCancellationService;
+use BuyMeCoffee\Services\SupporterAdminPresenter;
 use BuyMeCoffee\Services\SupporterDeletionService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -246,6 +248,14 @@ class AdminAjaxHandler
         wp_send_json_success($supporter, 200);
     }
 
+    /**
+     * The supporter detail screen.
+     *
+     * Supporters::find() is shared with the email and gateway paths and returns
+     * whole rows, so what reaches the browser is decided here instead: an
+     * allowlisted projection, with the provider's operational references gated
+     * on payment-data permission rather than on supporter access.
+     */
     public function getSupporter($request)
     {
         $id = absint(Arr::get($request, 'id'));
@@ -253,7 +263,10 @@ class AdminAjaxHandler
 
         $supporter->supporters_image = get_avatar_url($supporter->supporters_email);
 
-        wp_send_json_success($supporter, 200);
+        wp_send_json_success(
+            SupporterAdminPresenter::present($supporter, AccessControl::hasPaymentDataPermission()),
+            200
+        );
     }
 
     public function getSupporters($request)
@@ -897,11 +910,7 @@ class AdminAjaxHandler
         ];
 
         if (!empty($refundMeta)) {
-            $updateData['payment_note'] = wp_json_encode([
-                'refund_id'      => sanitize_text_field(Arr::get($refundMeta, 'refund_id', '')),
-                'refund_status'  => sanitize_text_field(Arr::get($refundMeta, 'status', '')),
-                'refunded_at'    => current_time('mysql'),
-            ]);
+            $updateData['payment_note'] = GatewayAuditData::refundNote($refundMeta);
         }
 
         (new Transactions())->updateData($transaction->id, $updateData);

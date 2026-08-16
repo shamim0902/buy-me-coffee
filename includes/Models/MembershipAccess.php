@@ -131,8 +131,26 @@ class MembershipAccess extends Model
         ], true);
     }
 
+    /**
+     * Activate the access a transaction paid for, but only while that payment
+     * still stands.
+     *
+     * The payment and the access it grants are two rows, so a refund landing
+     * between "this payment is paid" and the activation below would otherwise
+     * re-open the access the refund had just revoked, and leave a refunded
+     * customer inside gated content. The move is therefore a single conditional
+     * statement joined to the transaction: the database decides it against the
+     * refund's committed state — blocking on its row lock while it is still in
+     * flight — never against a status this process read a moment earlier.
+     *
+     * @param int $transactionId Transaction row ID.
+     * @return int Access row ID that is active because of this call, 0 when
+     *             nothing was activated.
+     */
     public function activateByTransaction($transactionId)
     {
+        global $wpdb;
+
         $transactionId = absint($transactionId);
         if (!$transactionId) {
             return 0;
@@ -152,10 +170,22 @@ class MembershipAccess extends Model
             return (int) $access->id;
         }
 
-        $this->updateData((int) $access->id, [
-            'status'     => 'active',
-            'updated_at' => current_time('mysql'),
-        ]);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic compare-and-set on plugin tables.
+        $activated = $wpdb->query($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix.
+            "UPDATE {$wpdb->prefix}{$this->table} a
+               INNER JOIN {$wpdb->prefix}buymecoffee_transactions t ON t.id = a.transaction_id
+                SET a.status = 'active', a.updated_at = %s
+              WHERE a.id = %d AND a.status <> 'active' AND t.status = 'paid'",
+            current_time('mysql'),
+            (int) $access->id
+        ));
+
+        // Refused: the payment is no longer paid, or another request activated
+        // the row first and owns the announcement below.
+        if (!$activated) {
+            return 0;
+        }
 
         $this->invalidateSupporterAccessCache((int) $access->supporter_id);
         do_action('buymecoffee_membership_access_activated', (int) $access->id);

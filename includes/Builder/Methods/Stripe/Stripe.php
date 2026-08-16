@@ -11,6 +11,7 @@ use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 
@@ -326,7 +327,7 @@ class Stripe extends BaseMethods
                 'status'       => 'pending',
                 'charge_id'    => sanitize_text_field($intentId),
                 'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
-                'payment_note' => wp_json_encode($intent),
+                'payment_note' => GatewayAuditData::stripePaymentIntentNote($intent),
                 'updated_at'   => current_time('mysql'),
             ]);
 
@@ -363,7 +364,7 @@ class Stripe extends BaseMethods
             'status'       => $intentStatus === 'succeeded' ? 'paid' : 'pending',
             'charge_id'    => sanitize_text_field($intentId),
             'payment_mode' => !empty($intent['livemode']) ? 'live' : 'test',
-            'payment_note' => wp_json_encode($intent),
+            'payment_note' => GatewayAuditData::stripePaymentIntentNote($intent),
             'updated_at'   => current_time('mysql'),
         ]);
 

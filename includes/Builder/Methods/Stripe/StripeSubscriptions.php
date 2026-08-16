@@ -8,6 +8,7 @@ use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Helpers\PaymentHelper;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\SubscriptionCancellationService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -414,8 +415,7 @@ class StripeSubscriptions
             'status'           => 'paid',
             'currency'         => strtoupper($currency),
             'payment_mode'     => sanitize_text_field($subscription->payment_mode),
-            'payment_note'     => wp_json_encode([
-                'invoice_id' => $invoiceId,
+            'payment_note'     => GatewayAuditData::stripeInvoiceNote($invoiceId, [
                 'event_type' => isset($event->type) ? sanitize_text_field($event->type) : '',
             ]),
             'created_at'       => current_time('mysql'),
@@ -729,8 +729,7 @@ class StripeSubscriptions
                     'status'           => 'paid',
                     'currency'         => strtoupper($currency),
                     'payment_mode'     => sanitize_text_field($subscription->payment_mode),
-                    'payment_note'     => wp_json_encode([
-                        'invoice_id'     => $invoiceId,
+                    'payment_note'     => GatewayAuditData::stripeInvoiceNote($invoiceId, [
                         'billing_reason' => $billingReason,
                         'fetched_from'   => 'remote_sync',
                     ]),

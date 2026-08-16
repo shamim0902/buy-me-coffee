@@ -25,6 +25,7 @@ use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 use BuyMeCoffee\Services\SupporterDeletionService;
@@ -291,6 +292,17 @@ $suite->test('one-time membership activation and refund update user access', fun
     $accessId = $access->createPendingForTransaction($transactionId, $supporterId, $levelId);
     $test->assertNotEmpty($accessId);
     $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
+
+    // Access follows the payment: while the transaction is not stored as paid
+    // there is nothing to activate, however often activation is asked for.
+    $test->assertSame(0, $access->activateByTransaction($transactionId), 'An unpaid transaction must not grant access');
+    $test->assertSame([], buymecoffee_user_get_active_level_ids($userId, true));
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['status' => 'paid'],
+        ['id' => $transactionId]
+    );
 
     $test->assertSame((int) $accessId, $access->activateByTransaction($transactionId));
     $test->assertSame([(int) $levelId], buymecoffee_user_get_active_level_ids($userId, true));
@@ -4928,6 +4940,586 @@ $suite->test('lapsed guard rows are cleaned up in bounded slices and live ones a
     $test->assertTrue(PublicRequestGuard::CLEANUP_LIMIT > 0, 'Cleanup must always be bounded');
 });
 
+
+// ── MEDIUM-02: the supporter screen must not carry the gateway's own record ──
+
+/**
+ * Every string key anywhere in a response, however deeply nested.
+ *
+ * The point of the projection is that a field cannot reappear one level down —
+ * inside the payment history, a membership access row or another donation — so
+ * absence is asserted over the whole tree rather than the top level.
+ *
+ * @param mixed $value Response fragment.
+ * @return string[]
+ */
+$bmcResponseKeys = function ($value) use (&$bmcResponseKeys) {
+    $keys = [];
+
+    if (!is_array($value) && !is_object($value)) {
+        return $keys;
+    }
+
+    foreach ((array) $value as $key => $item) {
+        if (is_string($key)) {
+            $keys[] = $key;
+        }
+
+        if (is_array($item) || is_object($item)) {
+            $keys = array_merge($keys, $bmcResponseKeys($item));
+        }
+    }
+
+    return $keys;
+};
+
+/**
+ * A supporter whose every row carries hostile, secret-bearing and
+ * not-yet-invented fields: a stored gateway payload with a client_secret and
+ * the customer's own details, a submission blob, an entry hash, an IP address,
+ * and Stripe subscription/customer references.
+ */
+$bmcMakeSupporterDetailFixture = function () {
+    $suffix = wp_generate_password(12, false, false);
+    $email  = 'bmc-med02-' . $suffix . '@example.com';
+    $hash   = 'bmc_med02_' . $suffix;
+
+    // Exactly what the gateway paths used to persist verbatim.
+    $storedIntent = wp_json_encode([
+        'id'             => 'pi_' . $suffix,
+        'object'         => 'payment_intent',
+        'status'         => 'succeeded',
+        'client_secret'  => 'pi_' . $suffix . '_secret_' . $suffix,
+        'customer'       => 'cus_' . $suffix,
+        'receipt_email'  => $email,
+        'metadata'       => ['ref_id' => $hash, 'internal_note' => 'never leaves the gateway'],
+        'charges'        => ['data' => [[
+            'billing_details' => ['email' => $email, 'address' => ['line1' => '10 Secret Way']],
+        ]]],
+        'future_gateway_field' => 'not invented yet',
+    ]);
+
+    $levelId = (int) buyMeCoffeeQuery()->table('buymecoffee_membership_levels')->insert([
+        'name'          => 'MED02 Level',
+        'description'   => '',
+        'price'         => 2500,
+        'payment_type'  => 'subscription',
+        'interval_type' => 'month',
+        'status'        => 'active',
+        'rewards'       => '[]',
+        'access_rules'  => '[]',
+        'sort_order'    => 998,
+        'created_at'    => current_time('mysql'),
+        'updated_at'    => current_time('mysql'),
+    ]);
+
+    $supporterRow = [
+        'supporters_name'    => 'MED02 Donor',
+        'supporters_email'   => $email,
+        'supporters_message' => 'Thanks for the coffee!',
+        'form_data_raw'      => wp_json_encode(['card_token' => 'tok_' . $suffix, 'consent' => 'yes']),
+        'other_infos'        => wp_json_encode(['fingerprint' => 'fp_' . $suffix]),
+        'currency'           => 'USD',
+        'payment_status'     => 'paid',
+        'entry_hash'         => $hash,
+        'payment_total'      => 2500,
+        'coffee_count'       => 1,
+        'payment_mode'       => 'live',
+        'payment_method'     => 'stripe',
+        'status'             => 'new',
+        'reference'          => 'REF-' . $suffix,
+        'ip_address'         => '203.0.113.77',
+        'created_at'         => gmdate('Y-m-d H:i:s', time() - (3 * DAY_IN_SECONDS)),
+        'updated_at'         => current_time('mysql'),
+    ];
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert($supporterRow);
+
+    // A second donation from the same email: it reaches the response as an
+    // "other donation" row and must be projected exactly like the first.
+    $otherRow = array_merge($supporterRow, [
+        'entry_hash'  => $hash . '_b',
+        'reference'   => 'REF-' . $suffix . '-B',
+        'created_at'  => gmdate('Y-m-d H:i:s', time() - (2 * DAY_IN_SECONDS)),
+    ]);
+    $otherSupporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert($otherRow);
+
+    $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+        'supporter_id'           => $supporterId,
+        'stripe_subscription_id' => 'sub_' . $suffix,
+        'stripe_customer_id'     => 'cus_' . $suffix,
+        'interval_type'          => 'month',
+        'amount'                 => 2500,
+        'currency'               => 'USD',
+        'status'                 => 'active',
+        'payment_mode'           => 'live',
+        'current_period_end'     => gmdate('Y-m-d H:i:s', time() + (30 * DAY_IN_SECONDS)),
+        'created_at'             => current_time('mysql'),
+        'updated_at'             => current_time('mysql'),
+        'level_id'               => $levelId,
+    ]);
+
+    $transactionRow = [
+        'entry_id'         => $supporterId,
+        'entry_hash'       => $hash,
+        'subscription_id'  => $subscriptionId,
+        'transaction_type' => 'recurring',
+        'payment_method'   => 'stripe',
+        'card_last_4'      => 4242,
+        'card_brand'       => 'visa',
+        'charge_id'        => 'pi_' . $suffix,
+        'payment_total'    => 2500,
+        'status'           => 'paid',
+        'currency'         => 'USD',
+        'payment_mode'     => 'live',
+        'payment_note'     => $storedIntent,
+        'created_at'       => gmdate('Y-m-d H:i:s', time() - (3 * DAY_IN_SECONDS)),
+        'updated_at'       => current_time('mysql'),
+    ];
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert($transactionRow);
+
+    $renewalId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert(array_merge($transactionRow, [
+        'charge_id'  => 'pi_renewal_' . $suffix,
+        'created_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS),
+    ]));
+
+    $accessId = (int) buyMeCoffeeQuery()->table('buymecoffee_membership_access')->insert([
+        'supporter_id'    => $supporterId,
+        'level_id'        => $levelId,
+        'transaction_id'  => $transactionId,
+        'subscription_id' => $subscriptionId,
+        'access_type'     => 'subscription',
+        'status'          => 'active',
+        'starts_at'       => gmdate('Y-m-d H:i:s', time() - (3 * DAY_IN_SECONDS)),
+        'expires_at'      => gmdate('Y-m-d H:i:s', time() + (30 * DAY_IN_SECONDS)),
+        'created_at'      => current_time('mysql'),
+        'updated_at'      => current_time('mysql'),
+    ]);
+
+    return [
+        'suffix'             => $suffix,
+        'email'              => $email,
+        'hash'               => $hash,
+        'level_id'           => $levelId,
+        'supporter_id'       => $supporterId,
+        'other_supporter_id' => $otherSupporterId,
+        'subscription_id'    => $subscriptionId,
+        'transaction_id'     => $transactionId,
+        'renewal_id'         => $renewalId,
+        'access_id'          => $accessId,
+        'stored_intent'      => $storedIntent,
+    ];
+};
+
+/** A delegated admin holding exactly the listed plugin capabilities. */
+$bmcMakeDelegatedAdmin = function (array $capabilities) {
+    $suffix = wp_generate_password(8, false, false);
+
+    $userId = wp_insert_user([
+        'user_login' => 'bmc_med02_' . $suffix,
+        'user_email' => 'bmc-med02-admin-' . $suffix . '@example.com',
+        'user_pass'  => wp_generate_password(24),
+        'role'       => 'subscriber',
+    ]);
+
+    $user = new WP_User($userId);
+    foreach ($capabilities as $capability) {
+        $user->add_cap($capability);
+    }
+
+    // Re-resolving the current user is what makes the new caps visible to
+    // current_user_can() inside the same process.
+    wp_set_current_user(0);
+    wp_set_current_user($userId);
+
+    return (int) $userId;
+};
+
+$suite->test('a supporter-only viewer gets the supporter screen without any gateway payload or provider reference', function ($test) use ($bmcCapturePublicResponse, $bmcMakeSupporterDetailFixture, $bmcMakeDelegatedAdmin, $bmcResponseKeys) {
+    $fixture = $bmcMakeSupporterDetailFixture();
+    $bmcMakeDelegatedAdmin(['buy-me-coffee_can_view_menus', 'buy-me-coffee_view_supporters']);
+
+    $handler = new AdminAjaxHandler();
+
+    // The route itself stays reachable: this is a delegated supporter viewer,
+    // not an unauthorized caller.
+    $test->assertTrue($test->invokePrivate($handler, 'canAccessRoute', ['get_supporter']));
+    $test->assertTrue(AccessControl::hasSupporterDataPermission());
+    $test->assertFalse(AccessControl::hasPaymentDataPermission());
+
+    $response = $bmcCapturePublicResponse(function () use ($handler, $fixture) {
+        $handler->getSupporter(['id' => $fixture['supporter_id']]);
+    });
+
+    $test->assertSame(200, $response['status']);
+    $test->assertTrue(!empty($response['body']['success']), 'The supporter detail must still be served');
+
+    $data = $response['body']['data'];
+    $keys = $bmcResponseKeys($data);
+
+    $forbidden = [
+        'payment_note',
+        'form_data_raw',
+        'other_infos',
+        'entry_hash',
+        'ip_address',
+        'reference',
+        'charge_id',
+        'transaction_charge_id',
+        'transaction_url',
+        'card_brand',
+        'card_last_4',
+        'payment_mode',
+        'stripe_subscription_id',
+        'stripe_customer_id',
+        'wp_user_id',
+    ];
+
+    foreach ($forbidden as $field) {
+        $test->assertFalse(
+            in_array($field, $keys, true),
+            "A supporter-only viewer must never receive {$field}, at any depth"
+        );
+    }
+
+    // Nothing from the stored gateway payload may survive as a value either.
+    foreach (['client_secret', 'cus_' . $fixture['suffix'], 'Secret Way', 'never leaves the gateway', 'tok_' . $fixture['suffix'], $fixture['hash']] as $secret) {
+        $test->assertNotContains($secret, $response['raw'], "Leaked gateway data: {$secret}");
+    }
+
+    // Everything the supporter screen actually renders is still there.
+    foreach (['id', 'supporters_name', 'supporters_email', 'supporters_message', 'supporters_image', 'currency', 'payment_status', 'payment_total', 'coffee_count', 'payment_method', 'created_at', 'all_time_total_paid', 'all_time_total_pending', 'all_time_total_coffee'] as $field) {
+        $test->assertTrue(array_key_exists($field, $data), "Missing supporter field: {$field}");
+    }
+
+    $test->assertSame('MED02 Donor', $data['supporters_name']);
+    $test->assertSame('Thanks for the coffee!', $data['supporters_message']);
+
+    $test->assertNotEmpty($data['transaction'], 'The primary transaction card must still render');
+    $test->assertSame('paid', $data['transaction']['status']);
+    $test->assertSame('stripe', $data['transaction']['payment_method']);
+    $test->assertSame(2, count($data['transactions']), 'The payment history keeps both transactions');
+    $test->assertSame(2, count($data['other_donations']), 'The donation history keeps both entries');
+
+    $test->assertNotEmpty($data['subscription'], 'Subscription status must still render');
+    $test->assertSame('active', $data['subscription']['status']);
+    $test->assertSame('month', $data['subscription']['interval_type']);
+    $test->assertSame(2500, (int) $data['subscription']['amount']);
+
+    $test->assertSame(1, count($data['membership_access']));
+    $test->assertSame('MED02 Level', $data['membership_access'][0]['level_name']);
+    $test->assertSame('active', $data['membership_access'][0]['status']);
+    $test->assertSame('subscription', $data['membership_access'][0]['access_type']);
+    $test->assertSame(
+        (int) $fixture['subscription_id'],
+        (int) $data['membership_access'][0]['subscription_id'],
+        'The membership row keeps its subscription link'
+    );
+
+    wp_set_current_user(0);
+});
+
+$suite->test('a payment-authorized viewer gets provider references but never the stored payload', function ($test) use ($bmcCapturePublicResponse, $bmcMakeSupporterDetailFixture, $bmcMakeDelegatedAdmin, $bmcResponseKeys) {
+    $fixture = $bmcMakeSupporterDetailFixture();
+    $bmcMakeDelegatedAdmin([
+        'buy-me-coffee_can_view_menus',
+        'buy-me-coffee_view_supporters',
+        'buy-me-coffee_view_payments',
+    ]);
+
+    $handler = new AdminAjaxHandler();
+    $test->assertTrue(AccessControl::hasPaymentDataPermission());
+
+    $dashboardUrl = function () use ($fixture) {
+        return 'https://dashboard.stripe.com/payments/pi_' . $fixture['suffix'];
+    };
+    add_filter('buymecoffee/payment/get_transaction_url_stripe', $dashboardUrl, 20);
+
+    try {
+        $response = $bmcCapturePublicResponse(function () use ($handler, $fixture) {
+            $handler->getSupporter(['id' => $fixture['supporter_id']]);
+        });
+    } finally {
+        remove_filter('buymecoffee/payment/get_transaction_url_stripe', $dashboardUrl, 20);
+    }
+
+    $data = $response['body']['data'];
+    $keys = $bmcResponseKeys($data);
+
+    // The working data a payment administrator needs.
+    $test->assertSame('pi_renewal_' . $fixture['suffix'], $data['transaction']['charge_id']);
+    $test->assertSame('visa', $data['transaction']['card_brand']);
+    $test->assertSame(4242, (int) $data['transaction']['card_last_4']);
+    $test->assertSame('live', $data['transaction']['payment_mode']);
+    $test->assertSame('live', $data['payment_mode']);
+    $test->assertSame('https://dashboard.stripe.com/payments/pi_' . $fixture['suffix'], $data['transaction']['transaction_url']);
+    $test->assertSame('sub_' . $fixture['suffix'], $data['subscription']['stripe_subscription_id']);
+    $test->assertSame('cus_' . $fixture['suffix'], $data['subscription']['stripe_customer_id']);
+    $test->assertSame('pi_' . $fixture['suffix'], $data['membership_access'][0]['transaction_charge_id']);
+
+    foreach ($data['transactions'] as $row) {
+        $test->assertNotEmpty($row['charge_id'], 'Payment history keeps its charge references');
+    }
+
+    // The stored gateway payload and the plugin's internal fields stay out,
+    // even for a payment administrator: they belong to the gateway record.
+    foreach (['payment_note', 'form_data_raw', 'other_infos', 'entry_hash', 'ip_address', 'reference', 'wp_user_id'] as $field) {
+        $test->assertFalse(in_array($field, $keys, true), "{$field} must never be returned by get_supporter");
+    }
+
+    foreach (['client_secret', 'Secret Way', 'never leaves the gateway', 'tok_' . $fixture['suffix'], $fixture['hash']] as $secret) {
+        $test->assertNotContains($secret, $response['raw'], "Leaked gateway data: {$secret}");
+    }
+
+    wp_set_current_user(0);
+});
+
+$suite->test('a dashboard link is only passed on when it is an http(s) URL', function ($test) use ($bmcCapturePublicResponse, $bmcMakeSupporterDetailFixture, $bmcMakeDelegatedAdmin, $bmcResponseKeys) {
+    $fixture = $bmcMakeSupporterDetailFixture();
+    $bmcMakeDelegatedAdmin([
+        'buy-me-coffee_can_view_menus',
+        'buy-me-coffee_view_supporters',
+        'buy-me-coffee_view_payments',
+    ]);
+
+    $hostileUrl = function () {
+        return 'javascript:alert(document.cookie)';
+    };
+    add_filter('buymecoffee/payment/get_transaction_url_stripe', $hostileUrl, 20);
+
+    try {
+        $response = $bmcCapturePublicResponse(function () use ($fixture) {
+            (new AdminAjaxHandler())->getSupporter(['id' => $fixture['supporter_id']]);
+        });
+    } finally {
+        remove_filter('buymecoffee/payment/get_transaction_url_stripe', $hostileUrl, 20);
+    }
+
+    $keys = $bmcResponseKeys($response['body']['data']);
+
+    $test->assertFalse(in_array('transaction_url', $keys, true), 'A non-http(s) dashboard link must be dropped');
+    $test->assertNotContains('javascript:', $response['raw']);
+
+    wp_set_current_user(0);
+});
+
+$suite->test('every gateway audit projector stores operational references and nothing else', function ($test) {
+    // Stripe PaymentIntent: replayConfirmationResult() depends on status.
+    $intent = [
+        'id'                   => 'pi_med02',
+        'status'               => 'succeeded',
+        'amount'               => 2500,
+        'amount_received'      => 2500,
+        'currency'             => 'usd',
+        'livemode'             => true,
+        'client_secret'        => 'pi_med02_secret_abc',
+        'customer'             => 'cus_med02',
+        'receipt_email'        => 'donor@example.com',
+        'metadata'             => ['ref_id' => 'hash', 'note' => 'private'],
+        'charges'              => ['data' => [['billing_details' => ['address' => ['line1' => '10 Secret Way']]]]],
+        'shipping'             => ['address' => ['line1' => '10 Secret Way']],
+        'payment_method_types' => ['card'],
+        'future_field'         => 'invented next year',
+    ];
+
+    $note = json_decode(GatewayAuditData::stripePaymentIntentNote($intent), true);
+
+    $test->assertSame(
+        ['gateway', 'object', 'id', 'status', 'amount', 'currency', 'livemode', 'recorded_at'],
+        array_keys($note),
+        'The Stripe intent note is a fixed operational projection'
+    );
+    $test->assertSame('succeeded', $note['status'], 'Confirmation replay depends on the recorded status');
+    $test->assertSame('pi_med02', $note['id']);
+    $test->assertSame(2500, $note['amount']);
+    $test->assertSame(true, $note['livemode']);
+
+    // PayPal order: settledOrderMatches() depends on the order id.
+    $order = [
+        'id'             => 'ORDER-MED02',
+        'status'         => 'COMPLETED',
+        'payer'          => ['email_address' => 'donor@example.com', 'name' => ['given_name' => 'Ada']],
+        'payment_source' => ['card' => ['last_digits' => '4242']],
+        'links'          => [['href' => 'https://api.paypal.com/v2/checkout/orders/ORDER-MED02']],
+        'purchase_units' => [[
+            'reference_id' => 'bmc_hash',
+            'amount'       => ['value' => '25.00', 'currency_code' => 'USD'],
+            'shipping'     => ['address' => ['address_line_1' => '10 Secret Way']],
+            'payments'     => ['captures' => [['id' => 'CAPTURE-MED02']]],
+        ]],
+        'future_field'   => 'invented next year',
+    ];
+
+    $orderNote = json_decode(GatewayAuditData::payPalOrderNote($order), true);
+
+    $test->assertSame(
+        ['gateway', 'object', 'id', 'status', 'capture_id', 'amount', 'currency', 'recorded_at'],
+        array_keys($orderNote)
+    );
+    $test->assertSame('ORDER-MED02', $orderNote['id'], 'Settled-order replay depends on the recorded order id');
+    $test->assertSame('CAPTURE-MED02', $orderNote['capture_id']);
+
+    // PayPal IPN: status handling depends on the transaction and status fields.
+    $ipn = [
+        'txn_id'         => '9XY12345',
+        'txn_type'       => 'web_accept',
+        'parent_txn_id'  => '',
+        'payment_status' => 'Pending',
+        'pending_reason' => 'echeck',
+        'mc_gross'       => '25.00',
+        'mc_currency'    => 'USD',
+        'payer_email'    => 'donor@example.com',
+        'first_name'     => 'Ada',
+        'address_street' => '10 Secret Way',
+        'verify_sign'    => 'A-signature-value',
+        'custom'         => 'bmc_hash',
+        'future_field'   => 'invented next year',
+    ];
+
+    $ipnNote = json_decode(GatewayAuditData::payPalIpnNote($ipn), true);
+
+    $test->assertSame(
+        ['gateway', 'object', 'txn_id', 'txn_type', 'parent_txn_id', 'payment_status', 'pending_reason', 'mc_gross', 'mc_currency', 'recorded_at'],
+        array_keys($ipnNote)
+    );
+    $test->assertSame('Pending', $ipnNote['payment_status']);
+    $test->assertSame('echeck', $ipnNote['pending_reason']);
+    $test->assertFalse(array_key_exists('id', $ipnNote), 'An IPN note must never look like an order note');
+
+    // Stripe invoice notes: the renewal dedupe matches this exact substring.
+    $invoiceNote = GatewayAuditData::stripeInvoiceNote('in_med02', [
+        'event_type'     => 'invoice.payment_succeeded',
+        'billing_reason' => 'subscription_cycle',
+        'fetched_from'   => 'remote_sync',
+    ]);
+    $test->assertContains('"invoice_id":"in_med02"', $invoiceNote, 'Renewal dedupe matches invoice_id as JSON text');
+    $test->assertContains('"billing_reason":"subscription_cycle"', $invoiceNote);
+
+    // Refund notes follow the same convention.
+    $refundNote = json_decode(GatewayAuditData::refundNote([
+        'refund_id' => 're_med02',
+        'status'    => 'succeeded',
+        'charge'    => ['id' => 'ch_med02'],
+    ]), true);
+    $test->assertSame(['object', 'refund_id', 'refund_status', 'refunded_at'], array_keys($refundNote));
+    $test->assertSame('re_med02', $refundNote['refund_id']);
+
+    // The backstops hold whatever a future projector asks for.
+    $projected = GatewayAuditData::project([
+        'status'          => 'ok',
+        'client_secret'   => 'pi_x_secret_y',
+        'customer_email'  => 'donor@example.com',
+        'billing_address' => '10 Secret Way',
+        'api_key'         => 'sk_live_abcdef',
+        'raw_response'    => 'everything',
+        'nested'          => ['deep' => 'value'],
+        'looks_harmless'  => 'sk_test_51abcdef',
+    ]);
+
+    $test->assertSame(['status'], array_keys($projected), 'Only named, non-sensitive keys survive');
+    $test->assertSame('ok', $projected['status']);
+    $test->assertNotContains('sk_test', wp_json_encode($projected), 'A secret-looking value is dropped whatever its key');
+    $test->assertNotContains('deep', wp_json_encode($projected), 'A nested structure is never stored');
+
+    // No projector may ever emit these, whatever the provider sends.
+    foreach ([
+        GatewayAuditData::stripePaymentIntentNote($intent),
+        GatewayAuditData::payPalOrderNote($order),
+        GatewayAuditData::payPalIpnNote($ipn),
+    ] as $encoded) {
+        foreach (['client_secret', 'donor@example.com', 'Secret Way', 'invented next year', 'A-signature-value', 'cus_med02', 'Ada'] as $secret) {
+            $test->assertNotContains($secret, $encoded, "A gateway note must never carry: {$secret}");
+        }
+    }
+});
+
+$suite->test('a settled Stripe confirmation still replays from its minimized note', function ($test) use ($bmcMakeOneTimePurchase) {
+    global $wpdb;
+
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $intentId = 'pi_' . $purchase['suffix'];
+
+    // Exactly what the confirmation path now writes.
+    $note = GatewayAuditData::stripePaymentIntentNote([
+        'id'            => $intentId,
+        'status'        => 'succeeded',
+        'amount'        => 2500,
+        'currency'      => 'usd',
+        'livemode'      => false,
+        'client_secret' => $intentId . '_secret_zzz',
+        'customer'      => 'cus_replay',
+    ]);
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['payment_note' => $note],
+        ['id' => $purchase['transaction_id']]
+    );
+
+    $requests = 0;
+    $counter = function ($pre) use (&$requests) {
+        $requests++;
+
+        return $pre;
+    };
+    add_filter('pre_http_request', $counter, 1);
+
+    try {
+        $replayed = (new PaymentHelper())->replayConfirmationResult($intentId);
+    } finally {
+        remove_filter('pre_http_request', $counter, 1);
+    }
+
+    $test->assertNotEmpty($replayed, 'A settled confirmation must still replay locally');
+    $test->assertSame('paid', $replayed['payment_status']);
+    $test->assertSame('succeeded', $replayed['stripe_status'], 'The replayed Stripe status comes from the minimized note');
+    $test->assertSame(true, $replayed['replayed']);
+    $test->assertSame(0, $requests, 'A replay must not reach Stripe');
+    $test->assertNotContains('client_secret', (string) $wpdb->get_var($wpdb->prepare(
+        "SELECT payment_note FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+        $purchase['transaction_id']
+    )));
+});
+
+$suite->test('a settled PayPal order still replays from its minimized note', function ($test) use ($bmcMakePayPalDonation, $bmcPayPalOrder) {
+    global $wpdb;
+
+    $donation = $bmcMakePayPalDonation('paid', 'CAPTURE-ORDER-MED02');
+
+    $order = $bmcPayPalOrder('ORDER-MED02', $donation['hash']);
+    $order['payer'] = ['email_address' => 'donor@example.com', 'address' => ['address_line_1' => '10 Secret Way']];
+
+    $wpdb->update(
+        $wpdb->prefix . 'buymecoffee_transactions',
+        ['payment_note' => GatewayAuditData::payPalOrderNote($order)],
+        ['id' => $donation['transaction_id']]
+    );
+
+    $transaction = buyMeCoffeeQuery()
+        ->table('buymecoffee_transactions')
+        ->where('id', $donation['transaction_id'])
+        ->first();
+
+    $test->assertNotContains('donor@example.com', (string) $transaction->payment_note);
+    $test->assertNotContains('Secret Way', (string) $transaction->payment_note);
+
+    $paypal = new PayPal();
+
+    $test->assertTrue(
+        $test->invokePrivate($paypal, 'settledOrderMatches', [$transaction, 'ORDER-MED02']),
+        'The donor replaying their own order id must still be recognised'
+    );
+    $test->assertTrue(
+        $test->invokePrivate($paypal, 'settledOrderMatches', [$transaction, 'CAPTURE-ORDER-MED02']),
+        'The recorded capture id still matches directly'
+    );
+    $test->assertFalse(
+        $test->invokePrivate($paypal, 'settledOrderMatches', [$transaction, 'ORDER-SOMEONE-ELSE']),
+        'A different order must never be treated as the one that paid'
+    );
+});
+
 $suite->test('a payment left unbound by the upgrade is refused in the browser and still settled by the webhook', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcClearGuard, $bmcGuardRows, $bmcServiceSharesTestTransaction) {
     global $wpdb;
 
@@ -4985,6 +5577,123 @@ $suite->test('a payment left unbound by the upgrade is refused in the browser an
         $test->assertSame([(int) $stranded['level_id']], $settled['levels']);
     } finally {
         remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a stale paid announcement cannot re-open the access a refund has already taken back', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects) {
+    global $wpdb;
+
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $access   = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+
+        // The refund commits and revokes the access it bought. An activation
+        // that was already in flight — its paid transition committed, its row
+        // lock long released — only reaches the access row now.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'refunded'],
+            ['id' => $purchase['transaction_id']]
+        );
+        $access->revokeByTransaction($purchase['transaction_id']);
+
+        $revoked = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $revoked['access']);
+        $test->assertSame([], $revoked['levels']);
+
+        $test->assertSame(
+            0,
+            $access->activateByTransaction($purchase['transaction_id']),
+            'A payment that is no longer paid may not grant access'
+        );
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'The late activation must change nothing');
+        $test->assertSame([], $log['activated'], 'A refused activation must announce no entitlement');
+
+        // The same guarantee has to hold for the announcement itself. A 'paid'
+        // hook published before the refund committed still reaches UserManager,
+        // which acts on the status it was handed rather than re-reading the
+        // payment — so the guard has to live where every caller passes.
+        do_action('buymecoffee_payment_status_updated', $purchase['transaction_id'], 'paid');
+
+        $test->assertSame($revoked, $bmcPaymentState($purchase), 'A stale paid announcement must not restore access');
+        $test->assertSame([], $log['activated'], 'A stale announcement must announce no entitlement either');
+
+        // The guard is on the stored payment, not on the access row: put the
+        // payment back to paid — an admin reversing the refund — and the very
+        // same call is allowed again.
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_transactions',
+            ['status' => 'paid'],
+            ['id' => $purchase['transaction_id']]
+        );
+
+        $test->assertSame($purchase['access_id'], $access->activateByTransaction($purchase['transaction_id']));
+        $test->assertSame('active', $bmcPaymentState($purchase)['access']);
+        $test->assertSame([(int) $purchase['level_id']], $bmcPaymentState($purchase)['levels']);
+        $test->assertSame([$purchase['access_id']], $log['activated'], 'The activation that moved the row announces it once');
+    } finally {
+        $stopWatching();
+    }
+});
+
+$suite->test('a refund landing before the announcement is what gets announced, not the paid it replaced', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase();
+    $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    // The refund is committed at the one moment that matters: after the paid
+    // write and before the announcement. The supporter update sits in exactly
+    // that gap and happens however the announcement is later decided, so the
+    // window is entered without the test knowing how the service reads it back.
+    $injected = false;
+    $supporters = $wpdb->prefix . 'buymecoffee_supporters';
+    $injectRefund = function ($query) use (&$injected, $wpdb, $txTable, $supporters, $purchase) {
+        if (!$injected && stripos($query, 'UPDATE') === 0 && strpos($query, $supporters) !== false) {
+            $injected = true;
+            $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $purchase['transaction_id']]);
+        }
+
+        return $query;
+    };
+    add_filter('query', $injectRefund);
+
+    try {
+        $result = (new OneTimePaymentStatusService())->apply(
+            (object) ['id' => $purchase['transaction_id']],
+            'paid'
+        );
+
+        $test->assertTrue($injected, 'The refund must have been injected at the read');
+        $test->assertFalse(is_wp_error($result), 'The transition itself still succeeded');
+
+        // What is announced is what is stored. Anything else hands the email and
+        // activity consumers a payment status the site has already replaced.
+        $test->assertSame(
+            [[$purchase['transaction_id'], 'refunded']],
+            $log['status'],
+            'The announcement must carry the stored status, not the requested one'
+        );
+        $test->assertSame('refunded', $result['to'], 'The caller is told the outcome that stands, not the one it asked for');
+        $test->assertSame(0, $result['membership_access_id'], 'No access may be reported granted');
+        $test->assertSame([], $log['activated'], 'No entitlement may be announced for a refunded payment');
+        $test->assertSame([], $log['mail'], 'No paid-payment email may be sent for a refunded payment');
+        $test->assertSame(0, $bmcPaymentActivityCount($purchase['transaction_id'], 'payment_completed'), 'No payment_completed entry may be written');
+
+        $state = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame([], $state['levels'], 'And the access it revoked stays revoked');
+    } finally {
+        remove_filter('query', $injectRefund);
+        $stopWatching();
         $restoreTransactions();
     }
 });

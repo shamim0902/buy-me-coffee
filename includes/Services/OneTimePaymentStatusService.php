@@ -219,14 +219,27 @@ class OneTimePaymentStatusService
         //
         // Only a real first move into paid grants access. Repeats never reach
         // here, and a refund revokes through the canonical hook below.
+        // The row lock was released at COMMIT above, so a concurrent refund can
+        // transition this transaction — and revoke its access — before any of
+        // the lines below run. Everything after the commit therefore reports the
+        // status that is durably stored now, never the one this call asked for:
+        // announcing 'paid' for a payment already stored as refunded is not a
+        // stale detail, it is a paid-payment email, a payment_completed entry
+        // and, through UserManager, a request to re-grant the access the refund
+        // has just taken away.
+        $announced = $this->storedStatus($transactionId) ?: $status;
+
         $membershipAccessId = 0;
-        if ($status === 'paid') {
+        if ($announced === 'paid') {
+            // Conditional on the stored payment inside one statement, so the
+            // grant is decided against the refund's committed state rather than
+            // against the read above, which is already history by now.
             $membershipAccessId = (int) (new MembershipAccess())->activateByTransaction($transactionId);
         }
 
-        do_action('buymecoffee_payment_status_updated', $transactionId, $status);
+        do_action('buymecoffee_payment_status_updated', $transactionId, $announced);
 
-        return $this->result($transactionId, $current, $status, true, $supporterStatus, $membershipAccessId);
+        return $this->result($transactionId, $current, $announced, true, $supporterStatus, $membershipAccessId);
     }
 
     /**
@@ -319,6 +332,25 @@ class OneTimePaymentStatusService
      * @param int    $membershipAccessId Access row activated by this call.
      * @return array
      */
+    /**
+     * The payment status currently stored for a transaction.
+     *
+     * @param int $transactionId Transaction row ID.
+     * @return string Empty when the row is gone.
+     */
+    private function storedStatus($transactionId)
+    {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table name from $wpdb->prefix; fresh uncached read required to re-check status after commit.
+        $stored = $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+            (int) $transactionId
+        ));
+
+        return sanitize_key((string) $stored);
+    }
+
     private function result($transactionId, $from, $to, $changed, $supporterStatus = '', $membershipAccessId = 0)
     {
         return [
