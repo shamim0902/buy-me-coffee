@@ -7079,4 +7079,82 @@ $suite->test('a refund committing during a projection still wins it', function (
     }
 });
 
+$suite->test('a cancellation landing mid-renewal takes the extra period with it', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $paidPeriod = gmdate('Y-m-d H:i:s', time() + 5 * DAY_IN_SECONDS);
+    $newPeriod  = gmdate('Y-m-d H:i:s', time() + 35 * DAY_IN_SECONDS);
+
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $paidPeriod], ['id' => $checkout['subscription_id']]);
+        (new MembershipAccess())->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        // The renewal arrives and the member cancels at the same moment. The
+        // cancellation commits after the activation has been refused — the
+        // subscription is already active — and before the period is advanced.
+        $updates   = 0;
+        $injecting = false;
+        $injectCancel = function ($query) use (&$updates, &$injecting, $wpdb, $subsTable, $checkout) {
+            if ($injecting || stripos($query, 'UPDATE') !== 0 || strpos($query, $subsTable) === false) {
+                return $query;
+            }
+
+            $updates++;
+            if ($updates === 2) {
+                $injecting = true;
+                $wpdb->update($subsTable, ['status' => 'cancelled'], ['id' => $checkout['subscription_id']]);
+                $injecting = false;
+            }
+
+            return $query;
+        };
+        add_filter('query', $injectCancel);
+
+        try {
+            (new PaymentTransitionService())->activateSubscription(
+                (int) $checkout['subscription_id'],
+                $newPeriod,
+                (int) $checkout['transaction_id']
+            );
+        } finally {
+            remove_filter('query', $injectCancel);
+        }
+
+        $test->assertSame(2, $updates, 'The renewal must have reached the period statement');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('cancelled', $state['subscription'], 'The cancellation stands');
+        $test->assertSame($paidPeriod, $state['period_end'], 'A cancelled agreement must not take the renewal period');
+        $test->assertSame([], $activated['ids'], 'Nothing may be announced as activated');
+
+        // The member keeps only what they had already paid for, and it ends when
+        // that period ends rather than a month later.
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The period already paid for is still honoured'
+        );
+
+        $expiry = $wpdb->get_var($wpdb->prepare(
+            "SELECT expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+        $test->assertSame($paidPeriod, $expiry, 'The entitlement must not be extended by the refused renewal');
+    } finally {
+        $stopActivations();
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());

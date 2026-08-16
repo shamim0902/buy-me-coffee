@@ -338,41 +338,57 @@ class PaymentTransitionService
         $paidJoin  = $paidBy ? " INNER JOIN {$txTable} t ON t.id = %d AND t.status = 'paid'" : '';
         $paidArgs  = $paidBy ? [$paidBy] : [];
 
-        // A period end identical to the stored one is a repeat announcement of a
-        // period the site already knows about, so it is not written and the
-        // access row it projects is not touched.
-        $periodMoved = $periodEnd !== '' && (string) $subscription->current_period_end !== $periodEnd;
+        $wantsPeriod = $periodEnd !== '';
 
-        if ($periodMoved) {
-            // Advancing the billing period is a grant of time, so it is bound by
-            // exactly the same two conditions as the activation below.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic conditional update on plugin tables.
-            $periodMoved = (bool) $wpdb->query($wpdb->prepare(
-                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix; the status list is a class constant.
-                "UPDATE {$subsTable} s{$paidJoin}
-                    SET s.current_period_end = %s, s.updated_at = %s
-                  WHERE s.id = %d AND s." . $terminal,
-                array_merge($paidArgs, [$periodEnd, $now, $subscriptionId])
-            ));
-        }
+        // Activation carries the period with it. Advancing the period in its own
+        // statement first is what let a cancellation land between the two: the
+        // activation was then correctly refused while the period had already
+        // moved, and the projection below handed the cancelled member the extra
+        // period the renewal had just bought. One statement cannot be split
+        // that way.
+        //
+        // Of two paid events for the same period, exactly one is still told it
+        // activated the subscription.
+        $activationSet = $wantsPeriod
+            ? "SET s.status = 'active', s.current_period_end = %s, s.updated_at = %s"
+            : "SET s.status = 'active', s.updated_at = %s";
+        $activationArgs = $wantsPeriod ? [$periodEnd, $now] : [$now];
 
-        // One statement, so of two paid events for the same period exactly one
-        // is told it activated the subscription.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic compare-and-set on plugin tables.
         $activated = $wpdb->query($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix; the status list is a class constant.
             "UPDATE {$subsTable} s{$paidJoin}
-                SET s.status = 'active', s.updated_at = %s
+                {$activationSet}
               WHERE s.id = %d AND s.status <> 'active' AND s." . $terminal,
-            array_merge($paidArgs, [$now, $subscriptionId])
+            array_merge($paidArgs, $activationArgs, [$subscriptionId])
         ));
+
+        // A renewal of a subscription that is already active only moves the
+        // period. It requires that subscription to still be active at the moment
+        // of the write, so a cancellation arriving first refuses the extra
+        // period outright rather than having it granted and then reasoned about.
+        // A period identical to the stored one is a repeat announcement of a
+        // period the site already knows, and changes nothing.
+        $periodMoved = false;
+
+        if (!$activated && $wantsPeriod) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; atomic conditional update on plugin tables.
+            $periodMoved = (bool) $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix.
+                "UPDATE {$subsTable} s{$paidJoin}
+                    SET s.current_period_end = %s, s.updated_at = %s
+                  WHERE s.id = %d AND s.status = 'active' AND NOT (s.current_period_end <=> %s)",
+                array_merge($paidArgs, [$periodEnd, $now, $subscriptionId, $periodEnd])
+            ));
+        }
 
         // Initial entitlement activation is owned by the canonical
         // subscription_activated hook below. Updating it here as well would run
         // the same upsert twice. A renewal has no activation hook, so only an
         // already-active subscription whose period actually moved refreshes
-        // access here — and $periodMoved is now the statement's own verdict, so
-        // a cancellation that landed first has already refused it.
+        // access here — and $periodMoved is the statement's own verdict, so a
+        // cancellation that landed first has already refused both the period
+        // and the projection that would have handed it over.
         if (!empty($subscription->level_id) && !$activated && $periodMoved) {
             (new MembershipAccess())->upsertFromSubscription($subscriptionId);
         }
