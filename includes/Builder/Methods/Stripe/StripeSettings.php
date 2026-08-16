@@ -29,20 +29,62 @@ class StripeSettings
     {
         $settings = self::getSettings();
 
-        if ($settings['payment_mode'] == 'test') {
+        return self::getKeysForMode($settings['payment_mode'], $key);
+    }
+
+    /**
+     * Get the keys for an explicit payment mode instead of the mode currently
+     * selected in the settings UI.
+     *
+     * Stored records (subscriptions, transactions) keep the mode they were
+     * created in, so operations against an existing remote object must use the
+     * credentials of that mode — the admin may have switched the UI to the
+     * other mode since.
+     *
+     * @param string      $mode 'live' or 'test'; anything else falls back to the configured mode.
+     * @param string|null $key  'secret' or 'public'; null returns both.
+     * @return array|string
+     */
+    public static function getKeysForMode($mode, $key = null)
+    {
+        $settings = self::getSettings();
+
+        $mode = is_string($mode) ? strtolower(trim($mode)) : '';
+        if (!in_array($mode, array('live', 'test'), true)) {
+            $mode = $settings['payment_mode'] === 'live' ? 'live' : 'test';
+        }
+
+        if ($mode === 'live') {
+            $data = array(
+                'secret' => $settings['live_secret_key'],
+                'public' => $settings['live_pub_key']
+            );
+        } else {
             $data = array(
                 'secret' => $settings['test_secret_key'],
                 'public' => $settings['test_pub_key']
             );
-        } else {
-            $data = array(
-                'secret' => $settings['live_secret_key'],
-                'public' =>$settings['live_pub_key']
-            );
         }
 
         return $key && isset($data[$key]) ? $data[$key] : $data;
+    }
 
+    /**
+     * Resolve the mode a stored record should be operated in.
+     *
+     * @param string $storedMode Value of a payment_mode column.
+     * @return string 'live' or 'test'
+     */
+    public static function resolveMode($storedMode)
+    {
+        $storedMode = is_string($storedMode) ? strtolower(trim($storedMode)) : '';
+        if (in_array($storedMode, array('live', 'test'), true)) {
+            return $storedMode;
+        }
+
+        $settings = self::getSettings();
+
+        return $settings['payment_mode'] === 'live' ? 'live' : 'test';
     }
 
     public static function getWebhookSecret()

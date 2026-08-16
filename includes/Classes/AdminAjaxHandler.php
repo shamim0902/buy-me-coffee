@@ -18,6 +18,8 @@ use BuyMeCoffee\Classes\EmailNotifications;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Builder\Methods\Stripe\StripeSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\API as StripeAPI;
+use BuyMeCoffee\Services\SubscriptionCancellationService;
+use BuyMeCoffee\Services\SupporterDeletionService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -344,81 +346,27 @@ class AdminAjaxHandler
     public function deleteSupporter($request)
     {
         $id = absint(Arr::get($request, 'id'));
-        $supporterModel = new Supporters();
         $this->getSupporterForAdmin($id);
 
-        // Collect transaction IDs before deleting them (needed for activity log cleanup)
-        $transactionIds = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->where('entry_id', $id)
-            ->select('id')
-            ->get();
+        // Cancels every still-billing Stripe agreement first and keeps all local
+        // records when one cannot be confirmed, so a deleted supporter can never
+        // keep being charged.
+        $result = (new SupporterDeletionService())->delete($id);
 
-        $txIds = array_map(function ($tx) {
-            return (int) $tx->id;
-        }, $transactionIds);
+        if (is_wp_error($result)) {
+            $data = $result->get_error_data();
 
-        // Delete activity logs for this supporter (submission + email events)
-        buyMeCoffeeQuery()
-            ->table('buymecoffee_activities')
-            ->whereIn('object_type', ['submission', 'email'])
-            ->where('object_id', $id)
-            ->delete();
-
-        // Delete activity logs for this supporter's transactions (payment events)
-        if ($txIds) {
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_activities')
-                ->where('object_type', 'payment')
-                ->whereIn('object_id', $txIds)
-                ->delete();
+            wp_send_json_error([
+                'message' => $result->get_error_message(),
+                'code'    => $result->get_error_code(),
+                'details' => is_array($data) ? $data : [],
+            ], 400);
         }
 
-        // Delete subscriptions linked to this supporter
-        $subscriptions = buyMeCoffeeQuery()
-            ->table('buymecoffee_subscriptions')
-            ->where('supporter_id', $id)
-            ->select('id')
-            ->get();
-
-        if ($subscriptions) {
-            $subIds = array_map(function ($sub) {
-                return (int) $sub->id;
-            }, $subscriptions);
-
-            // Delete subscription activity logs
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_activities')
-                ->where('object_type', 'subscription')
-                ->whereIn('object_id', $subIds)
-                ->delete();
-
-            buyMeCoffeeQuery()
-                ->table('buymecoffee_subscriptions')
-                ->where('supporter_id', $id)
-                ->delete();
-        }
-
-        // Delete membership access rows for this supporter so a deleted member
-        // can no longer unlock gated content via wp_user_id / cached level IDs.
-        buyMeCoffeeQuery()
-            ->table('buymecoffee_membership_access')
-            ->where('supporter_id', $id)
-            ->delete();
-
-        // Delete supporter meta (includes the cached active_level_ids list)
-        buyMeCoffeeQuery()
-            ->table('buymecoffee_supporters_meta')
-            ->where('supporter_id', $id)
-            ->delete();
-
-        // Delete transactions
-        (new Transactions())->delete($id, 'entry_id');
-
-        // Delete supporter entry
-        $supporterModel->delete($id);
-
-        wp_send_json_success(['message' => __('Supporter and all related data deleted', 'buy-me-coffee')], 200);
+        wp_send_json_success([
+            'message'                    => __('Supporter and all related data deleted', 'buy-me-coffee'),
+            'cancelled_subscription_ids' => $result['cancelled_subscription_ids'],
+        ], 200);
     }
 
     public function getPaymentSettings($request)
@@ -805,44 +753,14 @@ class AdminAjaxHandler
             wp_send_json_error(['message' => __('Subscription is already cancelled', 'buy-me-coffee')], 400);
         }
 
-        // Cancel on Stripe
-        if (!empty($subscription->stripe_subscription_id)) {
-            $keys   = StripeSettings::getKeys();
-            $apiKey = $keys['secret'];
-            $response = (new StripeAPI())->makeRequest(
-                'subscriptions/' . sanitize_text_field($subscription->stripe_subscription_id),
-                [],
-                $apiKey,
-                'DELETE'
-            );
+        $result = (new SubscriptionCancellationService())->cancel($subscription, [
+            'log_title' => __('Subscription cancelled by admin', 'buy-me-coffee'),
+            'context'   => ['by_admin' => true],
+        ]);
 
-            if (is_wp_error($response)) {
-                wp_send_json_error(['message' => $response->get_error_message()], 400);
-            }
-
-            $remoteStatus = sanitize_text_field(Arr::get($response, 'status', ''));
-            if ($remoteStatus !== 'canceled') {
-                wp_send_json_error(['message' => __('Stripe cancellation was not confirmed. Please try again.', 'buy-me-coffee')], 400);
-            }
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
-
-        // Update local record
-        (new Subscriptions())->updateData($id, [
-            'status'       => 'cancelled',
-            'cancelled_at' => current_time('mysql'),
-            'updated_at'   => current_time('mysql'),
-        ]);
-        do_action('buymecoffee_subscription_cancelled', (int) $id);
-
-        ActivityLogger::logSubscription($id, 'subscription_cancelled', 'Subscription cancelled by admin', [
-            'status'  => 'info',
-            'context' => [
-                'subscription_id'        => $id,
-                'supporter_id'           => $subscription->supporter_id,
-                'stripe_subscription_id' => $subscription->stripe_subscription_id ?? '',
-                'by_admin'               => true,
-            ],
-        ]);
 
         wp_send_json_success(['message' => __('Subscription cancelled successfully', 'buy-me-coffee')], 200);
     }

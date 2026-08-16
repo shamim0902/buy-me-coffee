@@ -16,6 +16,7 @@ Use this matrix as the release gate. `npm test` and `npm run test:http` cover de
 | Paywall | Guest teaser/CTA, global preview fallback, entitled-member full content | `npm test` |
 | Public rendering | Button escaping, donation form, supporter wall, logged-out account form | `npm test` |
 | Authorization | Delegated menu/supporter/settings/financial boundaries and exact-post meta authorization | `npm test` |
+| Supporter deletion | Remote cancellation confirmed before any local delete, stored payment-mode credentials, retained rows on provider/key failure, terminal and local-only skips, partial-failure retry, single cache invalidation | `npm test` |
 | Live local HTTP | Standalone form, gateway mount, localized config, logged-out admin redirect, missing-nonce rejection | `npm run test:http` |
 | Frontend/admin assets | Vue, React editor panels, SCSS, route chunks, manifest and static assets compile | `npm run build` |
 
@@ -72,6 +73,7 @@ These checks intentionally are not automated against real provider accounts. Rec
 - [ ] Subscription list/detail, search/filter, fetch, cancellation, stats, and renewal history match gateway/local records.
 - [ ] Activity filters and supporter timelines include payment, subscription, webhook, refund, email, and admin actions with safe text rendering.
 - [ ] Test-data cleanup removes only test-mode rows and related activity/access records, in bounded resumable work.
+- [ ] Deleting a supporter with a live sandbox subscription cancels it at Stripe first; with Stripe unreachable nothing is deleted and the retry finishes the deletion.
 
 ### Accounts and email
 
