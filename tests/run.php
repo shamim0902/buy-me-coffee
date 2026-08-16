@@ -6951,4 +6951,73 @@ $suite->test('refunding the payment a subscription is running on ends its access
     }
 });
 
+$suite->test('an intent is only handed to the browser once its binding is confirmed stored', function ($test) use ($bmcMakeOneTimePurchase) {
+    global $wpdb;
+
+    $helper  = new PaymentHelper();
+    $txTable = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $purchase = $bmcMakeOneTimePurchase();
+    $wpdb->update($txTable, ['charge_id' => ''], ['id' => $purchase['transaction_id']]);
+
+    $intentId = 'pi_bind_' . $purchase['suffix'];
+
+    // The ordinary case: the binding is written and read back.
+    $test->assertTrue($helper->bindStripeIntent($purchase['transaction_id'], $intentId), 'A stored binding reports success');
+    $test->assertSame(
+        $intentId,
+        $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $purchase['transaction_id'])),
+        'The transaction carries the intent'
+    );
+
+    // Repeating it is still true: the row already carries this intent, even
+    // though the update itself changes no row and reports zero.
+    $test->assertTrue($helper->bindStripeIntent($purchase['transaction_id'], $intentId), 'An unchanged binding is not a failure');
+
+    // A write that silently does nothing must not report success. Swallowing
+    // the UPDATE reproduces every way that can happen — a row that has gone, a
+    // column that refused the value — without having to stage each one.
+    $swallow = function ($query) use ($txTable) {
+        if (stripos($query, 'UPDATE') === 0 && strpos($query, $txTable) !== false) {
+            return 'SELECT 1';
+        }
+
+        return $query;
+    };
+    add_filter('query', $swallow);
+
+    try {
+        $test->assertFalse(
+            $helper->bindStripeIntent($purchase['transaction_id'], 'pi_never_stored_' . $purchase['suffix']),
+            'A binding that did not take must not report success'
+        );
+    } finally {
+        remove_filter('query', $swallow);
+    }
+
+    // The row is untouched, so the confirmation still matches the intent the
+    // browser was actually given.
+    $test->assertSame(
+        $intentId,
+        $wpdb->get_var($wpdb->prepare("SELECT charge_id FROM {$txTable} WHERE id = %d", $purchase['transaction_id'])),
+        'A refused binding leaves the previous one in place'
+    );
+
+    $test->assertFalse($helper->bindStripeIntent(0, $intentId), 'No transaction is not a binding');
+    $test->assertFalse($helper->bindStripeIntent($purchase['transaction_id'], ''), 'No intent is not a binding');
+
+    // Columns written alongside the binding land with it.
+    $second = $bmcMakeOneTimePurchase();
+    $test->assertTrue($helper->bindStripeIntent(
+        $second['transaction_id'],
+        'pi_recurring_' . $second['suffix'],
+        ['transaction_type' => 'recurring']
+    ));
+    $test->assertSame(
+        'recurring',
+        $wpdb->get_var($wpdb->prepare("SELECT transaction_type FROM {$txTable} WHERE id = %d", $second['transaction_id'])),
+        'The columns bound with the intent are stored too'
+    );
+});
+
 exit($suite->run());

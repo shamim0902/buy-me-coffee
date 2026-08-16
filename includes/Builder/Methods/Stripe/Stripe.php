@@ -423,13 +423,19 @@ class Stripe extends BaseMethods
             // the confirmation that comes back can be matched to local state
             // without asking Stripe who the intent belongs to.
             $intentId = isset($invoiceResponse['id']) ? sanitize_text_field($invoiceResponse['id']) : '';
-            if ($intentId) {
-                (new Transactions())->updateData((int) $transaction->id, [
-                    'charge_id'  => $intentId,
-                    'updated_at' => current_time('mysql'),
-                ]);
-                $transaction->charge_id = $intentId;
+            if (!$intentId || !(new PaymentHelper())->bindStripeIntent((int) $transaction->id, $intentId)) {
+                // The confirmation matches on this binding and on nothing else,
+                // so handing the browser an intent that was never bound would
+                // send the donor to a payment whose confirmation is refused as
+                // unrecognised. Refusing here instead costs an abandoned
+                // checkout; going on costs a paid donation nobody can confirm.
+                wp_send_json_error([
+                    'status'  => 'failed',
+                    'message' => __('This payment could not be started. Please try again.', 'buy-me-coffee'),
+                ], 500);
             }
+
+            $transaction->charge_id = $intentId;
 
             $transaction->payment_args = $paymentArgs;
             $responseData = [
