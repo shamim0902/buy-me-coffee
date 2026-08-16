@@ -12,11 +12,16 @@ class IPN
      * Verification is handled by re-fetching the event from Stripe API
      * in the calling code (same approach as fluent-cart).
      *
+     * The caller reads the body itself, under the route's size ceiling, and
+     * passes it in: nothing here may pull an unbounded payload into memory.
+     *
+     * @param string|null $rawBody Body the caller already read.
      * @return object|\WP_Error  Parsed webhook payload or WP_Error on failure.
      */
-    public function IPNData()
+    public function IPNData($rawBody = null)
     {
-        $postData = @file_get_contents('php://input');
+        // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- An unreadable stream is an empty payload, handled below.
+        $postData = ($rawBody === null) ? @file_get_contents('php://input') : (string) $rawBody;
 
         // phpcs:disable WordPress.Security.NonceVerification.Missing -- Stripe webhook fallback; authenticity is verified by re-fetching the event from Stripe.
         if (!$postData && !empty($_POST)) {

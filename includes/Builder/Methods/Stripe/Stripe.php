@@ -12,6 +12,7 @@ use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -106,7 +107,57 @@ class Stripe extends BaseMethods
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
         $requestedSubscriptionId = isset($_REQUEST['subscriptionId']) ? absint($_REQUEST['subscriptionId']) : 0;
 
+        // Consumed before any Stripe call. The per-operation bucket is scoped to
+        // the caller as well as to the intent, so replaying somebody else's
+        // intent id cannot use up the budget their own browser needs.
+        PublicRequestGuard::enforce('payment_confirmation_stripe', ['identifier' => $intentId]);
+
+        $helper = new PaymentHelper();
+
+        // Ownership before anything else. Checkout bound this intent to a local
+        // transaction before the browser saw it, so an intent this site never
+        // created is refused here — it can neither reach Stripe nor take out a
+        // claim that would lock a real donor's confirmation.
+        $transaction = $helper->findStripeTransactionByIntent($intentId);
+        if (!$transaction) {
+            wp_send_json_error([
+                'message' => __('This payment could not be matched to an order.', 'buy-me-coffee'),
+                'code'    => 'payment_intent_not_recognized',
+            ], 404);
+        }
+
+        // The subscription the caller claims has to be the one this intent was
+        // bound to at checkout; anything else is refused before a provider call.
+        $boundSubscriptionId = !empty($transaction->subscription_id) ? (int) $transaction->subscription_id : 0;
+        if ($requestedSubscriptionId && $requestedSubscriptionId !== $boundSubscriptionId) {
+            wp_send_json_error([
+                'message' => __('Subscription confirmation mismatch. Please refresh and try again.', 'buy-me-coffee'),
+                'code'    => 'subscription_mismatch',
+            ], 403);
+        }
+
+        // A confirmation whose local result is already final is answered from
+        // storage: no customer, intent, invoice or subscription lookup at Stripe.
+        $replayed = $helper->replayConfirmationResult($intentId, $requestedSubscriptionId);
+        if ($replayed) {
+            wp_send_json_success(wp_parse_args($replayed, [
+                'message' => __('Payment confirmation received', 'buy-me-coffee'),
+            ]), 200);
+        }
+
+        // Two browser tabs, a reload during 3-D Secure, or a retry from a second
+        // address are all the same operation on the same intent, so the lease is
+        // taken on the intent itself rather than on whoever is asking. Anything
+        // that reaches Stripe from here does so holding it.
+        $claim = PublicRequestGuard::claim('stripe_confirmation', 'intent|' . $intentId);
+
+        if (!$claim['acquired']) {
+            $this->refuseUnclaimedConfirmation($claim, $helper, $intentId, $requestedSubscriptionId);
+        }
+
         if ($requestedSubscriptionId && !$this->activateMatchedSubscription($intentId, $requestedSubscriptionId)) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error([
                 'message' => __('Subscription confirmation mismatch. Please refresh and try again.', 'buy-me-coffee')
             ], 403);
@@ -117,14 +168,74 @@ class Stripe extends BaseMethods
         $paymentResult = (new PaymentHelper())->updatePaymentData($intentId);
 
         if (is_wp_error($paymentResult)) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
             wp_send_json_error([
                 'message' => $paymentResult->get_error_message(),
             ], 400);
         }
 
-        wp_send_json_success(wp_parse_args((array) $paymentResult, [
+        $response = wp_parse_args((array) $paymentResult, [
             'message' => __('Payment confirmation received', 'buy-me-coffee'),
-        ]), 200);
+        ]);
+
+        if (in_array(ArrayHelper::get($response, 'payment_status', ''), ['paid', 'refunded', 'failed'], true)) {
+            // Settled: the answer cannot change, so it is safe to keep and to
+            // replay. It describes statuses and row ids only — no intent id, no
+            // client secret, nothing that would be a token in storage.
+            PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], $response, 'stripe_confirmation');
+        } else {
+            // Still in flight at Stripe. Burning the lease would leave the donor
+            // unable to ask again, so it is given straight back.
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+        }
+
+        wp_send_json_success($response, 200);
+    }
+
+    /**
+     * Answer a confirmation that could not take the lease on its intent.
+     *
+     * A finished one replays local state; one still running is a conflict the
+     * caller may retry, and neither costs a Stripe call.
+     *
+     * @param array         $claim                   Refused claim record.
+     * @param PaymentHelper $helper                  Shared helper instance.
+     * @param string        $intentId                Stripe PaymentIntent id.
+     * @param int           $requestedSubscriptionId Subscription the caller claims.
+     * @return void
+     */
+    private function refuseUnclaimedConfirmation(array $claim, PaymentHelper $helper, $intentId, $requestedSubscriptionId)
+    {
+        if (!$claim['available']) {
+            $decision = PublicRequestGuard::unavailable();
+            PublicRequestGuard::sendRetryAfter($decision['retry_after']);
+
+            wp_send_json_error([
+                'message' => $decision['message'],
+                'code'    => $decision['code'],
+            ], $decision['http']);
+        }
+
+        if ($claim['state'] === PublicRequestGuard::STATE_COMPLETED) {
+            $replayed = $helper->replayConfirmationResult($intentId, $requestedSubscriptionId);
+            if ($replayed) {
+                wp_send_json_success(wp_parse_args($replayed, [
+                    'message' => __('Payment confirmation received', 'buy-me-coffee'),
+                ]), 200);
+            }
+
+            if (is_array($claim['payload'])) {
+                wp_send_json_success($claim['payload'], 200);
+            }
+        }
+
+        PublicRequestGuard::sendRetryAfter($claim['retry_after']);
+
+        wp_send_json_error([
+            'message' => __('This payment is still being confirmed. Please try again in a moment.', 'buy-me-coffee'),
+            'code'    => 'confirmation_in_progress',
+        ], 409);
     }
 
     private function activateMatchedSubscription($intentId, $requestedSubscriptionId)
@@ -308,6 +419,24 @@ class Stripe extends BaseMethods
                 ], 423);
             }
 
+            // Bind the intent to this order before the browser is handed it, so
+            // the confirmation that comes back can be matched to local state
+            // without asking Stripe who the intent belongs to.
+            $intentId = isset($invoiceResponse['id']) ? sanitize_text_field($invoiceResponse['id']) : '';
+            if (!$intentId || !(new PaymentHelper())->bindStripeIntent((int) $transaction->id, $intentId)) {
+                // The confirmation matches on this binding and on nothing else,
+                // so handing the browser an intent that was never bound would
+                // send the donor to a payment whose confirmation is refused as
+                // unrecognised. Refusing here instead costs an abandoned
+                // checkout; going on costs a paid donation nobody can confirm.
+                wp_send_json_error([
+                    'status'  => 'failed',
+                    'message' => __('This payment could not be started. Please try again.', 'buy-me-coffee'),
+                ], 500);
+            }
+
+            $transaction->charge_id = $intentId;
+
             $transaction->payment_args = $paymentArgs;
             $responseData = [
                 'nextAction' => 'stripe',
@@ -411,6 +540,10 @@ class Stripe extends BaseMethods
 
         self::debugLog('Webhook outcome: ' . $outcome['code'] . ' (HTTP ' . $outcome['http'] . ') — ' . $outcome['message']);
 
+        if (!empty($outcome['retry_after'])) {
+            PublicRequestGuard::sendRetryAfter($outcome['retry_after']);
+        }
+
         status_header((int) $outcome['http']);
         exit;
     }
@@ -424,14 +557,48 @@ class Stripe extends BaseMethods
      * object read for the payment outcome — comes from Stripe's own copy.
      *
      * @param object|null $payload Decoded payload; read from the request when null.
+     * @param string|null $rawBody Raw body; read from the request when null.
      * @return array Outcome, see outcome().
      */
-    public function processIncomingEvent($payload = null)
+    public function processIncomingEvent($payload = null, $rawBody = null)
     {
         self::debugLog('--- Webhook handler triggered ---');
 
+        $config = PublicRequestGuard::routeConfig('webhook_stripe');
+
+        // Cheap, pre-read: a declared body far larger than any Stripe event is
+        // refused before the stream is touched at all.
+        $sizeCheck = PublicRequestGuard::checkSize('webhook_stripe');
+        if (!$sizeCheck['allowed']) {
+            return self::outcome($sizeCheck['code'], $sizeCheck['http'], [
+                'message'     => $sizeCheck['message'],
+                'retry_after' => $sizeCheck['retry_after'],
+            ]);
+        }
+
+        // Without the guard table there is no atomic claim, so a redelivery
+        // could be applied twice. 503 keeps the event on Stripe's retry queue.
+        if (!PublicRequestGuard::isAvailable()) {
+            $decision = PublicRequestGuard::unavailable();
+
+            return self::outcome($decision['code'], $decision['http'], [
+                'message'     => $decision['message'],
+                'retry_after' => $decision['retry_after'],
+            ]);
+        }
+
         if ($payload === null) {
-            $payload = (new IPN())->IPNData();
+            // Content-Length is a claim, not a measurement: the body is read
+            // under the ceiling and one byte past it is already too much.
+            $read = PublicRequestGuard::measureBody($config['max_bytes'], $rawBody);
+
+            if ($read['exceeded'] || !PublicRequestGuard::checkSize('webhook_stripe', $read['bytes'])['allowed']) {
+                return self::outcome('request_too_large', 413, [
+                    'message' => 'the posted body is larger than this endpoint accepts',
+                ]);
+            }
+
+            $payload = (new IPN())->IPNData($read['body']);
         }
 
         if (!$payload || is_wp_error($payload)) {
@@ -455,10 +622,50 @@ class Stripe extends BaseMethods
             return self::outcome('missing_event_id', 400, ['message' => 'event id missing from payload']);
         }
 
+        // An event id that an authenticated delivery already finished needs no
+        // second round trip to Stripe. Only a durable, completed claim is
+        // trusted here: it is written after Stripe itself returned the event, so
+        // an unauthenticated caller cannot create one, and one still in progress
+        // is deliberately not short-circuited — it has to stay retryable.
+        $settled = PublicRequestGuard::readClaim('stripe_event', $claimedId);
+        if ($settled && $settled['state'] === PublicRequestGuard::STATE_COMPLETED) {
+            return self::outcome('duplicate_event', 200, [
+                'event_id' => $claimedId,
+                'message'  => 'event already processed',
+            ]);
+        }
+
+        // Bounds how often one claimed event id may be turned into a Stripe API
+        // request, which is the only amplification an unauthenticated caller has
+        // here. The bucket is scoped to the caller, so a flood from one address
+        // cannot spend the budget a genuine delivery needs.
+        $fetchBudget = PublicRequestGuard::inspect('webhook_stripe_event', ['identifier' => $claimedId]);
+        if (!$fetchBudget['allowed']) {
+            return self::outcome($fetchBudget['code'], $fetchBudget['http'], [
+                'event_id'    => $claimedId,
+                'message'     => $fetchBudget['message'],
+                'retry_after' => $fetchBudget['retry_after'],
+            ]);
+        }
+
+        // A budget spent only by deliveries that fail to authenticate. A genuine
+        // event never charges it, so a site receiving thousands of real webhooks
+        // an hour from Stripe's shared addresses can never be throttled by it.
+        $invalidBudget = PublicRequestGuard::budgetRemaining('webhook_stripe_invalid');
+        if (!$invalidBudget['allowed']) {
+            return self::outcome($invalidBudget['code'], $invalidBudget['http'], [
+                'event_id'    => $claimedId,
+                'message'     => $invalidBudget['message'],
+                'retry_after' => $invalidBudget['retry_after'],
+            ]);
+        }
+
         self::debugLog('Re-fetching event from Stripe API — event_id: ' . $claimedId);
         $event = (new API())->getEvent($claimedId);
 
         if (!$event || is_wp_error($event)) {
+            PublicRequestGuard::chargeBudget('webhook_stripe_invalid');
+
             $error = is_wp_error($event) ? $event->get_error_message() : 'empty response';
             return self::outcome('event_fetch_failed', 400, ['message' => 'Stripe API re-fetch failed — ' . $error]);
         }
@@ -508,31 +715,74 @@ class Stripe extends BaseMethods
      */
     private function processSubscriptionEvent($event, $eventId, $eventType)
     {
-        if (!$this->acquireEventLock($eventId)) {
-            return self::outcome('duplicate_event', 200, [
-                'event_id'   => $eventId,
-                'event_type' => $eventType,
-                'message'    => 'event already processed',
-            ]);
+        $context = ['event_id' => $eventId, 'event_type' => $eventType];
+
+        $claim = PublicRequestGuard::claim('stripe_event', $eventId);
+        if (!$claim['acquired']) {
+            return self::claimRefusal($claim, $context);
         }
 
         self::debugLog('Processing subscription event: ' . $eventType);
         $keys    = StripeSettings::getKeys();
         $handler = new StripeSubscriptions();
 
-        if ($eventType === 'invoice.payment_succeeded') {
-            $handler->handleRenewalWebhook($event, $keys['secret']);
-        } elseif ($eventType === 'customer.subscription.deleted') {
-            $handler->handleSubscriptionCancelled($event);
-        } elseif ($eventType === 'customer.subscription.updated') {
-            $handler->handleSubscriptionUpdated($event);
+        try {
+            if ($eventType === 'invoice.payment_succeeded') {
+                $handler->handleRenewalWebhook($event, $keys['secret']);
+            } elseif ($eventType === 'customer.subscription.deleted') {
+                $handler->handleSubscriptionCancelled($event);
+            } elseif ($eventType === 'customer.subscription.updated') {
+                $handler->handleSubscriptionUpdated($event);
+            }
+        } catch (\Throwable $error) {
+            // The event was never fully applied, so it must stay redeliverable.
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
+            return self::outcome('processing_failed', 500, array_merge($context, [
+                'message' => 'the authenticated event could not be applied',
+            ]));
         }
 
-        return self::outcome('subscription_event_processed', 200, [
-            'event_id'   => $eventId,
-            'event_type' => $eventType,
-            'message'    => 'subscription event processed',
-        ]);
+        PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
+
+        return self::outcome('subscription_event_processed', 200, array_merge($context, [
+            'message' => 'subscription event processed',
+        ]));
+    }
+
+    /**
+     * Turn a refused event claim into an outcome.
+     *
+     * A finished delivery is answered 200 so the provider stops resending it. A
+     * delivery still running elsewhere must NOT be: answering 200 would let the
+     * provider drop the event while the worker holding it may still fail, and
+     * the event would be lost. It is a conflict the provider retries instead.
+     *
+     * @param array $claim   Refused claim record.
+     * @param array $context Event id and type.
+     * @return array Outcome, see outcome().
+     */
+    private static function claimRefusal(array $claim, array $context)
+    {
+        if (!$claim['available']) {
+            $decision = PublicRequestGuard::unavailable();
+
+            return self::outcome($decision['code'], $decision['http'], array_merge($context, [
+                'message'     => $decision['message'],
+                'retry_after' => $decision['retry_after'],
+            ]));
+        }
+
+        if ($claim['state'] === PublicRequestGuard::STATE_COMPLETED) {
+            return self::outcome('duplicate_event', 200, array_merge($context, [
+                'message' => 'event already processed',
+            ]));
+        }
+
+        return self::outcome('event_in_progress', 409, array_merge($context, [
+            'message'     => 'this event is already being processed',
+            'retry_after' => $claim['retry_after'],
+        ]));
     }
 
     /**
@@ -572,41 +822,57 @@ class Stripe extends BaseMethods
         $context['status']         = $status;
 
         // Claimed only now: the event is authentic, readable and matched to a
-        // local transaction, so it is safe to mark it consumed.
-        if (!$this->acquireEventLock($eventId)) {
-            return self::outcome('duplicate_event', 200, array_merge($context, [
-                'status'  => '',
-                'message' => 'event already processed',
-            ]));
+        // local transaction, so it is safe to mark it consumed. The claim is an
+        // atomic insert in a plugin table, so of two deliveries arriving at once
+        // exactly one gets past this line.
+        $claim = PublicRequestGuard::claim('stripe_event', $eventId);
+        if (!$claim['acquired']) {
+            return self::claimRefusal($claim, array_merge($context, ['status' => '']));
         }
 
-        // Subscription-linked transactions keep their existing lifecycle.
-        if (!empty($transaction->subscription_id)) {
-            $this->updateStatus($orderHash, $status);
+        try {
+            // Subscription-linked transactions keep their existing lifecycle.
+            if (!empty($transaction->subscription_id)) {
+                $this->updateStatus($orderHash, $status);
 
-            return self::outcome('subscription_transaction_updated', 200, array_merge($context, [
-                'changed' => true,
-                'message' => 'subscription-linked transaction updated to ' . $status,
+                PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
+
+                return self::outcome('subscription_transaction_updated', 200, array_merge($context, [
+                    'changed' => true,
+                    'message' => 'subscription-linked transaction updated to ' . $status,
+                ]));
+            }
+
+            $result = (new OneTimePaymentStatusService())->apply($transaction, $status);
+        } catch (\Throwable $error) {
+            PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
+            return self::outcome('processing_failed', 500, array_merge($context, [
+                'message' => 'the authenticated event could not be applied',
             ]));
         }
-
-        $result = (new OneTimePaymentStatusService())->apply($transaction, $status);
 
         if (is_wp_error($result)) {
             if ($result->get_error_code() === 'bmc_payment_write_failed') {
                 // The event was never applied, so let Stripe's retry try again.
-                $this->releaseEventLock($eventId);
+                PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
 
                 return self::outcome('update_failed', 500, array_merge($context, [
                     'message' => $result->get_error_message(),
                 ]));
             }
 
+            // A refused transition is a decision, not a failure: this event has
+            // been considered and must not be considered again.
+            PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
+
             return self::outcome('transition_refused', 200, array_merge($context, [
                 'status'  => '',
                 'message' => $result->get_error_code() . ' — ' . $result->get_error_message(),
             ]));
         }
+
+        PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'stripe_event');
 
         if (!$result['changed']) {
             return self::outcome('status_unchanged', 200, array_merge($context, [
@@ -639,6 +905,7 @@ class Stripe extends BaseMethods
             'status'         => '',
             'transaction_id' => 0,
             'changed'        => false,
+            'retry_after'    => 0,
         ], $extra);
     }
 
@@ -710,43 +977,6 @@ class Stripe extends BaseMethods
         self::debugLog('getOrderHash: ref_id=' . $reference);
 
         return $reference;
-    }
-
-    /**
-     * Claim an event id so a redelivery of the same event does nothing.
-     *
-     * @param string $eventId Stripe event id.
-     * @return bool False when the event was already claimed.
-     */
-    private function acquireEventLock($eventId)
-    {
-        $lockKey = self::eventLockKey($eventId);
-        if (get_transient($lockKey)) {
-            return false;
-        }
-
-        return set_transient($lockKey, 1, DAY_IN_SECONDS * 14);
-    }
-
-    /**
-     * Give a claimed event id back after processing failed for a reason a retry
-     * could fix, so Stripe's redelivery is not silently discarded.
-     *
-     * @param string $eventId Stripe event id.
-     * @return void
-     */
-    private function releaseEventLock($eventId)
-    {
-        delete_transient(self::eventLockKey($eventId));
-    }
-
-    /**
-     * @param string $eventId Stripe event id.
-     * @return string
-     */
-    private static function eventLockKey($eventId)
-    {
-        return 'buymecoffee_stripe_event_lock_' . md5((string) $eventId);
     }
 
     public function sanitize($settings)

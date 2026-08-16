@@ -268,6 +268,7 @@ class Activator
         $this->createMembershipLevelsTable();
         $this->createMembershipAccessTable();
         $this->createSupportersMetaTable();
+        $this->createRequestGuardTable();
         $this->seedDefaultMembershipLevel();
 
         return $this->verifyMigrationState();
@@ -1574,6 +1575,24 @@ class Activator
         $this->runSQL($sql, $table_name);
     }
 
+    /**
+     * Create the public-request guard table.
+     *
+     * Every public write endpoint depends on this table for its single-execution
+     * guarantee and refuses to run without it, so a site that cannot create it
+     * is not "degraded" — it cannot take donations at all. Its absence is
+     * therefore reported as a schema failure like any other missing table,
+     * rather than quietly passing verification.
+     *
+     * @return bool
+     */
+    public function createRequestGuardTable()
+    {
+        require_once BUYMECOFFEE_DIR . 'includes/Services/PublicRequestGuard.php';
+
+        return \BuyMeCoffee\Services\PublicRequestGuard::createTable();
+    }
+
     private function verifyMigrationState()
     {
         global $wpdb;
@@ -1586,12 +1605,19 @@ class Activator
             $wpdb->prefix . 'buymecoffee_membership_levels',
             $wpdb->prefix . 'buymecoffee_membership_access',
             $wpdb->prefix . 'buymecoffee_supporters_meta',
+            $wpdb->prefix . 'buymecoffee_request_guard',
         ];
 
         foreach ($requiredTables as $tableName) {
             if (!$this->tableExists($tableName)) {
                 return false;
             }
+        }
+
+        // The lease column carries claim ownership; without it the guard cannot
+        // make its single-execution promise, so the schema is not current.
+        if (!$this->tableHasColumns($wpdb->prefix . 'buymecoffee_request_guard', ['owner_hash', 'state', 'expires_at'])) {
+            return false;
         }
 
         if (!$this->tableHasColumns($wpdb->prefix . 'buymecoffee_membership_levels', ['payment_type'])) {

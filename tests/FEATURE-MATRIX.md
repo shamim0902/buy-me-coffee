@@ -18,7 +18,11 @@ Use this matrix as the release gate. `npm test` and `npm run test:http` cover de
 | Authorization | Delegated menu/supporter/settings/financial boundaries and exact-post meta authorization | `npm test` |
 | Supporter deletion | Remote cancellation confirmed before any local delete, stored payment-mode credentials, retained rows on provider/key failure, terminal and local-only skips, partial-failure retry, single cache invalidation | `npm test` |
 | Supporter aggregates | Exact lifetime totals and leaderboard ranking under transaction/subscription fan-out, shared-email and anonymous grouping, search and subscriber/one-time filters, stable multi-page ordering, page-bounded paid-history queries with no subscription join | `npm test` |
-| Live local HTTP | Standalone form, gateway mount, localized config, logged-out admin redirect, missing-nonce rejection | `npm run test:http` |
+| Public request guard | Route ceiling refused with 413 against the body that actually arrived (missing and understated `Content-Length`), exact rate-limit boundary with no lost or duplicated increment, lapsed-window reset, forwarded headers ignored without an explicit trusted resolver, hashed-only storage, lease ownership a stale worker cannot use, conservative per-route claim lifetimes, bounded cleanup, 503 `guard_unavailable` on every protected route when the guard table is unusable | `npm test` |
+| Submission idempotency | Key mandatory (keyless and malformed refused, narrow opt-out filter only); retried key refused without a second supporter, transaction or provider payment even after an address change; a request still in flight refused; validation failures leave the key reusable | `npm test` |
+| Gateway replay safety | Stripe confirmation resolved to a local transaction before any lease or provider call, subscription binding validated, settled result replayed from rows, two confirmations of one intent from two addresses serialized, failed confirmation released and retryable; duplicate Stripe event neither re-fetched nor re-applied while an in-flight one stays retryable (409); duplicate VERIFIED PayPal IPN applied once and distinct notifications never merged; two PayPal orders for one donation cannot both capture | `npm test` |
+| Provider retryability | Unauthenticated Stripe/PayPal deliveries bounded per address by a budget charged only on failed authentication, so genuine high-volume deliveries from shared provider addresses are never refused; replayed IPN body throttled before PayPal | `npm test` |
+| Live local HTTP | Standalone form, gateway mount, localized config, logged-out admin redirect, missing-nonce rejection, mandatory submission idempotency key | `npm run test:http` |
 | Frontend/admin assets | Vue, React editor panels, SCSS, route chunks, manifest and static assets compile | `npm run build` |
 
 ## Sandbox and staging acceptance tests
@@ -82,6 +86,17 @@ These checks intentionally are not automated against real provider accounts. Rec
 - [ ] Donor account shows only the logged-in user's supporter records, subscriptions, transactions, access, and cancellation controls.
 - [ ] Self-service cancellation rejects another user's subscription ID and preserves access until the paid period ends.
 - [ ] Donor/admin payment emails, test emails, membership invites, template variables, enabled toggles, and mail failures behave as shown in the UI.
+
+### Public endpoint abuse controls
+
+- [ ] A donation retried from a real browser after a dropped response creates one supporter row and one provider payment; the retry is answered `submission_already_completed` and reloading the page starts a clean attempt.
+- [ ] A browser with Web Crypto disabled refuses to submit and says so, rather than sending an unprotected donation.
+- [ ] Two tabs confirming the same Stripe payment, and two PayPal orders for one donation, produce exactly one capture; the losing tab sees `confirmation_in_progress` and recovers on retry.
+- [ ] Sustained automated submissions from one address are answered 429 with `Retry-After` while other visitors keep donating normally.
+- [ ] Behind the production proxy/CDN, `buymecoffee_trusted_client_ip` resolves the real visitor address and per-client limits apply to visitors rather than to the proxy.
+- [ ] Live Stripe webhook deliveries and PayPal IPNs are never throttled in normal operation; tuned thresholds are recorded per host.
+- [ ] The `buymecoffee_request_guard` table exists on every site of the network after upgrade, carries the `owner_hash` column, and stays bounded in size.
+- [ ] With the guard table deliberately renamed on a staging site, donations and confirmations answer 503 and provider deliveries are redelivered rather than applied twice; restoring the table recovers without an admin action.
 
 ### Release and non-functional gates
 
