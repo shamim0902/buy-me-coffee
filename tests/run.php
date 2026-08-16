@@ -7,6 +7,7 @@ use BuyMeCoffee\Builder\Methods\PayPal\IPN;
 use BuyMeCoffee\Builder\Methods\PayPal\PayPal;
 use BuyMeCoffee\Builder\Methods\PayPal\PayPalSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\Stripe;
+use BuyMeCoffee\Builder\Methods\Stripe\StripeSubscriptions;
 use BuyMeCoffee\Classes\AccessControl;
 use BuyMeCoffee\Classes\Activator;
 use BuyMeCoffee\Classes\ActivityLogger;
@@ -7154,6 +7155,102 @@ $suite->test('a cancellation landing mid-renewal takes the extra period with it'
     } finally {
         $stopActivations();
         $restoreTransactions();
+    }
+});
+
+$suite->test('a subscription checkout that cannot finish leaves nothing behind at Stripe or locally', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcCapturePublicResponse, $bmcMakeOneTimePurchase) {
+    global $wpdb;
+
+    $bmcStripeSettings();
+
+    $subsTable   = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $txTable     = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $purchase   = $bmcMakeOneTimePurchase();
+    $suffix     = $purchase['suffix'];
+    $stripeSub  = 'sub_abandon_' . $suffix;
+    $intentId   = 'pi_abandon_' . $suffix;
+
+    $before = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$subsTable}");
+
+    // Stripe creates the agreement and its first intent; the binding is then
+    // prevented, which is the only way checkout can fail this late.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $stripeSub, $intentId, $purchase) {
+        $requests[] = ($args['method'] ?? 'GET') . ' ' . $url;
+
+        if (strpos($url, 'customers') !== false) {
+            return $bmcStripeBody(['id' => 'cus_abandon_' . $purchase['suffix'], 'object' => 'customer']);
+        }
+
+        if (preg_match('#/subscriptions$#', parse_url($url, PHP_URL_PATH) ?: '')) {
+            return $bmcStripeBody([
+                'id'                 => $stripeSub,
+                'object'             => 'subscription',
+                'status'             => 'incomplete',
+                'livemode'           => false,
+                'current_period_end' => time() + 30 * DAY_IN_SECONDS,
+                'latest_invoice'     => ['payment_intent' => ['id' => $intentId, 'client_secret' => 'cs_' . $intentId]],
+            ]);
+        }
+
+        // The DELETE that withdraws the agreement, and anything else, succeed.
+        return $bmcStripeBody(['id' => $stripeSub, 'object' => 'subscription', 'status' => 'canceled']);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    // Swallow the binding write so it cannot take.
+    $swallow = function ($query) use ($txTable) {
+        if (stripos($query, 'UPDATE') === 0 && strpos($query, $txTable) !== false) {
+            return 'SELECT 1';
+        }
+
+        return $query;
+    };
+    add_filter('query', $swallow);
+
+    try {
+        $transaction = buyMeCoffeeQuery()->table('buymecoffee_transactions')->where('id', $purchase['transaction_id'])->first();
+
+        $refused = $bmcCapturePublicResponse(function () use ($transaction, $purchase) {
+            (new StripeSubscriptions())->createSubscription(
+                $transaction,
+                [
+                    'supporter_id'        => $purchase['supporter_id'],
+                    'client_reference_id' => $purchase['order_hash'],
+                    'amount'              => 2500,
+                    'currency'            => 'usd',
+                    'supporters_email'    => 'bmc-abandon@example.com',
+                    'supporters_name'     => 'Abandon Donor',
+                    'bmc_level_id'        => $purchase['level_id'],
+                ],
+                'sk_test_abandon',
+                'month'
+            );
+        });
+
+        remove_filter('query', $swallow);
+
+        $test->assertSame(500, $refused['status'], 'The donor is told the checkout could not be started');
+        $test->assertFalse($refused['body']['success']);
+
+        // The agreement is withdrawn at Stripe rather than left running.
+        $deletes = array_values(array_filter($requests, function ($r) use ($stripeSub) {
+            return strpos($r, 'DELETE') === 0 && strpos($r, $stripeSub) !== false;
+        }));
+        $test->assertSame(1, count($deletes), 'The agreement Stripe created must be cancelled');
+
+        // And nothing is left locally for a retry to trip over.
+        $test->assertSame($before, (int) $wpdb->get_var("SELECT COUNT(*) FROM {$subsTable}"), 'No subscription row may survive');
+        $test->assertSame(
+            '0',
+            (string) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$accessTable} WHERE subscription_id IN (SELECT id FROM {$subsTable} WHERE stripe_subscription_id = %s)", $stripeSub)),
+            'No access row may survive'
+        );
+    } finally {
+        remove_filter('query', $swallow);
+        remove_filter('pre_http_request', $stub, 10);
     }
 });
 
