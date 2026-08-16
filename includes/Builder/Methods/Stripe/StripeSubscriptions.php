@@ -8,11 +8,8 @@ use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Helpers\PaymentHelper;
-<<<<<<< HEAD
 use BuyMeCoffee\Services\GatewayAuditData;
-=======
 use BuyMeCoffee\Services\SubscriptionCancellationService;
->>>>>>> agent/fix-medium-01
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
