@@ -147,12 +147,25 @@ class StripeSubscriptions
             // intent to it before the browser is handed that intent: the
             // confirmation that comes back is then matched to local state, and
             // to this subscription, without asking Stripe who it belongs to.
-            (new Transactions())->updateData($transaction->id, [
-                'transaction_type' => 'recurring',
-                'subscription_id'  => (int) $localSubscriptionId,
-                'charge_id'        => sanitize_text_field($paymentIntent['id']),
-                'updated_at'       => current_time('mysql'),
-            ]);
+            // Confirmed rather than assumed: a binding that did not take leaves
+            // the browser with an intent whose confirmation is refused as
+            // unrecognised, and a first subscription payment nobody can settle
+            // from the browser at all.
+            $bound = (new PaymentHelper())->bindStripeIntent(
+                (int) $transaction->id,
+                sanitize_text_field($paymentIntent['id']),
+                [
+                    'transaction_type' => 'recurring',
+                    'subscription_id'  => (int) $localSubscriptionId,
+                ]
+            );
+
+            if (!$bound) {
+                wp_send_json_error([
+                    'status'  => 'failed',
+                    'message' => __('This subscription could not be started. Please try again.', 'buy-me-coffee'),
+                ], 500);
+            }
 
             $transaction->payment_args   = $paymentArgs;
             $transaction->subscription_id = (int) $localSubscriptionId;
