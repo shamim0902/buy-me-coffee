@@ -7020,4 +7020,63 @@ $suite->test('an intent is only handed to the browser once its binding is confir
     );
 });
 
+$suite->test('a refund committing during a projection still wins it', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable   = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable     = $wpdb->prefix . 'buymecoffee_transactions';
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $access      = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        // The refund lands after the projection has decided the payment was
+        // good and before it writes — the one window a check made beforehand
+        // can never cover. It revokes the access on its way through.
+        $injected = false;
+        $injectRefund = function ($query) use (&$injected, $wpdb, $txTable, $accessTable, $checkout) {
+            if (!$injected && stripos($query, 'UPDATE') === 0 && strpos($query, $accessTable) !== false) {
+                $injected = true;
+                $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $checkout['transaction_id']]);
+                $wpdb->update($accessTable, ['status' => 'refunded'], ['subscription_id' => $checkout['subscription_id']]);
+            }
+
+            return $query;
+        };
+        add_filter('query', $injectRefund);
+
+        try {
+            $written = $access->upsertFromSubscription($checkout['subscription_id']);
+        } finally {
+            remove_filter('query', $injectRefund);
+        }
+
+        $test->assertTrue($injected, 'The refund must have been injected at the write');
+        $test->assertSame(0, $written, 'A write the refund overtook must not report an access row');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The refund wins: no projection may restore the access it revoked'
+        );
+        $test->assertSame(
+            'refunded',
+            $wpdb->get_var($wpdb->prepare("SELECT status FROM {$accessTable} WHERE subscription_id = %d", $checkout['subscription_id'])),
+            'The access row is left exactly as the refund left it'
+        );
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());
