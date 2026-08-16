@@ -1078,31 +1078,9 @@ class AdminAjaxHandler
 
     private function calculateSupporterPaymentStatus($entryId)
     {
-        $transactions = buyMeCoffeeQuery()
-            ->table('buymecoffee_transactions')
-            ->where('entry_id', $entryId)
-            ->get();
-
-        $statuses = [];
-        foreach ($transactions as $transaction) {
-            if (!empty($transaction->status)) {
-                $statuses[] = sanitize_text_field($transaction->status);
-            }
-        }
-
-        if (in_array('paid', $statuses, true)) {
-            return 'paid';
-        }
-
-        if (in_array('processing', $statuses, true) || in_array('pending', $statuses, true) || in_array('refunding', $statuses, true)) {
-            return 'pending';
-        }
-
-        if (in_array('failed', $statuses, true)) {
-            return 'failed';
-        }
-
-        return 'refunded';
+        // Shared with the gateway webhook path so an admin refund and a provider
+        // refund leave the supporter row reading the same way.
+        return Supporters::aggregatePaymentStatus($entryId);
     }
 
     private function canAccessRoute($route)

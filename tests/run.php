@@ -22,6 +22,8 @@ use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Models\MembershipLevel;
 use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Supporters;
+use BuyMeCoffee\Models\Transactions;
+use BuyMeCoffee\Services\OneTimePaymentStatusService;
 use BuyMeCoffee\Services\SupporterDeletionService;
 
 $suite = new BmcFeatureTestRunner();
@@ -1178,6 +1180,722 @@ $suite->test('one failing subscription blocks deletion and every agreement is re
     } finally {
         remove_filter('pre_http_request', $stub, 10);
         remove_filter('buymecoffee_supporter_delete_manages_transaction', '__return_false');
+    }
+});
+
+// ── HIGH-03: a Stripe refund event must never restore paid state or access ──
+
+/**
+ * A one-time membership purchase: supporter (with WP user), transaction and the
+ * pending access row the checkout creates. Pass 'paid' to get the state a
+ * settled purchase leaves behind, access included.
+ */
+$bmcMakeOneTimePurchase = function ($status = 'pending') {
+    $suffix = wp_generate_password(12, false, false);
+
+    // Checkout stamps the same reference on the supporter and its transaction:
+    // the webhook looks the transaction up by it, the browser confirmation the
+    // supporter.
+    $orderHash = 'bmc_high03_tx_' . $suffix;
+
+    $userId = wp_insert_user([
+        'user_login' => 'bmc_high03_' . $suffix,
+        'user_email' => 'bmc-high03-' . $suffix . '@example.com',
+        'user_pass'  => wp_generate_password(24),
+        'role'       => 'subscriber',
+    ]);
+
+    $levelId = (int) (new MembershipLevel())->create([
+        'name'          => 'HIGH03 One-time Level',
+        'description'   => '',
+        'price'         => 2500,
+        'payment_type'  => 'one_time',
+        'interval_type' => 'month',
+        'status'        => 'active',
+        'rewards'       => '[]',
+        'access_rules'  => '[]',
+        'sort_order'    => 999,
+        'created_at'    => current_time('mysql'),
+        'updated_at'    => current_time('mysql'),
+    ]);
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'HIGH03 Donor',
+        'supporters_email' => 'bmc-high03-' . $suffix . '@example.com',
+        'payment_status'   => $status,
+        'entry_hash'       => $orderHash,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+        'wp_user_id'       => $userId,
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => $orderHash,
+        'transaction_type' => 'one_time',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => $status,
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'charge_id'        => 'pi_' . $suffix,
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    $access   = new MembershipAccess();
+    $accessId = (int) $access->createPendingForTransaction($transactionId, $supporterId, $levelId);
+
+    if ($status === 'paid') {
+        $access->activateByTransaction($transactionId);
+    }
+
+    return [
+        'suffix'         => $suffix,
+        'user_id'        => (int) $userId,
+        'level_id'       => $levelId,
+        'supporter_id'   => $supporterId,
+        'transaction_id' => $transactionId,
+        'access_id'      => $accessId,
+        'order_hash'     => $orderHash,
+    ];
+};
+
+/**
+ * Let the payment status service work inside the runner's transaction.
+ *
+ * Every test already runs in one, and MySQL has no nested transactions: the
+ * service opening its own would implicitly commit the runner's and leave the
+ * fixtures behind. The row lock and the ordering it protects are unaffected —
+ * only ownership of BEGIN/COMMIT moves to the runner.
+ *
+ * @return callable Restores the default (service-owned) behaviour.
+ */
+$bmcServiceSharesTestTransaction = function () {
+    add_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+
+    return function () {
+        remove_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+    };
+};
+
+/** Wrap a Stripe object in the event envelope the API returns. */
+$bmcStripeEvent = function ($eventId, $type, array $object) {
+    return [
+        'id'               => $eventId,
+        'object'           => 'event',
+        'api_version'      => '2020-08-27',
+        'created'          => 1700000000,
+        'livemode'         => false,
+        'pending_webhooks' => 0,
+        'type'             => $type,
+        'data'             => ['object' => $object],
+    ];
+};
+
+/** A realistic Stripe Charge, including the fields a refund actually changes. */
+$bmcStripeCharge = function ($orderHash, array $overrides = []) {
+    return array_merge([
+        'id'              => 'ch_' . wp_generate_password(14, false, false),
+        'object'          => 'charge',
+        'amount'          => 2500,
+        'amount_captured' => 2500,
+        'amount_refunded' => 0,
+        'captured'        => true,
+        'currency'        => 'usd',
+        'paid'            => true,
+        'refunded'        => false,
+        // A refunded charge keeps reporting "succeeded" here — that is the whole
+        // reason the status field cannot be trusted as a payment outcome.
+        'status'          => 'succeeded',
+        'metadata'        => ['ref_id' => $orderHash],
+    ], $overrides);
+};
+
+/** Read the current row states a payment transition is expected to touch. */
+$bmcPaymentState = function (array $purchase) {
+    global $wpdb;
+
+    return [
+        'transaction' => $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+            $purchase['transaction_id']
+        )),
+        'supporter' => $wpdb->get_var($wpdb->prepare(
+            "SELECT payment_status FROM {$wpdb->prefix}buymecoffee_supporters WHERE id = %d",
+            $purchase['supporter_id']
+        )),
+        'access' => $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_membership_access WHERE id = %d",
+            $purchase['access_id']
+        )),
+        'levels' => buymecoffee_user_get_active_level_ids($purchase['user_id'], true),
+    ];
+};
+
+/**
+ * Record every payment hook, entitlement change and outgoing email, so a replay
+ * can be shown to fire nothing a second time. No mail leaves the process.
+ */
+$bmcWatchPaymentSideEffects = function () {
+    $log = new ArrayObject([
+        'status'    => [],
+        'activated' => [],
+        'revoked'   => [],
+        'mail'      => [],
+    ]);
+
+    $watchers = [
+        ['buymecoffee_payment_status_updated', function ($transactionId, $status) use ($log) {
+            $log['status'] = array_merge($log['status'], [[(int) $transactionId, (string) $status]]);
+        }, 99, 2],
+        ['buymecoffee_membership_access_activated', function ($accessId) use ($log) {
+            $log['activated'] = array_merge($log['activated'], [(int) $accessId]);
+        }, 99, 1],
+        ['buymecoffee_membership_access_revoked', function ($accessId, $status) use ($log) {
+            $log['revoked'] = array_merge($log['revoked'], [[(int) $accessId, (string) $status]]);
+        }, 99, 2],
+    ];
+
+    foreach ($watchers as $watcher) {
+        add_action($watcher[0], $watcher[1], $watcher[2], $watcher[3]);
+    }
+
+    $mailStub = function ($shortCircuit, $atts) use ($log) {
+        $log['mail'] = array_merge($log['mail'], [isset($atts['to']) ? $atts['to'] : '']);
+        return true;
+    };
+    add_filter('pre_wp_mail', $mailStub, 10, 2);
+
+    $stop = function () use ($watchers, $mailStub) {
+        foreach ($watchers as $watcher) {
+            remove_action($watcher[0], $watcher[1], $watcher[2]);
+        }
+        remove_filter('pre_wp_mail', $mailStub, 10);
+    };
+
+    return [$log, $stop];
+};
+
+/** Count the activity-log entries written for a transaction. */
+$bmcPaymentActivityCount = function ($transactionId, $event) {
+    global $wpdb;
+
+    return (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}buymecoffee_activities
+         WHERE object_type = 'payment' AND object_id = %d AND event = %s",
+        $transactionId,
+        $event
+    ));
+};
+
+$suite->test('a Stripe refund event refunds the payment and revokes one-time access, once', function ($test) use ($bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $test->assertSame([$purchase['level_id']], $bmcPaymentState($purchase)['levels'], 'The fixture must start with live access');
+
+    $eventId = 'evt_high03_refund_' . $purchase['suffix'];
+    $event   = $bmcStripeEvent($eventId, 'charge.refunded', $bmcStripeCharge($purchase['order_hash'], [
+        'refunded'        => true,
+        'amount_refunded' => 2500,
+    ]));
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $outcome = (new Stripe())->processAuthenticatedEvent($event);
+
+        $test->assertSame('payment_status_updated', $outcome['code']);
+        $test->assertSame(200, $outcome['http']);
+        $test->assertSame('refunded', $outcome['status'], 'A refunded charge must map to refunded, never to paid');
+        $test->assertSame('charge.refunded', $outcome['event_type']);
+        $test->assertSame($purchase['transaction_id'], $outcome['transaction_id']);
+
+        $state = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $state['transaction']);
+        $test->assertSame('refunded', $state['supporter']);
+        $test->assertSame('refunded', $state['access'], 'The access row must leave every access-granting status');
+        $test->assertSame([], $state['levels'], 'A refunded supporter must lose entitlement to the level');
+
+        $test->assertSame([[$purchase['transaction_id'], 'refunded']], $log['status']);
+        $test->assertSame([[$purchase['access_id'], 'refunded']], $log['revoked'], 'Access must be revoked exactly once');
+        $test->assertSame([], $log['activated']);
+        $test->assertSame([], $log['mail'], 'A refund must not send a payment confirmation');
+        $test->assertSame(1, $bmcPaymentActivityCount($purchase['transaction_id'], 'refund_completed'));
+
+        // Stripe redelivers events; the second copy must be inert.
+        $replay = (new Stripe())->processAuthenticatedEvent($event);
+
+        $test->assertSame('duplicate_event', $replay['code']);
+        $test->assertSame(200, $replay['http']);
+        $test->assertSame($bmcPaymentState($purchase), $state, 'A replayed event must not change any row');
+        $test->assertSame(1, count($log['status']), 'A replayed event must not re-fire the payment hook');
+        $test->assertSame(1, count($log['revoked']), 'A replayed event must not revoke access again');
+        $test->assertSame(1, $bmcPaymentActivityCount($purchase['transaction_id'], 'refund_completed'));
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('no later Stripe success event can revive a refunded payment', function ($test) use ($bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $purchase = $bmcMakeOneTimePurchase('paid');
+        $stripe   = new Stripe();
+
+        $stripe->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_high03_r_' . $purchase['suffix'],
+            'charge.refunded',
+            $bmcStripeCharge($purchase['order_hash'], ['refunded' => true, 'amount_refunded' => 2500])
+        ));
+
+        $refundedState = $bmcPaymentState($purchase);
+        $test->assertSame('refunded', $refundedState['transaction'], 'The refund must land before the ordering is tested');
+        $test->assertSame([], $refundedState['levels']);
+
+        // Only what the late events do is under test; the refund's own side
+        // effects are asserted by the test above.
+        $log['status']    = [];
+        $log['activated'] = [];
+        $log['revoked']   = [];
+        $log['mail']      = [];
+
+        // Out-of-order delivery: the original charge succeeded before the refund, so
+        // its event can still arrive — or be redelivered — afterwards.
+        $late = [
+            'charge.succeeded' => $bmcStripeEvent(
+                'evt_high03_late_charge_' . $purchase['suffix'],
+                'charge.succeeded',
+                $bmcStripeCharge($purchase['order_hash'])
+            ),
+            'checkout.session.completed' => $bmcStripeEvent(
+                'evt_high03_late_session_' . $purchase['suffix'],
+                'checkout.session.completed',
+                [
+                    'id'             => 'cs_' . $purchase['suffix'],
+                    'object'         => 'checkout.session',
+                    'payment_status' => 'paid',
+                    'status'         => 'complete',
+                    'amount_total'   => 2500,
+                    'currency'       => 'usd',
+                    'metadata'       => ['ref_id' => $purchase['order_hash']],
+                ]
+            ),
+        ];
+
+        foreach ($late as $type => $event) {
+            $outcome = $stripe->processAuthenticatedEvent($event);
+
+            $test->assertSame('transition_refused', $outcome['code'], "{$type} must be refused after a refund");
+            $test->assertSame(200, $outcome['http'], "{$type} must not ask Stripe to retry");
+            $test->assertSame('', $outcome['status'], "{$type} must apply no status");
+            $test->assertSame($refundedState, $bmcPaymentState($purchase), "{$type} restored state after a refund");
+        }
+
+        $test->assertSame([], $log['status'], 'A refused transition must not fire the payment hook');
+        $test->assertSame([], $log['activated'], 'A refused transition must not re-grant access');
+        $test->assertSame([], $log['mail'], 'A refused transition must not email the donor');
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('the event fetched from Stripe decides the outcome, not the type the caller claims', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcServiceSharesTestTransaction) {
+    $bmcStripeSettings();
+
+    $stripe   = new Stripe();
+    $requests = [];
+    $fetched  = null;
+
+    $stub = function ($pre, $args, $url) use (&$requests, &$fetched, $bmcStripeBody) {
+        $requests[] = $url;
+        return $bmcStripeBody($fetched);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+
+    try {
+        // A refund at Stripe, announced to the site as a successful charge.
+        $refunded = $bmcMakeOneTimePurchase('paid');
+        $eventId  = 'evt_high03_spoof_' . $refunded['suffix'];
+        $fetched  = $bmcStripeEvent($eventId, 'charge.refunded', $bmcStripeCharge($refunded['order_hash'], [
+            'refunded'        => true,
+            'amount_refunded' => 2500,
+        ]));
+
+        $spoofed = json_decode(wp_json_encode($bmcStripeEvent(
+            $eventId,
+            'charge.succeeded',
+            $bmcStripeCharge($refunded['order_hash'])
+        )));
+
+        $outcome = $stripe->processIncomingEvent($spoofed);
+
+        $test->assertSame(1, count($requests), 'The event must be re-fetched from Stripe');
+        $test->assertContains('events/' . $eventId, $requests[0]);
+        $test->assertSame('charge.refunded', $outcome['event_type'], 'The fetched type must win');
+        $test->assertSame('refunded', $outcome['status']);
+
+        $state = $bmcPaymentState($refunded);
+        $test->assertSame('refunded', $state['transaction'], 'A spoofed type must not keep a refunded payment paid');
+        $test->assertSame([], $state['levels']);
+
+        // And the same seam the other way round: a genuine success announced as
+        // a refund still settles, because the fetched copy says so.
+        $pending = $bmcMakeOneTimePurchase();
+        $eventId = 'evt_high03_spoof2_' . $pending['suffix'];
+        $fetched = $bmcStripeEvent($eventId, 'charge.succeeded', $bmcStripeCharge($pending['order_hash']));
+
+        $spoofed = json_decode(wp_json_encode($bmcStripeEvent(
+            $eventId,
+            'charge.refunded',
+            $bmcStripeCharge($pending['order_hash'], ['refunded' => true, 'amount_refunded' => 2500])
+        )));
+
+        $outcome = $stripe->processIncomingEvent($spoofed);
+
+        $test->assertSame('charge.succeeded', $outcome['event_type']);
+        $test->assertSame('paid', $outcome['status']);
+        $test->assertSame('paid', $bmcPaymentState($pending)['transaction']);
+
+        // A claimed type this plugin never handles is dropped before any fetch.
+        $requests = [];
+        $ignored  = $stripe->processIncomingEvent((object) ['id' => 'evt_high03_ignored', 'type' => 'charge.captured']);
+
+        $test->assertSame('unsupported_event', $ignored['code']);
+        $test->assertSame(200, $ignored['http']);
+        $test->assertSame(0, count($requests), 'An unhandled claimed type must not cost a Stripe round trip');
+    } finally {
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a pending purchase settles once on charge.succeeded and never twice', function ($test) use ($bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase();
+    $stripe   = new Stripe();
+
+    $test->assertSame([], $bmcPaymentState($purchase)['levels'], 'A pending purchase grants nothing');
+
+    $event = $bmcStripeEvent(
+        'evt_high03_paid_' . $purchase['suffix'],
+        'charge.succeeded',
+        $bmcStripeCharge($purchase['order_hash'])
+    );
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $outcome = $stripe->processAuthenticatedEvent($event);
+
+        $test->assertSame('payment_status_updated', $outcome['code']);
+        $test->assertSame('paid', $outcome['status']);
+        $test->assertTrue($outcome['changed']);
+
+        $state = $bmcPaymentState($purchase);
+        $test->assertSame('paid', $state['transaction']);
+        $test->assertSame('paid', $state['supporter']);
+        $test->assertSame('active', $state['access']);
+        $test->assertSame([$purchase['level_id']], $state['levels']);
+
+        $test->assertSame([[$purchase['transaction_id'], 'paid']], $log['status']);
+        $test->assertSame([$purchase['access_id']], $log['activated'], 'Access must be activated exactly once');
+        $test->assertSame(2, count($log['mail']), 'The donor and admin are each notified once');
+        $test->assertSame(1, $bmcPaymentActivityCount($purchase['transaction_id'], 'payment_completed'));
+
+        // The same event again, and then a different event carrying the same
+        // status: neither is a new transition.
+        $replay = $stripe->processAuthenticatedEvent($event);
+        $test->assertSame('duplicate_event', $replay['code']);
+
+        $resent = $stripe->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_high03_paid_again_' . $purchase['suffix'],
+            'charge.succeeded',
+            $bmcStripeCharge($purchase['order_hash'])
+        ));
+        $test->assertSame('status_unchanged', $resent['code']);
+        $test->assertSame(200, $resent['http']);
+        $test->assertFalse($resent['changed']);
+
+        $test->assertSame($state, $bmcPaymentState($purchase));
+        $test->assertSame(1, count($log['status']), 'A repeated status must not re-fire the payment hook');
+        $test->assertSame(1, count($log['activated']), 'A repeated status must not re-activate access');
+        $test->assertSame(2, count($log['mail']), 'A repeated status must not send the emails again');
+        $test->assertSame(1, $bmcPaymentActivityCount($purchase['transaction_id'], 'payment_completed'));
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('unreadable, ambiguous and unreferenced Stripe events change nothing', function ($test) use ($bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $stripe   = new Stripe();
+    $before   = $bmcPaymentState($purchase);
+    $hash     = $purchase['order_hash'];
+
+    $rejected = [
+        // A refund event that reports no refund at all.
+        'unconfirmed refund' => [
+            'event' => $bmcStripeEvent('evt_high03_bad1_' . $purchase['suffix'], 'charge.refunded', $bmcStripeCharge($hash)),
+            'code'  => 'unmapped_event',
+            'http'  => 400,
+        ],
+        // A success event for a charge that carries a refund: ambiguous.
+        'already refunded charge' => [
+            'event' => $bmcStripeEvent('evt_high03_bad2_' . $purchase['suffix'], 'charge.succeeded', $bmcStripeCharge($hash, [
+                'refunded'        => true,
+                'amount_refunded' => 2500,
+            ])),
+            'code' => 'unmapped_event',
+            'http' => 400,
+        ],
+        // The wrong kind of object for the event type.
+        'object mismatch' => [
+            'event' => $bmcStripeEvent('evt_high03_bad3_' . $purchase['suffix'], 'charge.succeeded', [
+                'id'             => 'cs_' . $purchase['suffix'],
+                'object'         => 'checkout.session',
+                'status'         => 'succeeded',
+                'payment_status' => 'paid',
+                'metadata'       => ['ref_id' => $hash],
+            ]),
+            'code' => 'unmapped_event',
+            'http' => 400,
+        ],
+        // A completed session that was never paid.
+        'unpaid session' => [
+            'event' => $bmcStripeEvent('evt_high03_bad4_' . $purchase['suffix'], 'checkout.session.completed', [
+                'id'             => 'cs_' . $purchase['suffix'],
+                'object'         => 'checkout.session',
+                'status'         => 'complete',
+                'payment_status' => 'unpaid',
+                'metadata'       => ['ref_id' => $hash],
+            ]),
+            'code' => 'unmapped_event',
+            'http' => 400,
+        ],
+        // No data object at all.
+        'malformed object' => [
+            'event' => ['id' => 'evt_high03_bad5_' . $purchase['suffix'], 'object' => 'event', 'type' => 'charge.succeeded'],
+            'code'  => 'unmapped_event',
+            'http'  => 400,
+        ],
+        // Not an event.
+        'no id or type' => [
+            'event' => ['object' => 'event', 'data' => ['object' => $bmcStripeCharge($hash)]],
+            'code'  => 'malformed_event',
+            'http'  => 400,
+        ],
+        // A type this plugin does not handle.
+        'unknown type' => [
+            'event' => $bmcStripeEvent('evt_high03_bad7_' . $purchase['suffix'], 'charge.captured', $bmcStripeCharge($hash)),
+            'code'  => 'unsupported_event',
+            'http'  => 200,
+        ],
+        // Nothing ties the charge to a local order.
+        'missing metadata' => [
+            'event' => $bmcStripeEvent('evt_high03_bad8_' . $purchase['suffix'], 'charge.succeeded', $bmcStripeCharge($hash, ['metadata' => []])),
+            'code'  => 'missing_reference',
+            'http'  => 200,
+        ],
+        // A reference that matches no local transaction.
+        'unknown order' => [
+            'event' => $bmcStripeEvent('evt_high03_bad9_' . $purchase['suffix'], 'charge.succeeded', $bmcStripeCharge('bmc_high03_nothing')),
+            'code'  => 'transaction_not_found',
+            'http'  => 200,
+        ],
+    ];
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        foreach ($rejected as $label => $case) {
+            $outcome = $stripe->processAuthenticatedEvent($case['event']);
+
+            $test->assertSame($case['code'], $outcome['code'], "Wrong outcome for {$label}");
+            $test->assertSame($case['http'], $outcome['http'], "Wrong status code for {$label}");
+            $test->assertSame('', $outcome['status'], "{$label} must resolve no status");
+            $test->assertSame($before, $bmcPaymentState($purchase), "{$label} mutated local state");
+        }
+
+        $test->assertSame([], $log['status'], 'A rejected event must not fire the payment hook');
+        $test->assertSame([], $log['activated']);
+        $test->assertSame([], $log['revoked']);
+
+        // A rejected event is never consumed: the same id still works once the
+        // event can actually be read.
+        $reused = $stripe->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_high03_bad1_' . $purchase['suffix'],
+            'charge.refunded',
+            $bmcStripeCharge($hash, ['refunded' => true, 'amount_refunded' => 2500])
+        ));
+
+        $test->assertSame('payment_status_updated', $reused['code'], 'An unreadable event must not consume its id');
+        $test->assertSame('refunded', $bmcPaymentState($purchase)['transaction']);
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a browser payment confirmation cannot restore a refunded payment or its access', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $purchase = $bmcMakeOneTimePurchase('paid');
+    $intentId = 'pi_high03_confirm_' . $purchase['suffix'];
+
+    // The refund happens first — an admin refund or a Stripe webhook, it makes
+    // no difference to what the browser may do afterwards.
+    (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+        'evt_high03_confirm_refund_' . $purchase['suffix'],
+        'charge.refunded',
+        $bmcStripeCharge($purchase['order_hash'], ['refunded' => true, 'amount_refunded' => 2500])
+    ));
+
+    $refundedState = $bmcPaymentState($purchase);
+    $test->assertSame('refunded', $refundedState['transaction'], 'The refund must land before the confirmation is replayed');
+    $test->assertSame([], $refundedState['levels']);
+
+    // A refunded PaymentIntent keeps reporting "succeeded" for good, so a
+    // reloaded confirmation page replays a perfectly authentic success.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $intentId, $purchase) {
+        $requests[] = $url;
+
+        return $bmcStripeBody([
+            'id'              => $intentId,
+            'object'          => 'payment_intent',
+            'status'          => 'succeeded',
+            'amount'          => 2500,
+            'amount_received' => 2500,
+            'currency'        => 'usd',
+            'livemode'        => false,
+            'metadata'        => ['ref_id' => $purchase['order_hash']],
+            'charges'         => ['data' => [[
+                'payment_method_details' => ['card' => ['last4' => '4242', 'brand' => 'visa']],
+            ]]],
+        ]);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $result = (new PaymentHelper())->updatePaymentData($intentId);
+
+        $test->assertFalse(is_wp_error($result), 'The confirmation itself is valid; only its status claim is refused');
+        $test->assertSame(1, count($requests), 'The intent must be fetched from Stripe');
+        $test->assertSame('succeeded', $result['stripe_status'], 'What Stripe reports is passed through unchanged');
+        $test->assertSame('refunded', $result['payment_status'], 'The stored status is what is reported back, not the claim');
+        $test->assertSame($purchase['transaction_id'], $result['transaction_id']);
+        $test->assertFalse($result['access_active'], 'A refunded payment must not be reported as granting access');
+        $test->assertSame('refunded', $result['membership_access_status']);
+
+        $test->assertSame($refundedState, $bmcPaymentState($purchase), 'A replayed confirmation must not change any row');
+        $test->assertSame([], $log['status'], 'A refused confirmation must not fire the payment hook');
+        $test->assertSame([], $log['activated'], 'A refused confirmation must not re-activate access');
+        $test->assertSame([], $log['mail'], 'A refused confirmation must not email the donor');
+        $test->assertSame(0, $bmcPaymentActivityCount($purchase['transaction_id'], 'payment_completed'));
+
+        // The descriptive Stripe fields are still recorded: they say which card
+        // paid, not whether the payment stands.
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $purchase['transaction_id'])
+            ->first();
+
+        $test->assertSame($intentId, $transaction->charge_id);
+        $test->assertSame('4242', $transaction->card_last_4);
+        $test->assertSame('visa', $transaction->card_brand);
+        $test->assertSame('refunded', $transaction->status, 'Storing card details must not touch the payment status');
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('the payment status service owns and commits its production transaction boundary', function ($test) {
+    global $wpdb;
+
+    $suffix = wp_generate_password(12, false, false);
+    $now    = current_time('mysql');
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'HIGH03 Transaction Boundary',
+        'supporters_email' => 'bmc-high03-boundary-' . $suffix . '@example.com',
+        'payment_status'   => 'pending',
+        'entry_hash'       => 'bmc_high03_boundary_' . $suffix,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => $now,
+        'updated_at'       => $now,
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => 'bmc_high03_boundary_tx_' . $suffix,
+        'transaction_type' => 'one_time',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => 'pending',
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'created_at'       => $now,
+        'updated_at'       => $now,
+    ]);
+
+    $statuses = [];
+    $watcher  = function ($updatedTransactionId, $status) use (&$statuses) {
+        $statuses[] = [(int) $updatedTransactionId, (string) $status];
+    };
+    $mailStub = '__return_true';
+
+    add_action('buymecoffee_payment_status_updated', $watcher, 99, 2);
+    add_filter('pre_wp_mail', $mailStub);
+
+    try {
+        $test->assertTrue(
+            (bool) apply_filters('buymecoffee_payment_status_manages_transaction', true, $transactionId),
+            'This test must exercise the production-owned transaction path'
+        );
+
+        // START TRANSACTION here intentionally commits the runner's fixture
+        // transaction. The finally block therefore removes every persisted row.
+        $result = (new OneTimePaymentStatusService())->apply((object) ['id' => $transactionId], 'paid');
+
+        $test->assertFalse(is_wp_error($result), 'The production transaction boundary failed');
+        $test->assertTrue($result['changed']);
+        $test->assertSame('pending', $result['from']);
+        $test->assertSame('paid', $result['to']);
+        $test->assertSame('paid', (new Transactions())->find($transactionId)->status);
+        $test->assertSame('paid', (new Supporters())->find($supporterId)->payment_status);
+        $test->assertSame([[$transactionId, 'paid']], $statuses, 'The hook must fire once, after COMMIT');
+    } finally {
+        remove_action('buymecoffee_payment_status_updated', $watcher, 99);
+        remove_filter('pre_wp_mail', $mailStub);
+
+        $wpdb->delete(
+            $wpdb->prefix . 'buymecoffee_activities',
+            ['object_type' => 'payment', 'object_id' => $transactionId]
+        );
+        $wpdb->delete($wpdb->prefix . 'buymecoffee_transactions', ['id' => $transactionId]);
+        $wpdb->delete($wpdb->prefix . 'buymecoffee_supporters', ['id' => $supporterId]);
     }
 });
 

@@ -127,11 +127,11 @@ class Supporters extends Model
     }
 
     /**
-     * Resolve the supporter-level status from every transaction on the entry.
+     * The payment status that describes a supporter's whole transaction history.
      *
-     * A refund or reversal applies to one payment, not to the donor as a whole.
-     * Paid therefore wins while any settled transaction remains; work still in
-     * flight wins over failed/refunded history.
+     * A supporter row is a summary of every transaction attached to it, so one
+     * refunded transaction must not hide a payment they still made, and one
+     * settled payment outranks anything still in flight.
      *
      * @param int $entryId Supporter row ID.
      * @return string One of paid, pending, failed, refunded.
