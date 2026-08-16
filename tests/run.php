@@ -5154,4 +5154,73 @@ $suite->test('a subscription checkout that cannot finish leaves nothing behind a
     }
 });
 
+$suite->test('a PayPal reversal does not refund a supporter with another paid transaction', function ($test) {
+    global $wpdb;
+
+    update_option('buymecoffee_payment_settings_paypal', [
+        'enable' => 'yes',
+        'payment_mode' => 'test',
+        'payment_type' => 'standard',
+        'paypal_email' => 'merchant@example.com',
+    ], false);
+
+    $supporterId = buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name' => 'IPN Reversal Test',
+        'supporters_email' => 'bmc-ipn-reversal@example.com',
+        'payment_status' => 'paid',
+        'entry_hash' => 'bmc_ipn_r_' . wp_generate_password(20, false, false),
+        'payment_total' => 5000,
+        'coffee_count' => 2,
+        'payment_mode' => 'test',
+        'payment_method' => 'paypal',
+        'status' => 'new',
+        'created_at' => current_time('mysql'),
+        'updated_at' => current_time('mysql'),
+    ]);
+
+    $makePaidTransaction = function ($chargeId) use ($supporterId) {
+        return buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id' => $supporterId,
+            'entry_hash' => 'bmc_ipn_r_tx_' . wp_generate_password(20, false, false),
+            'transaction_type' => 'one_time',
+            'payment_method' => 'paypal',
+            'payment_total' => 2500,
+            'status' => 'paid',
+            'currency' => 'USD',
+            'payment_mode' => 'test',
+            'charge_id' => $chargeId,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql'),
+        ]);
+    };
+
+    $reversedTransactionId = $makePaidTransaction('BMC-REVERSED-TXN');
+    $remainingPaidTransactionId = $makePaidTransaction('BMC-PAID-TXN');
+
+    (new PayPal())->updateStatus([
+        'txn_type' => 'reversal',
+        'payment_status' => 'Reversed',
+        'receiver_email' => 'merchant@example.com',
+        'mc_currency' => 'USD',
+        'mc_gross' => '-25.00',
+        'parent_txn_id' => 'BMC-REVERSED-TXN',
+    ], $reversedTransactionId);
+
+    $transactionStatus = function ($transactionId) use ($wpdb) {
+        return $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+            $transactionId
+        ));
+    };
+
+    $supporterStatus = $wpdb->get_var($wpdb->prepare(
+        "SELECT payment_status FROM {$wpdb->prefix}buymecoffee_supporters WHERE id = %d",
+        $supporterId
+    ));
+
+    $test->assertSame('refunded', $transactionStatus($reversedTransactionId));
+    $test->assertSame('paid', $transactionStatus($remainingPaidTransactionId));
+    $test->assertSame('paid', $supporterStatus, 'One reversal must not hide another settled payment');
+});
+
 exit($suite->run());
