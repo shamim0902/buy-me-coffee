@@ -2404,23 +2404,29 @@ $suite->test('an access row that already owns a source transaction is reconciled
         // failing this range on every retry forever.
         $rivalUserId = 424343;
         $rival = $bmcMakeMigrationSource([
-            'level_id'     => $levelId,
-            'wp_user_id'   => $rivalUserId,
-            'transactions' => 1,
+            'level_id'           => $levelId,
+            'wp_user_id'         => $rivalUserId,
+            'current_period_end' => $expires,
+            'transactions'       => 1,
         ]);
 
+        // The row that wins the collision is stale: legacy data split this
+        // subscription across two rows, and the one holding the subscription_id
+        // is not the one that describes the entitlement correctly. Retiring the
+        // other and trusting this one blindly would leave the wrong level, the
+        // wrong user and no expiry in effect, with nothing left to correct it.
         $canonicalId = $insertAccess([
             'supporter_id'    => $rival['supporter_id'],
-            'wp_user_id'      => $rivalUserId,
-            'level_id'        => $levelId,
+            'wp_user_id'      => null,
+            'level_id'        => 987999,
             'transaction_id'  => null,
             'subscription_id' => $rival['subscription_id'],
-            'access_type'     => 'subscription',
-            'status'          => 'active',
+            'access_type'     => 'one_time',
+            'status'          => 'incomplete',
             'starts_at'       => null,
-            'expires_at'      => $expires,
+            'expires_at'      => null,
             'created_at'      => current_time('mysql'),
-            'updated_at'      => current_time('mysql'),
+            'updated_at'      => '2004-04-04 00:00:00',
         ]);
         // The dangerous shape of a duplicate: 'active' and untyped as recurring,
         // so every grant path reads it as a one-time purchase that never
@@ -2453,6 +2459,15 @@ $suite->test('an access row that already owns a source transaction is reconciled
         $test->assertSame(2, count($rivalRows), 'A skipped duplicate must not become a third row');
         $test->assertSame($canonicalId, (int) $rivalRows[0]->id, 'The canonical row must survive');
         $test->assertSame((int) $rival['subscription_id'], (int) $rivalRows[0]->subscription_id, 'The canonical row must keep the subscription link');
+
+        // Surviving is not enough: the row that is about to become the only one
+        // answering for this subscription is brought to its source first.
+        $test->assertSame($levelId, (int) $rivalRows[0]->level_id, 'The surviving row must take the source level');
+        $test->assertSame($rivalUserId, (int) $rivalRows[0]->wp_user_id, 'And the source user link');
+        $test->assertSame('subscription', $rivalRows[0]->access_type, 'And the source access type');
+        $test->assertSame('active', $rivalRows[0]->status, 'And the source status');
+        $test->assertSame($expires, $rivalRows[0]->expires_at, 'And the period the source actually paid for');
+        $test->assertFalse('2004-04-04 00:00:00' === $rivalRows[0]->updated_at, 'A repaired owner must be stamped as updated');
         $test->assertSame($duplicateId, (int) $rivalRows[1]->id, 'The duplicate must be skipped, not deleted');
         $test->assertSame(null, $rivalRows[1]->subscription_id, 'The duplicate must not steal the unique subscription link');
 
