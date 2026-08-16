@@ -7254,4 +7254,88 @@ $suite->test('a subscription checkout that cannot finish leaves nothing behind a
     }
 });
 
+$suite->test('a conditional grant stores its empty columns as NULL, not as zero', function ($test) {
+    global $wpdb;
+
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $access      = new MembershipAccess();
+
+    // Two one-time "subscriptions": granting, so each is written conditionally
+    // on its payment, and each stores no subscription link at all. Passing that
+    // null through a %s placeholder would store 0 in an int column, and the
+    // unique key on subscription_id would then reject the second row — two
+    // donors, one grant.
+    $make = function ($levelId) use ($wpdb) {
+        $suffix = wp_generate_password(12, false, false);
+
+        $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+            'supporters_name'  => 'NULLCOL Donor',
+            'supporters_email' => 'bmc-nullcol-' . $suffix . '@example.com',
+            'payment_status'   => 'paid',
+            'entry_hash'       => 'bmc_nullcol_' . $suffix,
+            'payment_total'    => 2500,
+            'coffee_count'     => 1,
+            'payment_mode'     => 'test',
+            'payment_method'   => 'stripe',
+            'status'           => 'new',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+
+        $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+            'supporter_id'           => $supporterId,
+            'stripe_subscription_id' => 'sub_nullcol_' . $suffix,
+            'stripe_customer_id'     => 'cus_nullcol_' . $suffix,
+            'interval_type'          => 'one_time',
+            'amount'                 => 2500,
+            'currency'               => 'usd',
+            'status'                 => 'active',
+            'payment_mode'           => 'test',
+            'current_period_end'     => null,
+            'level_id'               => $levelId,
+            'created_at'             => current_time('mysql'),
+            'updated_at'             => current_time('mysql'),
+        ]);
+
+        buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $supporterId,
+            'entry_hash'       => 'bmc_nullcol_tx_' . $suffix,
+            'subscription_id'  => $subscriptionId,
+            'transaction_type' => 'one_time',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'paid',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+
+        return ['supporter_id' => $supporterId, 'subscription_id' => $subscriptionId];
+    };
+
+    $levelId = 987123;
+    $first   = $make($levelId);
+    $second  = $make($levelId);
+
+    $firstId = $access->upsertFromSubscription($first['subscription_id']);
+    $test->assertNotEmpty($firstId, 'The first one-time grant is written');
+
+    $secondId = $access->upsertFromSubscription($second['subscription_id']);
+    $test->assertNotEmpty($secondId, 'The second must not be rejected by the unique key on subscription_id');
+    $test->assertFalse($firstId === $secondId, 'They are two distinct grants');
+
+    foreach ([$firstId, $secondId] as $accessId) {
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT subscription_id, expires_at, access_type, status FROM {$accessTable} WHERE id = %d",
+            $accessId
+        ));
+
+        $test->assertSame('one_time', $row->access_type);
+        $test->assertSame('active', $row->status, 'The grant is written, so the conditional path really ran');
+        $test->assertSame(null, $row->subscription_id, 'An absent subscription link is NULL, never 0');
+        $test->assertSame(null, $row->expires_at, 'An absent expiry is NULL, never an empty date');
+    }
+});
+
 exit($suite->run());

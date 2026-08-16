@@ -534,9 +534,18 @@ class MembershipAccess extends Model
     {
         global $wpdb;
 
+        // A null has to reach the column as NULL. Passing it through %s would
+        // store an empty string, which the int columns take as 0 — and a
+        // subscription_id of 0 is a real value that collides on its unique key
+        // where a NULL would not have.
         $sets   = [];
         $values = [];
         foreach ($row as $column => $value) {
+            if ($value === null) {
+                $sets[] = 'a.' . sanitize_key($column) . ' = NULL';
+                continue;
+            }
+
             $sets[]   = 'a.' . sanitize_key($column) . ' = %s';
             $values[] = $value;
         }
@@ -593,11 +602,19 @@ class MembershipAccess extends Model
     {
         global $wpdb;
 
+        // Same reason as updateWhilePaid(): a null column must be inserted as
+        // NULL, not as the empty string %s would produce.
         $columns      = [];
         $placeholders = [];
         $values       = [];
         foreach ($row as $column => $value) {
-            $columns[]      = sanitize_key($column);
+            $columns[] = sanitize_key($column);
+
+            if ($value === null) {
+                $placeholders[] = 'NULL';
+                continue;
+            }
+
             $placeholders[] = '%s';
             $values[]       = $value;
         }
