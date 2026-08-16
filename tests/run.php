@@ -7338,4 +7338,74 @@ $suite->test('a conditional grant stores its empty columns as NULL, not as zero'
     }
 });
 
+$suite->test('refunding a subscription billed once revokes the access it granted', function ($test) {
+    global $wpdb;
+
+    $suffix      = wp_generate_password(12, false, false);
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $txTable     = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'ONESHOT Donor',
+        'supporters_email' => 'bmc-oneshot-' . $suffix . '@example.com',
+        'payment_status'   => 'paid',
+        'entry_hash'       => 'bmc_oneshot_' . $suffix,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    // Billed once, so its access row is keyed to the payment and carries no
+    // subscription link at all — the shape a subscription-scoped revoke walks
+    // straight past.
+    $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+        'supporter_id'           => $supporterId,
+        'stripe_subscription_id' => 'sub_oneshot_' . $suffix,
+        'stripe_customer_id'     => 'cus_oneshot_' . $suffix,
+        'interval_type'          => 'one_time',
+        'amount'                 => 2500,
+        'currency'               => 'usd',
+        'status'                 => 'active',
+        'payment_mode'           => 'test',
+        'current_period_end'     => null,
+        'level_id'               => 987456,
+        'created_at'             => current_time('mysql'),
+        'updated_at'             => current_time('mysql'),
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => 'bmc_oneshot_tx_' . $suffix,
+        'subscription_id'  => $subscriptionId,
+        'transaction_type' => 'one_time',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => 'paid',
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    $accessId = (new MembershipAccess())->upsertFromSubscription($subscriptionId);
+    $test->assertNotEmpty($accessId);
+
+    $row = $wpdb->get_row($wpdb->prepare("SELECT subscription_id, status FROM {$accessTable} WHERE id = %d", $accessId));
+    $test->assertSame(null, $row->subscription_id, 'This is the shape under test: no subscription link');
+    $test->assertSame('active', $row->status);
+
+    $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $transactionId]);
+    do_action('buymecoffee_payment_status_updated', $transactionId, 'refunded');
+
+    $test->assertSame(
+        'refunded',
+        $wpdb->get_var($wpdb->prepare("SELECT status FROM {$accessTable} WHERE id = %d", $accessId)),
+        'The refund must reach an access row keyed to the payment rather than the subscription'
+    );
+});
+
 exit($suite->run());

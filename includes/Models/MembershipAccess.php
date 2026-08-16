@@ -358,6 +358,29 @@ class MembershipAccess extends Model
             ->first();
 
         if (!$access) {
+            // A subscription billed once, or granted by hand, stores no
+            // subscription link on its access row — it is keyed to the payment
+            // instead — so the row is reached through the subscription's own
+            // transactions rather than missed entirely.
+            $transactionIds = [];
+            foreach (buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->select(['id'])
+                ->where('subscription_id', $subscriptionId)
+                ->get() as $transaction) {
+                $transactionIds[] = (int) $transaction->id;
+            }
+
+            if (!$transactionIds) {
+                return 0;
+            }
+
+            $access = $this->getQuery()
+                ->whereIn('transaction_id', $transactionIds)
+                ->first();
+        }
+
+        if (!$access) {
             return 0;
         }
 
