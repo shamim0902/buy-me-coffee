@@ -17,6 +17,7 @@ Use this matrix as the release gate. `npm test` and `npm run test:http` cover de
 | Public rendering | Button escaping, donation form, supporter wall, logged-out account form | `npm test` |
 | Authorization | Delegated menu/supporter/settings/financial boundaries and exact-post meta authorization | `npm test` |
 | Supporter deletion | Remote cancellation confirmed before any local delete, stored payment-mode credentials, retained rows on provider/key failure, terminal and local-only skips, partial-failure retry, single cache invalidation | `npm test` |
+| Supporter aggregates | Exact lifetime totals and leaderboard ranking under transaction/subscription fan-out, shared-email and anonymous grouping, search and subscriber/one-time filters, stable multi-page ordering, page-bounded paid-history queries with no subscription join | `npm test` |
 | Live local HTTP | Standalone form, gateway mount, localized config, logged-out admin redirect, missing-nonce rejection | `npm run test:http` |
 | Frontend/admin assets | Vue, React editor panels, SCSS, route chunks, manifest and static assets compile | `npm run build` |
 

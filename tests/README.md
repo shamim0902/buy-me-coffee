@@ -17,6 +17,7 @@ Covered feature groups:
 - Public button, form, supporter wall, and account rendering
 - Delegated admin capability boundaries
 - Per-post metadata authorization
+- Unique-supporter and top-supporter aggregates: exact lifetime totals under transaction/subscription fan-out, identity grouping, filters, stable pagination, and page-bounded query topology
 
 See [FEATURE-MATRIX.md](FEATURE-MATRIX.md) for the complete automated and sandbox/staging release checklist.
 

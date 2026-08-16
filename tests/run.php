@@ -2695,6 +2695,447 @@ $suite->test('the payment status service owns and commits its production transac
     }
 });
 
+/**
+ * HIGH-05: supporter aggregates must not multiply revenue through join fan-out,
+ * and a page of identities must not read paid history outside that page.
+ */
+$bmcSeedIdentity = function (array $spec) {
+    $suffix   = wp_generate_password(16, false, false);
+    $currency = isset($spec['currency']) ? $spec['currency'] : 'USD';
+    $moment   = isset($spec['created_at']) ? $spec['created_at'] : current_time('mysql');
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => isset($spec['name']) ? $spec['name'] : 'HIGH05 Donor',
+        'supporters_email' => isset($spec['email']) ? $spec['email'] : '',
+        'currency'         => $currency,
+        'payment_status'   => 'paid',
+        'entry_hash'       => 'bmc_high05_' . $suffix,
+        'payment_total'    => 0,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => $moment,
+        'updated_at'       => $moment,
+    ]);
+
+    foreach (['paid', 'pending'] as $transactionStatus) {
+        $amounts = isset($spec[$transactionStatus]) ? $spec[$transactionStatus] : [];
+        foreach ($amounts as $amount) {
+            buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+                'entry_id'         => $supporterId,
+                'entry_hash'       => 'bmc_high05_tx_' . wp_generate_password(16, false, false),
+                'transaction_type' => 'one_time',
+                'payment_method'   => 'stripe',
+                'payment_total'    => (int) $amount,
+                'status'           => $transactionStatus,
+                'currency'         => $currency,
+                'payment_mode'     => 'test',
+                'created_at'       => $moment,
+                'updated_at'       => $moment,
+            ]);
+        }
+    }
+
+    $subscriptions = isset($spec['subscriptions']) ? $spec['subscriptions'] : [];
+    foreach ($subscriptions as $subscriptionStatus) {
+        buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+            'supporter_id'           => $supporterId,
+            'stripe_subscription_id' => 'sub_high05_' . wp_generate_password(20, false, false),
+            'stripe_customer_id'     => 'cus_high05_' . $suffix,
+            'interval_type'          => 'month',
+            'amount'                 => 500,
+            'currency'               => $currency,
+            'status'                 => $subscriptionStatus,
+            'payment_mode'           => 'test',
+            'created_at'             => $moment,
+            'updated_at'             => $moment,
+        ]);
+    }
+
+    return $supporterId;
+};
+
+$bmcIdentityEmails = function (array $payload) {
+    $emails = [];
+    foreach ($payload['supporters'] as $row) {
+        $emails[] = strtolower((string) $row->supporters_email);
+    }
+
+    return $emails;
+};
+
+$bmcIdentityByEmail = function (array $payload, $email) {
+    foreach ($payload['supporters'] as $row) {
+        if (strtolower((string) $row->supporters_email) === strtolower($email)) {
+            return $row;
+        }
+    }
+
+    return null;
+};
+
+$suite->test('two paid transactions and two subscription rows produce one exact lifetime total', function ($test) use ($bmcSeedIdentity, $bmcIdentityByEmail) {
+    $email = 'bmc-high05-fanout-' . wp_generate_password(10, false, false) . '@example.com';
+
+    $bmcSeedIdentity([
+        'name'          => 'HIGH05 Fan Out',
+        'email'         => $email,
+        'paid'          => [1000, 2500],
+        'pending'       => [900],
+        'subscriptions' => ['active', 'active'],
+    ]);
+
+    $payload = (new Supporters())->getUniqueSupportersData([
+        'search'         => $email,
+        'page'           => 0,
+        'posts_per_page' => 12,
+    ]);
+
+    $test->assertSame(1, $payload['total']);
+    $test->assertSame(1, count($payload['supporters']));
+
+    $row = $bmcIdentityByEmail($payload, $email);
+    $test->assertNotEmpty($row, 'The seeded identity is missing from the page');
+
+    $test->assertSame(3500, $row->total_paid, 'Subscription rows must not multiply the lifetime total');
+    $test->assertSame(2, $row->donation_count, 'Only paid transactions count, and only once each');
+    $test->assertTrue($row->has_subscription, 'An active subscription must still be reported');
+    $test->assertSame(1, (int) $row->entry_count);
+    $test->assertSame(PaymentHelper::getFormattedAmount(3500, 'USD'), $row->total_formatted);
+    $test->assertTrue(is_bool($row->has_subscription), 'has_subscription must stay a boolean');
+});
+
+$suite->test('top supporter ranking and totals survive the same fan-out fixture', function ($test) use ($bmcSeedIdentity) {
+    global $wpdb;
+
+    $txTable = $wpdb->prefix . 'buymecoffee_transactions';
+    $ceiling = (int) $wpdb->get_var("SELECT COALESCE(SUM(payment_total), 0) FROM {$txTable} WHERE status = 'paid'");
+    $base    = $ceiling + 1000;
+
+    $test->assertTrue($base + 2000 < 2147483647, 'The fixture amounts must fit the payment_total column');
+
+    $suffix   = wp_generate_password(10, false, false);
+    $leader   = 'bmc-high05-lead-' . $suffix . '@example.com';
+    $runnerUp = 'bmc-high05-second-' . $suffix . '@example.com';
+
+    // The leader owns three subscription rows: the old query multiplied its two
+    // paid transactions by them and ranked on a total three times too large.
+    $bmcSeedIdentity([
+        'name'          => 'HIGH05 Leader',
+        'email'         => $leader,
+        'paid'          => [$base, 2000],
+        'pending'       => [50000],
+        'subscriptions' => ['active', 'active', 'cancelled'],
+    ]);
+
+    $bmcSeedIdentity([
+        'name'  => 'HIGH05 Runner Up',
+        'email' => $runnerUp,
+        'paid'  => [$base + 500],
+    ]);
+
+    Supporters::flushAdminReportCache();
+    $top = (new Supporters())->getTopSupportersList(10);
+
+    $test->assertTrue(count($top) >= 2, 'Both seeded leaders must be ranked');
+    $test->assertSame(strtolower($leader), strtolower((string) $top[0]->supporters_email));
+    $test->assertSame($base + 2000, $top[0]->total_paid, 'Lifetime ranking total must not be multiplied');
+    $test->assertSame(2, $top[0]->donation_count);
+    $test->assertTrue($top[0]->has_subscription);
+    $test->assertSame(PaymentHelper::getFormattedAmount($base + 2000, 'USD'), $top[0]->total_formatted);
+
+    $test->assertSame(strtolower($runnerUp), strtolower((string) $top[1]->supporters_email));
+    $test->assertSame($base + 500, $top[1]->total_paid);
+    $test->assertSame(1, $top[1]->donation_count);
+    $test->assertFalse($top[1]->has_subscription);
+
+    foreach (['latest_entry_id', 'supporters_name', 'supporters_email', 'currency', 'total_paid', 'donation_count', 'has_subscription', 'last_donation_date', 'total_formatted', 'avatar'] as $key) {
+        $test->assertTrue(property_exists($top[0], $key), "Leaderboard row lost the {$key} field");
+    }
+
+    Supporters::flushAdminReportCache();
+});
+
+$suite->test('entries sharing an email aggregate once and anonymous donors stay separate', function ($test) use ($bmcSeedIdentity, $bmcIdentityEmails, $bmcIdentityByEmail) {
+    $token  = 'bmchigh05grp' . wp_generate_password(8, false, false);
+    $shared = $token . '@example.com';
+
+    $bmcSeedIdentity([
+        'name'          => 'HIGH05 Shared First',
+        'email'         => $shared,
+        'created_at'    => '2026-03-01 09:00:00',
+        'paid'          => [1000],
+        'subscriptions' => ['active'],
+    ]);
+    $sharedLatest = $bmcSeedIdentity([
+        'name'          => 'HIGH05 Shared Second',
+        'email'         => $shared,
+        'created_at'    => '2026-03-01 10:00:00',
+        'paid'          => [2000, 3000],
+        'subscriptions' => ['cancelled'],
+    ]);
+
+    $anonOne = $bmcSeedIdentity([
+        'name'       => 'HIGH05 Anon One ' . $token,
+        'email'      => '',
+        'created_at' => '2026-03-01 08:00:00',
+        'paid'       => [700],
+    ]);
+    $anonTwo = $bmcSeedIdentity([
+        'name'          => 'HIGH05 Anon Two ' . $token,
+        'email'         => '',
+        'created_at'    => '2026-03-01 07:00:00',
+        'paid'          => [800],
+        'subscriptions' => ['active'],
+    ]);
+
+    $payload = (new Supporters())->getUniqueSupportersData([
+        'search'         => $token,
+        'page'           => 0,
+        'posts_per_page' => 12,
+    ]);
+
+    $test->assertSame(3, $payload['total'], 'One email identity plus two anonymous entries');
+    $test->assertSame(3, count($payload['supporters']));
+
+    $sharedRow = $bmcIdentityByEmail($payload, $shared);
+    $test->assertNotEmpty($sharedRow);
+    $test->assertSame(6000, $sharedRow->total_paid, 'Both entries of one email aggregate exactly once');
+    $test->assertSame(3, $sharedRow->donation_count);
+    $test->assertSame(2, (int) $sharedRow->entry_count);
+    $test->assertSame($sharedLatest, (int) $sharedRow->latest_entry_id);
+    $test->assertTrue($sharedRow->has_subscription);
+
+    $anonRows = [];
+    foreach ($payload['supporters'] as $row) {
+        if ((string) $row->supporters_email === '') {
+            $anonRows[(int) $row->latest_entry_id] = $row;
+        }
+    }
+
+    $test->assertSame(2, count($anonRows), 'Anonymous donors must never be merged');
+    $test->assertSame(700, $anonRows[$anonOne]->total_paid);
+    $test->assertSame(1, $anonRows[$anonOne]->donation_count);
+    $test->assertFalse($anonRows[$anonOne]->has_subscription);
+    $test->assertSame('', $anonRows[$anonOne]->avatar, 'Anonymous rows carry no avatar');
+    $test->assertSame(800, $anonRows[$anonTwo]->total_paid);
+    $test->assertTrue($anonRows[$anonTwo]->has_subscription);
+
+    $test->assertSame(
+        [strtolower($shared), '', ''],
+        $bmcIdentityEmails($payload),
+        'Identities must stay ordered by their latest entry date'
+    );
+});
+
+$suite->test('search and the subscribers and one-time filters keep their identity semantics', function ($test) use ($bmcSeedIdentity, $bmcIdentityByEmail) {
+    $token = 'sbmchigh05flt' . wp_generate_password(8, false, false);
+
+    $subscriber = 'sub-' . $token . '@example.com';
+    $oneTime    = 'one-' . $token . '@example.com';
+    $pastMember = 'past-' . $token . '@example.com';
+    $mixed      = 'mix-' . $token . '@example.com';
+
+    $bmcSeedIdentity(['name' => 'HIGH05 Subscriber', 'email' => $subscriber, 'created_at' => '2026-04-04 10:00:00', 'paid' => [1500], 'subscriptions' => ['active', 'active']]);
+    $bmcSeedIdentity(['name' => 'HIGH05 One Time', 'email' => $oneTime, 'created_at' => '2026-04-03 10:00:00', 'paid' => [2500]]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Past Member', 'email' => $pastMember, 'created_at' => '2026-04-02 10:00:00', 'paid' => [3500], 'subscriptions' => ['cancelled']]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Mixed Sub', 'email' => $mixed, 'created_at' => '2026-04-01 11:00:00', 'paid' => [100], 'subscriptions' => ['active']]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Mixed Plain', 'email' => $mixed, 'created_at' => '2026-04-01 10:00:00', 'paid' => [900]]);
+
+    $supporters = new Supporters();
+
+    // The search term starts with "s": it must survive as a LIKE value and not
+    // be read as a "%s" placeholder.
+    $all = $supporters->getUniqueSupportersData(['search' => $token, 'filter' => 'all', 'page' => 0, 'posts_per_page' => 12]);
+    $test->assertSame(4, $all['total']);
+    $test->assertSame(1500, $bmcIdentityByEmail($all, $subscriber)->total_paid);
+    $test->assertSame(2500, $bmcIdentityByEmail($all, $oneTime)->total_paid);
+    $test->assertSame(3500, $bmcIdentityByEmail($all, $pastMember)->total_paid);
+    $test->assertSame(1000, $bmcIdentityByEmail($all, $mixed)->total_paid, 'Both entries of the mixed identity count under "all"');
+    $test->assertSame(2, (int) $bmcIdentityByEmail($all, $mixed)->entry_count);
+
+    $subscribers = $supporters->getUniqueSupportersData(['search' => $token, 'filter' => 'subscribers', 'page' => 0, 'posts_per_page' => 12]);
+    $test->assertSame(2, $subscribers['total'], 'Only entries with an active subscription qualify');
+    $test->assertSame(1500, $bmcIdentityByEmail($subscribers, $subscriber)->total_paid);
+    $test->assertTrue($bmcIdentityByEmail($subscribers, $subscriber)->has_subscription);
+    $test->assertSame(100, $bmcIdentityByEmail($subscribers, $mixed)->total_paid, 'Only the subscribed entry of the identity is aggregated');
+    $test->assertSame(1, (int) $bmcIdentityByEmail($subscribers, $mixed)->entry_count);
+    $test->assertTrue($bmcIdentityByEmail($subscribers, $pastMember) === null, 'A cancelled subscription is not a subscriber');
+
+    $oneTimeOnly = $supporters->getUniqueSupportersData(['search' => $token, 'filter' => 'one-time', 'page' => 0, 'posts_per_page' => 12]);
+    $test->assertSame(2, $oneTimeOnly['total'], 'Any subscription row disqualifies an entry from one-time');
+    $test->assertSame(2500, $bmcIdentityByEmail($oneTimeOnly, $oneTime)->total_paid);
+    $test->assertSame(900, $bmcIdentityByEmail($oneTimeOnly, $mixed)->total_paid);
+    $test->assertFalse($bmcIdentityByEmail($oneTimeOnly, $mixed)->has_subscription);
+    $test->assertTrue($bmcIdentityByEmail($oneTimeOnly, $pastMember) === null);
+    $test->assertTrue($bmcIdentityByEmail($oneTimeOnly, $subscriber) === null);
+
+    $exact = $supporters->getUniqueSupportersData(['search' => $subscriber, 'filter' => 'all', 'page' => 0, 'posts_per_page' => 12]);
+    $test->assertSame(1, $exact['total']);
+    $test->assertSame(strtolower($subscriber), strtolower((string) $exact['supporters'][0]->supporters_email));
+
+    $byName = $supporters->getUniqueSupportersData(['search' => 'HIGH05 Past Member', 'filter' => 'all', 'page' => 0, 'posts_per_page' => 12]);
+    $test->assertNotEmpty($bmcIdentityByEmail($byName, $pastMember), 'Search must still match supporter names');
+});
+
+$suite->test('three pages of identities stay stable, non-overlapping and exactly totalled', function ($test) use ($bmcSeedIdentity, $bmcIdentityEmails) {
+    $token = 'bmchigh05pg' . wp_generate_password(8, false, false);
+
+    $email = function ($slot) use ($token) {
+        return 'p' . $slot . '-' . $token . '@example.com';
+    };
+
+    // p1 and p2 share a timestamp on purpose: the deterministic tiebreaker must
+    // place the newer entry id first on every request.
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 1', 'email' => $email(1), 'created_at' => '2026-05-02 10:00:00', 'paid' => [100]]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 2', 'email' => $email(2), 'created_at' => '2026-05-02 10:00:00', 'paid' => [200]]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 3', 'email' => $email(3), 'created_at' => '2026-05-03 10:00:00', 'paid' => [300], 'pending' => [30000]]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 4', 'email' => $email(4), 'created_at' => '2026-05-04 10:00:00', 'paid' => [400]]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 5', 'email' => $email(5), 'created_at' => '2026-05-05 10:00:00', 'paid' => [500], 'subscriptions' => ['cancelled']]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 6', 'email' => $email(6), 'created_at' => '2026-05-06 10:00:00', 'paid' => [600, 60], 'subscriptions' => ['active', 'active']]);
+    $bmcSeedIdentity(['name' => 'HIGH05 Page 7', 'email' => $email(7), 'created_at' => '2026-05-07 10:00:00', 'paid' => [700]]);
+
+    $expected = [
+        [$email(7), 700, 1, false],
+        [$email(6), 660, 2, true],
+        [$email(5), 500, 1, false],
+        [$email(4), 400, 1, false],
+        [$email(3), 300, 1, false],
+        [$email(2), 200, 1, false],
+        [$email(1), 100, 1, false],
+    ];
+
+    $supporters = new Supporters();
+    $seenIds    = [];
+    $position   = 0;
+
+    for ($page = 0; $page < 3; $page++) {
+        $payload = $supporters->getUniqueSupportersData([
+            'search'         => $token,
+            'page'           => $page,
+            'posts_per_page' => 3,
+        ]);
+
+        $test->assertSame(7, $payload['total'], "Page {$page} reported the wrong identity total");
+
+        foreach ($payload['supporters'] as $row) {
+            list($expectedEmail, $expectedTotal, $expectedCount, $expectedSubscription) = $expected[$position];
+
+            $test->assertSame(strtolower($expectedEmail), strtolower((string) $row->supporters_email), "Wrong identity at position {$position}");
+            $test->assertSame($expectedTotal, $row->total_paid, "Wrong lifetime total at position {$position}");
+            $test->assertSame($expectedCount, $row->donation_count);
+            $test->assertSame($expectedSubscription, $row->has_subscription);
+
+            $identityId = (int) $row->latest_entry_id;
+            $test->assertFalse(isset($seenIds[$identityId]), 'Pages must never repeat an identity');
+            $seenIds[$identityId] = true;
+            $position++;
+        }
+    }
+
+    $test->assertSame(7, $position, 'Three pages of three must return every identity exactly once');
+
+    $repeat = $supporters->getUniqueSupportersData(['search' => $token, 'page' => 2, 'posts_per_page' => 3]);
+    $test->assertSame([strtolower($email(1))], $bmcIdentityEmails($repeat), 'Tied timestamps must page deterministically');
+
+    $emptyPage = $supporters->getUniqueSupportersData(['search' => $token, 'page' => 9, 'posts_per_page' => 3]);
+    $test->assertSame(7, $emptyPage['total']);
+    $test->assertSame(0, count($emptyPage['supporters']));
+});
+
+$suite->test('a supporter page reads paid history only for the identities on that page', function ($test) use ($bmcSeedIdentity) {
+    global $wpdb;
+
+    $token   = 'bmchigh05sql' . wp_generate_password(8, false, false);
+    $onPage  = 'a-' . $token . '@example.com';
+    $offPage = 'b-' . $token . '@example.com';
+
+    $bmcSeedIdentity([
+        'name'          => 'HIGH05 On Page',
+        'email'         => $onPage,
+        'created_at'    => '2026-06-02 10:00:00',
+        'paid'          => [1200],
+        'subscriptions' => ['active', 'active'],
+    ]);
+    $bmcSeedIdentity([
+        'name'          => 'HIGH05 Off Page',
+        'email'         => $offPage,
+        'created_at'    => '2026-06-01 10:00:00',
+        'paid'          => [9999999],
+        'subscriptions' => ['active'],
+    ]);
+
+    $captured = [];
+    $capture  = function ($query) use (&$captured) {
+        $captured[] = $query;
+        return $query;
+    };
+
+    add_filter('query', $capture);
+    try {
+        $payload = (new Supporters())->getUniqueSupportersData([
+            'search'         => $token,
+            'page'           => 0,
+            'posts_per_page' => 1,
+        ]);
+    } finally {
+        remove_filter('query', $capture);
+    }
+
+    $test->assertSame(2, $payload['total']);
+    $test->assertSame(1, count($payload['supporters']));
+    $test->assertSame(1200, $payload['supporters'][0]->total_paid, 'An off-page transaction must not reach this row');
+    $test->assertTrue($payload['supporters'][0]->has_subscription);
+
+    $supTable = $wpdb->prefix . 'buymecoffee_supporters';
+    $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
+    $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
+    foreach ($captured as $query) {
+        $test->assertFalse(
+            strpos($query, $txTable) !== false && strpos($query, $subTable) !== false,
+            'No supporter page query may reference transactions and subscriptions together'
+        );
+        $test->assertNotContains('JOIN ' . $subTable, $query, 'The subscriptions table must never be joined');
+    }
+
+    $txQueries = array_values(array_filter($captured, function ($query) use ($txTable) {
+        return strpos($query, $txTable) !== false;
+    }));
+
+    $test->assertSame(1, count($txQueries), 'Exactly one query may read raw transactions');
+    $test->assertContains('s.supporters_email IN (', $txQueries[0], 'Paid history must be restricted to the page identities');
+    $test->assertContains($onPage, $txQueries[0]);
+    $test->assertNotContains($offPage, $txQueries[0], 'An identity outside the page must not reach the paid-history query');
+
+    $subQueries = array_values(array_filter($captured, function ($query) use ($subTable) {
+        return strpos($query, $subTable) !== false;
+    }));
+
+    $test->assertSame(1, count($subQueries), 'Exactly one query may read subscriptions');
+    $test->assertContains('EXISTS (', $subQueries[0], 'Subscription presence must be an EXISTS, not a join');
+    $test->assertNotContains($offPage, $subQueries[0]);
+
+    $plan = [];
+    foreach ($wpdb->get_results('EXPLAIN ' . $txQueries[0], ARRAY_A) as $planRow) {
+        $plan[(string) $planRow['table']] = $planRow;
+    }
+
+    $test->assertSame(2, count($plan), 'The paid-history plan must read supporters and transactions only');
+    $test->assertTrue(isset($plan['s']) && isset($plan['t']), 'The paid-history plan lost an expected table');
+    $test->assertContains(
+        'bmc_sup_email',
+        (string) $plan['s']['possible_keys'] . ' ' . (string) $plan['s']['key'],
+        'The identity restriction must be able to use bmc_sup_email'
+    );
+    $test->assertContains(
+        'bmc_tx_entry',
+        (string) $plan['t']['possible_keys'] . ' ' . (string) $plan['t']['key'],
+        'The transaction lookup must be able to use bmc_tx_entry'
+    );
+});
+
 $suite->test('a PayPal reversal does not refund a supporter with another paid transaction', function ($test) {
     global $wpdb;
 

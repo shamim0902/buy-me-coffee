@@ -20,6 +20,13 @@ class Supporters extends Model
     const ADMIN_REPORT_CACHE_PREFIX = 'bmc_admin_report_';
     const ADMIN_REPORT_CACHE_TTL = 300;
 
+    /**
+     * The supporter identity a row belongs to: its email, or the row itself
+     * when the donation was anonymous. Every query that pages, counts, or
+     * aggregates unique supporters must group by exactly this expression.
+     */
+    const UNIQUE_SUPPORTER_GROUP_SQL = "COALESCE(NULLIF(s.supporters_email, ''), CONCAT('anon_', s.id))";
+
     public function index($args)
     {
         global $wpdb;
@@ -445,10 +452,26 @@ class Supporters extends Model
      */
     public function getUniqueSupporters($args)
     {
+        wp_send_json_success($this->getUniqueSupportersData($args), 200);
+    }
+
+    /**
+     * Build the unique-supporter page payload without emitting a response.
+     *
+     * The identities on the page are selected from the supporters table alone.
+     * Paid transaction totals and the active-subscription flag are then read by
+     * two further queries restricted to those identities, so transactions and
+     * subscriptions are never joined to each other: a supporter with N paid
+     * transactions and M subscription rows can no longer contribute N*M rows to
+     * the lifetime SUM, and no transaction outside the page is ever read.
+     *
+     * @param array $args page, posts_per_page, search and filter arguments.
+     * @return array{supporters: array, total: int}
+     */
+    public function getUniqueSupportersData($args)
+    {
         global $wpdb;
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
-        $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
-        $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
         $page         = isset($args['page']) ? max(0, intval($args['page'])) : 0;
         $postsPerPage = isset($args['posts_per_page']) ? max(1, min(100, intval($args['posts_per_page']))) : 12;
@@ -460,7 +483,84 @@ class Supporters extends Model
             $filter = 'all';
         }
 
+        $whereClause = $this->buildUniqueSupporterWhere($search, $filter);
+        $groupCol    = self::UNIQUE_SUPPORTER_GROUP_SQL;
+
+        // Anonymous donors (empty email) are grouped individually via COALESCE.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and dynamic WHERE fragments are prepared.
+        // $whereClause is either empty or built entirely from $wpdb->prepare() calls.
+        $countSql = "SELECT COUNT(*) FROM (
+            SELECT {$groupCol} as grp FROM {$supTable} s {$whereClause} GROUP BY grp
+        ) as cnt";
+        $total = (int) $wpdb->get_var($countSql);
+
+        // MAX(s.id) is the stable identity key: identity groups never share a
+        // supporter row, so the same value identifies this identity in every
+        // follow-up query that groups the same rows.
+        // The page bounds are prepared on their own: re-preparing a clause that
+        // already carries an escaped LIKE term would read the term's own "%s"
+        // as a placeholder and drop the query.
+        $limitClause = $wpdb->prepare('LIMIT %d OFFSET %d', $postsPerPage, $offset);
+
+        $results = $wpdb->get_results(
+            "SELECT
+                MAX(s.id) as latest_entry_id,
+                MAX(s.supporters_name) as supporters_name,
+                MAX(s.supporters_email) as supporters_email,
+                MAX(s.currency) as currency,
+                MAX(s.created_at) as last_donation_date,
+                COUNT(DISTINCT s.id) as entry_count
+            FROM {$supTable} s
+            {$whereClause}
+            GROUP BY {$groupCol}
+            ORDER BY MAX(s.created_at) DESC, MAX(s.id) DESC
+            {$limitClause}"
+        );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+        $paidTotals      = $this->getPaidTotalsForIdentities($results, $whereClause);
+        $subscriptionMap = $this->getSubscriptionFlagsForIdentities($results, $whereClause);
+
+        foreach ($results as $supporter) {
+            $identityKey = (int) $supporter->latest_entry_id;
+            $paid        = isset($paidTotals[$identityKey])
+                ? $paidTotals[$identityKey]
+                : ['total_paid' => 0, 'donation_count' => 0];
+
+            $supporter->total_paid      = $paid['total_paid'];
+            $supporter->donation_count  = $paid['donation_count'];
+            $supporter->has_subscription = !empty($subscriptionMap[$identityKey]);
+            $supporter->total_formatted = PaymentHelper::getFormattedAmount(
+                $supporter->total_paid,
+                $supporter->currency ?: 'USD'
+            );
+            $supporter->avatar = $supporter->supporters_email
+                ? get_avatar_url($supporter->supporters_email)
+                : '';
+        }
+
+        return [
+            'supporters' => $results,
+            'total'      => $total,
+        ];
+    }
+
+    /**
+     * The shared supporter-row predicate for search and the all/subscribers/one-time
+     * filters. Every unique-supporter query applies it, so an identity always
+     * aggregates exactly the supporter rows the filter selected for it.
+     *
+     * @param string $search Raw search term.
+     * @param string $filter One of all, subscribers, one-time.
+     * @return string Empty string, or a WHERE clause built from prepared fragments.
+     */
+    private function buildUniqueSupporterWhere($search, $filter)
+    {
+        global $wpdb;
+        $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
         $conditions = [];
+
         if ($search) {
             $like = '%' . $wpdb->esc_like($search) . '%';
             $conditions[] = $wpdb->prepare("(s.supporters_name LIKE %s OR s.supporters_email LIKE %s)", $like, $like);
@@ -473,57 +573,146 @@ class Supporters extends Model
             $conditions[] = "s.id NOT IN (SELECT supporter_id FROM {$subTable})";
         }
 
-        $whereClause = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+        return $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    }
 
-        // Use a single raw SQL query with LEFT JOINs to get aggregated data per unique email.
-        // Anonymous donors (empty email) are grouped individually via COALESCE.
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and dynamic WHERE fragments are prepared.
-        $groupCol = "COALESCE(NULLIF(s.supporters_email, ''), CONCAT('anon_', s.id))";
+    /**
+     * A prepared predicate matching only the supporter rows behind the given
+     * page of identities: the listed emails, plus the exact rows of anonymous
+     * donors. Both sides are index-backed (bmc_sup_email and the primary key).
+     *
+     * @param array $identities Rows returned by the identity page query.
+     * @return string Empty string when the page is empty.
+     */
+    private function buildIdentityRestriction($identities)
+    {
+        global $wpdb;
 
-        // $whereClause is either empty or built entirely from $wpdb->prepare() calls above.
-        $countSql = "SELECT COUNT(*) FROM (
-            SELECT {$groupCol} as grp FROM {$supTable} s {$whereClause} GROUP BY grp
-        ) as cnt";
-        $total = (int) $wpdb->get_var($countSql);
+        $emails  = [];
+        $anonIds = [];
 
-        $sql = "SELECT
-                MAX(s.id) as latest_entry_id,
-                MAX(s.supporters_name) as supporters_name,
-                s.supporters_email,
-                MAX(s.currency) as currency,
-                MAX(s.created_at) as last_donation_date,
-                COUNT(DISTINCT s.id) as entry_count,
-                COALESCE(SUM(CASE WHEN t.status = 'paid' THEN t.payment_total ELSE 0 END), 0) as total_paid,
-                COUNT(DISTINCT CASE WHEN t.status = 'paid' THEN t.id END) as donation_count,
-                MAX(CASE WHEN sub.status = 'active' THEN 1 ELSE 0 END) as has_subscription
-            FROM {$supTable} s
-            LEFT JOIN {$txTable} t ON t.entry_id = s.id
-            LEFT JOIN {$subTable} sub ON sub.supporter_id = s.id
-            {$whereClause}
-            GROUP BY {$groupCol}
-            ORDER BY MAX(s.created_at) DESC
-            LIMIT %d OFFSET %d";
-
-        $results = $wpdb->get_results($wpdb->prepare($sql, $postsPerPage, $offset));
-        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-
-        foreach ($results as $supporter) {
-            $supporter->total_paid      = (int) $supporter->total_paid;
-            $supporter->donation_count  = (int) $supporter->donation_count;
-            $supporter->has_subscription = (bool) $supporter->has_subscription;
-            $supporter->total_formatted = PaymentHelper::getFormattedAmount(
-                $supporter->total_paid,
-                $supporter->currency ?: 'USD'
-            );
-            $supporter->avatar = $supporter->supporters_email
-                ? get_avatar_url($supporter->supporters_email)
-                : '';
+        foreach ($identities as $identity) {
+            $email = isset($identity->supporters_email) ? (string) $identity->supporters_email : '';
+            if ($email !== '') {
+                $emails[] = $email;
+            } else {
+                $anonIds[] = (int) $identity->latest_entry_id;
+            }
         }
 
-        wp_send_json_success([
-            'supporters' => $results,
-            'total'      => $total,
-        ], 200);
+        $parts = [];
+
+        if ($emails) {
+            $placeholders = implode(', ', array_fill(0, count($emails), '%s'));
+            $parts[] = $wpdb->prepare("s.supporters_email IN ({$placeholders})", $emails);
+        }
+
+        if ($anonIds) {
+            $placeholders = implode(', ', array_fill(0, count($anonIds), '%d'));
+            $parts[] = $wpdb->prepare("s.id IN ({$placeholders})", $anonIds);
+        }
+
+        if (!$parts) {
+            return '';
+        }
+
+        return '(' . implode(' OR ', $parts) . ')';
+    }
+
+    /**
+     * Exact lifetime paid totals for one page of identities, keyed by the
+     * identity's MAX(s.id). Transactions are the only table joined here, so a
+     * supporter's subscription rows cannot multiply the SUM. The supporters
+     * table is kept on the outer side of the join so the identity key stays
+     * identical to the page query even when a row has no transactions.
+     *
+     * @param array  $identities  Rows returned by the identity page query.
+     * @param string $whereClause The shared search/filter predicate.
+     * @return array<int, array{total_paid: int, donation_count: int}>
+     */
+    private function getPaidTotalsForIdentities($identities, $whereClause)
+    {
+        global $wpdb;
+        $supTable = $wpdb->prefix . 'buymecoffee_supporters';
+        $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
+
+        $restriction = $this->buildIdentityRestriction($identities);
+
+        if (!$restriction) {
+            return [];
+        }
+
+        $where = $whereClause ? $whereClause . ' AND ' . $restriction : 'WHERE ' . $restriction;
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and every dynamic fragment is prepared.
+        $rows = $wpdb->get_results(
+            "SELECT
+                MAX(s.id) as identity_key,
+                COALESCE(SUM(CASE WHEN t.status = 'paid' THEN t.payment_total ELSE 0 END), 0) as total_paid,
+                COUNT(DISTINCT CASE WHEN t.status = 'paid' THEN t.id END) as donation_count
+            FROM {$supTable} s
+            LEFT JOIN {$txTable} t ON t.entry_id = s.id
+            {$where}
+            GROUP BY " . self::UNIQUE_SUPPORTER_GROUP_SQL,
+            ARRAY_A
+        );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+        $totals = [];
+        foreach ($rows as $row) {
+            $totals[(int) $row['identity_key']] = [
+                'total_paid'     => (int) $row['total_paid'],
+                'donation_count' => (int) $row['donation_count'],
+            ];
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Active-subscription presence for one page of identities, keyed by the
+     * identity's MAX(s.id). EXISTS resolves one indexed lookup per supporter
+     * row on the page instead of joining the subscriptions table.
+     *
+     * @param array  $identities  Rows returned by the identity page query.
+     * @param string $whereClause The shared search/filter predicate.
+     * @return array<int, bool>
+     */
+    private function getSubscriptionFlagsForIdentities($identities, $whereClause)
+    {
+        global $wpdb;
+        $supTable = $wpdb->prefix . 'buymecoffee_supporters';
+        $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
+        $restriction = $this->buildIdentityRestriction($identities);
+
+        if (!$restriction) {
+            return [];
+        }
+
+        $where = $whereClause ? $whereClause . ' AND ' . $restriction : 'WHERE ' . $restriction;
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and every dynamic fragment is prepared.
+        $rows = $wpdb->get_results(
+            "SELECT
+                MAX(s.id) as identity_key,
+                MAX(CASE WHEN EXISTS (
+                    SELECT 1 FROM {$subTable} sub
+                    WHERE sub.supporter_id = s.id AND sub.status = 'active'
+                ) THEN 1 ELSE 0 END) as has_subscription
+            FROM {$supTable} s
+            {$where}
+            GROUP BY " . self::UNIQUE_SUPPORTER_GROUP_SQL,
+            ARRAY_A
+        );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+        $flags = [];
+        foreach ($rows as $row) {
+            $flags[(int) $row['identity_key']] = (bool) (int) $row['has_subscription'];
+        }
+
+        return $flags;
     }
 
     /**
@@ -587,34 +776,45 @@ class Supporters extends Model
         global $wpdb;
         $supTable = $wpdb->prefix . 'buymecoffee_supporters';
         $txTable  = $wpdb->prefix . 'buymecoffee_transactions';
-        $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
 
+        // Exact ranking has to weigh every paid transaction, but they collapse
+        // to one row per supporter entry before the identity grouping, and the
+        // subscriptions table is never joined. The has_subscription placeholder
+        // keeps the response key order and is resolved for the ranked rows only.
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned leaderboard aggregate query with fixed table identifiers.
         $sql = "SELECT
                 MAX(s.id) as latest_entry_id,
                 MAX(s.supporters_name) as supporters_name,
                 s.supporters_email,
                 MAX(s.currency) as currency,
-                COALESCE(SUM(CASE WHEN t.status = 'paid' THEN t.payment_total ELSE 0 END), 0) as total_paid,
-                COUNT(DISTINCT CASE WHEN t.status = 'paid' THEN t.id END) as donation_count,
-                MAX(CASE WHEN sub.status = 'active' THEN 1 ELSE 0 END) as has_subscription,
+                COALESCE(SUM(t.paid_total), 0) as total_paid,
+                COALESCE(SUM(t.paid_count), 0) as donation_count,
+                0 as has_subscription,
                 MAX(s.created_at) as last_donation_date
             FROM {$supTable} s
-            LEFT JOIN {$txTable} t ON t.entry_id = s.id
-            LEFT JOIN {$subTable} sub ON sub.supporter_id = s.id
+            LEFT JOIN (
+                SELECT entry_id,
+                       SUM(payment_total) as paid_total,
+                       COUNT(*) as paid_count
+                FROM {$txTable}
+                WHERE status = 'paid'
+                GROUP BY entry_id
+            ) t ON t.entry_id = s.id
             WHERE s.supporters_email IS NOT NULL AND s.supporters_email != ''
             GROUP BY s.supporters_email
             HAVING total_paid > 0
-            ORDER BY total_paid DESC
+            ORDER BY total_paid DESC, MAX(s.id) DESC
             LIMIT %d";
 
         $results = $wpdb->get_results($wpdb->prepare($sql, $limit));
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
+        $subscriptionMap = $this->getSubscriptionFlagsForEmails($results);
+
         foreach ($results as $supporter) {
             $supporter->total_paid       = (int) $supporter->total_paid;
             $supporter->donation_count   = (int) $supporter->donation_count;
-            $supporter->has_subscription = (bool) $supporter->has_subscription;
+            $supporter->has_subscription = !empty($subscriptionMap[(int) $supporter->latest_entry_id]);
             $supporter->total_formatted  = PaymentHelper::getFormattedAmount($supporter->total_paid, $supporter->currency ?: 'USD');
             $supporter->avatar           = get_avatar_url($supporter->supporters_email);
         }
@@ -622,6 +822,61 @@ class Supporters extends Model
         set_transient($cacheKey, $results, self::ADMIN_REPORT_CACHE_TTL);
 
         return $results;
+    }
+
+    /**
+     * Active-subscription presence for the ranked leaderboard rows, keyed by the
+     * identity's MAX(s.id). It groups the same email-bearing supporter rows as
+     * the ranking query, so the key matches that query's latest_entry_id.
+     *
+     * @param array $rows Leaderboard rows carrying supporters_email.
+     * @return array<int, bool>
+     */
+    private function getSubscriptionFlagsForEmails($rows)
+    {
+        global $wpdb;
+        $supTable = $wpdb->prefix . 'buymecoffee_supporters';
+        $subTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+
+        $emails = [];
+        foreach ($rows as $row) {
+            $email = isset($row->supporters_email) ? (string) $row->supporters_email : '';
+            if ($email !== '') {
+                $emails[] = $email;
+            }
+        }
+
+        if (!$emails) {
+            return [];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($emails), '%s'));
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned aggregate query; table identifiers are constants and every value is prepared.
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT
+                    MAX(s.id) as identity_key,
+                    MAX(CASE WHEN EXISTS (
+                        SELECT 1 FROM {$subTable} sub
+                        WHERE sub.supporter_id = s.id AND sub.status = 'active'
+                    ) THEN 1 ELSE 0 END) as has_subscription
+                FROM {$supTable} s
+                WHERE s.supporters_email IS NOT NULL AND s.supporters_email != ''
+                    AND s.supporters_email IN ({$placeholders})
+                GROUP BY s.supporters_email",
+                $emails
+            ),
+            ARRAY_A
+        );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+        $flags = [];
+        foreach ($results as $row) {
+            $flags[(int) $row['identity_key']] = (bool) (int) $row['has_subscription'];
+        }
+
+        return $flags;
     }
 
     /**
