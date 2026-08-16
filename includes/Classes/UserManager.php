@@ -79,22 +79,26 @@ class UserManager
     /**
      * Whether a transaction is the payment that bought the period now running.
      *
-     * The subscription's most recent payment is the one its current period
-     * rests on. An older one losing its money says nothing about a period a
-     * later payment has since covered.
+     * Asked as "has anything since actually paid?", because only a later
+     * payment that succeeded can supersede this one. Reading the newest row of
+     * any status instead would let a renewal still sitting at pending — one
+     * whose paid transition never completed — stand in for a payment that was
+     * never made, and a refund of the payment that really did advance the
+     * period would then be waved through as superseded.
      *
      * @param object $transaction Transaction row, carrying a subscription_id.
      * @return bool
      */
     private function coversCurrentPeriod($transaction)
     {
-        $latest = buyMeCoffeeQuery()
+        $laterPayment = buyMeCoffeeQuery()
             ->table('buymecoffee_transactions')
             ->where('subscription_id', (int) $transaction->subscription_id)
-            ->orderBy('id', 'DESC')
+            ->where('status', 'paid')
+            ->where('id', '>', (int) $transaction->id)
             ->first();
 
-        return $latest && (int) $latest->id === (int) $transaction->id;
+        return !$laterPayment;
     }
 
     private function isEnabled(): bool

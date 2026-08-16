@@ -6916,6 +6916,24 @@ $suite->test('refunding the payment a subscription is running on ends its access
             'A superseded refund must not revoke a period a later payment covers'
         );
 
+        // A renewal still sitting at pending is not a payment. It must not be
+        // mistaken for one that superseded an earlier period, or a refund of
+        // the payment that really did advance that period would be waved
+        // through as already superseded.
+        $stalledId = $addRenewal('pending');
+        do_action('buymecoffee_payment_status_updated', $laterId, 'refunded');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A pending renewal must not shield a refund of the paid period'
+        );
+        $test->assertNotEmpty($stalledId);
+
+        // Put it back for the dunning case below.
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $laterId]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
         // A failed renewal is dunning, not a refund: Stripe retries, and the
         // subscription lifecycle owns that outcome. It must not cut the member
         // off on the first miss.
