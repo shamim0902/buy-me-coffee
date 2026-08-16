@@ -54,7 +54,9 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         {
             // DB version check — runs on every plugins_loaded to apply schema updates for existing installs
             require_once BUYMECOFFEE_DIR . 'includes/Classes/Activator.php';
-            (new \BuyMeCoffee\Classes\Activator())->maybeRunMigrations();
+            $activator = new \BuyMeCoffee\Classes\Activator();
+            $activator->registerMigrationHooks();
+            $activator->maybeRunMigrations();
 
             if (is_admin()) {
                 $this->adminHooks();
@@ -223,7 +225,14 @@ if (!defined('BUYMECOFFEE_VERSION')) {
         require_once(BUYMECOFFEE_DIR . 'includes/Classes/Activator.php');
         $activator = new \BuyMeCoffee\Classes\Activator();
         $activator->migrateDatabases($newWorkWide);
-        update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION);
+    });
+
+    register_deactivation_hook(__FILE__, function ($networkWide = false) {
+        // Do not leave the background migration worker in a site cron array.
+        // A network deactivation has to clear the event on every site, exactly
+        // as a network activation scheduled one per site.
+        require_once(BUYMECOFFEE_DIR . 'includes/Classes/Activator.php');
+        (new \BuyMeCoffee\Classes\Activator())->unscheduleMigration($networkWide);
     });
 
     // Disable WP admin notices on the Buy Me Coffee app page.

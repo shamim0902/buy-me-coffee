@@ -8,6 +8,7 @@ use BuyMeCoffee\Builder\Methods\PayPal\PayPal;
 use BuyMeCoffee\Builder\Methods\PayPal\PayPalSettings;
 use BuyMeCoffee\Builder\Methods\Stripe\Stripe;
 use BuyMeCoffee\Classes\AccessControl;
+use BuyMeCoffee\Classes\Activator;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Classes\AdminAjaxHandler;
 use BuyMeCoffee\Classes\EmailNotifications;
@@ -1824,6 +1825,801 @@ $suite->test('a browser payment confirmation cannot restore a refunded payment o
         $stopWatching();
         remove_filter('pre_http_request', $stub, 10);
         $restoreTransactions();
+    }
+});
+
+// ── HIGH-04: activation must never migrate data inside a visitor request ──
+
+/**
+ * Snapshot and restore every option, cron event and filter the migration tests
+ * touch. The runner already rolls the fixture transaction back, so this only
+ * has to undo state that outlives a rollback (object cache, cron array).
+ */
+$bmcMigrationRestore = function () {
+    $options = [
+        'buymecoffee_db_version'                          => get_option('buymecoffee_db_version'),
+        Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION      => get_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION),
+        Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION => get_option(Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION),
+        Activator::MIGRATION_STATE_OPTION                 => get_option(Activator::MIGRATION_STATE_OPTION),
+        Activator::MIGRATION_LOCK_OPTION                  => get_option(Activator::MIGRATION_LOCK_OPTION),
+    ];
+
+    return function () use ($options) {
+        // Never leave a background migration event behind for the dev site.
+        wp_clear_scheduled_hook(Activator::MIGRATION_HOOK);
+
+        foreach ($options as $name => $value) {
+            if ($value === false) {
+                delete_option($name);
+                continue;
+            }
+
+            update_option($name, $value, $name === Activator::MIGRATION_STATE_OPTION ? false : true);
+        }
+    };
+};
+
+/**
+ * Put the site into "migration pending" shape and start the durable state at a
+ * data phase. PHASE_SCHEMA is deliberately never used: dbDelta() issues DDL,
+ * which would implicitly commit the runner's fixture transaction.
+ */
+$bmcSeedMigrationState = function ($phase, $cursor = 0) {
+    $now = current_time('mysql');
+
+    update_option('buymecoffee_db_version', '1.0', true);
+    update_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION, '', true);
+    // The schema already exists in the test database, so the seed marker stands
+    // in for the schema phase that these tests intentionally skip.
+    update_option(Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION, 'yes', true);
+
+    $state = [
+        'target_version' => BUYMECOFFEE_DB_VERSION,
+        'phase'          => $phase,
+        'cursor'         => (int) $cursor,
+        'processed'      => 0,
+        'started_at'     => $now,
+        'updated_at'     => $now,
+        'completed_at'   => null,
+        'last_error'     => null,
+        'retries'        => 0,
+    ];
+
+    update_option(Activator::MIGRATION_STATE_OPTION, $state, false);
+    delete_option(Activator::MIGRATION_LOCK_OPTION);
+    wp_clear_scheduled_hook(Activator::MIGRATION_HOOK);
+
+    return $state;
+};
+
+/** Read the lock row straight from the options table, never from the cache. */
+$bmcReadLockRow = function () {
+    global $wpdb;
+
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+        Activator::MIGRATION_LOCK_OPTION
+    ));
+};
+
+/** Build a supporter + subscription (+ optional transactions) migration source. */
+$bmcMakeMigrationSource = function (array $spec) {
+    $suffix = wp_generate_password(12, false, false);
+    $now    = current_time('mysql');
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'HIGH04 Source',
+        'supporters_email' => 'bmc-high04-' . $suffix . '@example.com',
+        'payment_status'   => 'paid',
+        'entry_hash'       => 'bmc_high04_' . $suffix,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => $now,
+        'updated_at'       => $now,
+        'wp_user_id'       => isset($spec['wp_user_id']) ? $spec['wp_user_id'] : null,
+    ]);
+
+    $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+        'supporter_id'           => $supporterId,
+        'stripe_subscription_id' => array_key_exists('stripe_id', $spec) ? $spec['stripe_id'] : 'sub_high04_' . $suffix,
+        'stripe_customer_id'     => 'cus_high04_' . $suffix,
+        'interval_type'          => isset($spec['interval_type']) ? $spec['interval_type'] : 'month',
+        'amount'                 => 2500,
+        'currency'               => 'usd',
+        'status'                 => isset($spec['status']) ? $spec['status'] : 'active',
+        'payment_mode'           => isset($spec['payment_mode']) ? $spec['payment_mode'] : 'test',
+        'current_period_end'     => isset($spec['current_period_end']) ? $spec['current_period_end'] : null,
+        'created_at'             => isset($spec['created_at']) ? $spec['created_at'] : $now,
+        'updated_at'             => $now,
+        'level_id'               => $spec['level_id'],
+    ]);
+
+    $transactionIds = [];
+    for ($i = 0; $i < (isset($spec['transactions']) ? (int) $spec['transactions'] : 0); $i++) {
+        $transactionIds[] = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $supporterId,
+            'entry_hash'       => 'bmc_high04_tx_' . $suffix . '_' . $i,
+            'subscription_id'  => $subscriptionId,
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'paid',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
+    }
+
+    return [
+        'supporter_id'    => $supporterId,
+        'subscription_id' => $subscriptionId,
+        'transaction_ids' => $transactionIds,
+    ];
+};
+
+/** Every access row a migration source produced, oldest first. */
+$bmcAccessRowsFor = function ($supporterId) {
+    global $wpdb;
+
+    return $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}buymecoffee_membership_access WHERE supporter_id = %d ORDER BY id ASC",
+        (int) $supporterId
+    ));
+};
+
+/**
+ * Exclude everything already in the development database from the phases under
+ * test, so each phase's batch count is decided only by this test's fixtures.
+ * All of it is rolled back with the fixture transaction.
+ */
+$bmcIsolateMigrationSources = function () {
+    global $wpdb;
+
+    $wpdb->query("UPDATE {$wpdb->prefix}buymecoffee_subscriptions SET stripe_subscription_id = NULL WHERE stripe_subscription_id = ''");
+    $wpdb->query("UPDATE {$wpdb->prefix}buymecoffee_subscriptions SET level_id = NULL WHERE level_id IS NOT NULL AND level_id > 0");
+    $wpdb->query("UPDATE {$wpdb->prefix}buymecoffee_membership_access SET subscription_id = NULL WHERE subscription_id IS NOT NULL AND access_type IN ('one_time', 'manual')");
+    $wpdb->query("DELETE FROM {$wpdb->prefix}buymecoffee_supporters_meta WHERE meta_key = 'active_level_ids'");
+};
+
+$suite->test('maybeRunMigrations only schedules the worker and never backfills in-request', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $seeded = $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+
+        $source = $bmcMakeMigrationSource(['level_id' => 987001, 'transactions' => 1]);
+
+        $test->assertFalse(wp_next_scheduled(Activator::MIGRATION_HOOK), 'The test must start with no worker event');
+
+        $activator = new Activator();
+        $activator->maybeRunMigrations();
+
+        $scheduled = wp_next_scheduled(Activator::MIGRATION_HOOK);
+        $test->assertTrue(is_int($scheduled) && $scheduled > 0, 'Pending work must schedule the background worker');
+
+        // Nothing may be migrated from the request that merely noticed the work.
+        $test->assertSame([], $bmcAccessRowsFor($source['supporter_id']), 'maybeRunMigrations must not backfill synchronously');
+        $test->assertSame($seeded, get_option(Activator::MIGRATION_STATE_OPTION), 'maybeRunMigrations must not advance durable progress');
+        $test->assertSame('1.0', get_option('buymecoffee_db_version'), 'The DB version must not move before the worker finishes');
+        $test->assertSame('', get_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION), 'The verified marker must not move either');
+
+        // A second visitor request must not pile up a second event.
+        $activator->maybeRunMigrations();
+        $events = 0;
+        foreach (_get_cron_array() as $hooks) {
+            $events += isset($hooks[Activator::MIGRATION_HOOK]) ? count($hooks[Activator::MIGRATION_HOOK]) : 0;
+        }
+        $test->assertSame(1, $events, 'Repeated requests must reuse the single pending worker event');
+        $test->assertSame($scheduled, wp_next_scheduled(Activator::MIGRATION_HOOK), 'The pending event must not be rescheduled');
+    } finally {
+        $restore();
+    }
+});
+
+$suite->test('one filtered batch migrates a single cursor range and leaves both version markers old', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor) {
+    global $wpdb;
+
+    $restore  = $bmcMigrationRestore();
+    $batchOne = function () {
+        return 1;
+    };
+
+    add_filter('buymecoffee_migration_batch_size', $batchOne);
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+
+        $first  = $bmcMakeMigrationSource(['level_id' => 987002, 'transactions' => 1]);
+        $second = $bmcMakeMigrationSource(['level_id' => 987002, 'transactions' => 1]);
+
+        $state = (new Activator())->runMigrationBatch();
+
+        $test->assertFalse(is_wp_error($state), 'A bounded batch must not fail');
+        $test->assertSame(Activator::PHASE_BACKFILL_ACCESS, $state['phase'], 'One batch must not finish the backfill phase');
+        $test->assertSame((int) $first['subscription_id'], (int) $state['cursor'], 'The cursor must stop at the first range');
+        $test->assertSame(1, (int) $state['processed'], 'Exactly one source may be processed');
+
+        $test->assertSame(1, count($bmcAccessRowsFor($first['supporter_id'])), 'The first source must be migrated');
+        $test->assertSame([], $bmcAccessRowsFor($second['supporter_id']), 'The second source must wait for the next batch');
+
+        $test->assertSame('1.0', get_option('buymecoffee_db_version'), 'A partial migration must leave the DB version old');
+        $test->assertSame('', get_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION), 'A partial migration must leave the schema marker old');
+        $test->assertSame($state, get_option(Activator::MIGRATION_STATE_OPTION), 'Progress must be durable between batches');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batchOne);
+        $restore();
+    }
+});
+
+$suite->test('repeated batches resume through every bounded phase and only then advance both versions', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor, $bmcIsolateMigrationSources) {
+    global $wpdb;
+
+    $restore  = $bmcMigrationRestore();
+    $batchTwo = function () {
+        return 2;
+    };
+
+    add_filter('buymecoffee_migration_batch_size', $batchTwo);
+
+    try {
+        $bmcIsolateMigrationSources();
+        $bmcSeedMigrationState(Activator::PHASE_NORMALIZE_SUBSCRIPTIONS);
+
+        $levelId = 987003;
+        $expires = gmdate('Y-m-d H:i:s', time() + (30 * DAY_IN_SECONDS));
+        $created = gmdate('Y-m-d H:i:s', time() - (10 * DAY_IN_SECONDS));
+
+        // A recurring source with a legacy empty remote ID, a zero wp_user_id
+        // and two transactions: the earliest one has to win.
+        $recurring = $bmcMakeMigrationSource([
+            'level_id'           => $levelId,
+            'stripe_id'          => '',
+            'wp_user_id'         => 0,
+            'interval_type'      => 'month',
+            'current_period_end' => $expires,
+            'created_at'         => $created,
+            'transactions'       => 2,
+        ]);
+        $oneTime = $bmcMakeMigrationSource(['level_id' => $levelId, 'interval_type' => 'one_time', 'transactions' => 1]);
+        $manual  = $bmcMakeMigrationSource(['level_id' => $levelId, 'payment_mode' => 'manual', 'transactions' => 0]);
+        // level_id 0 is not a membership source and must never produce a row.
+        $unlinked = $bmcMakeMigrationSource(['level_id' => 0, 'transactions' => 0]);
+
+        // A legacy access row that still links a one-time grant to a subscription.
+        $legacyAccessId = (int) buyMeCoffeeQuery()->table('buymecoffee_membership_access')->insert([
+            'supporter_id'    => $unlinked['supporter_id'],
+            'level_id'        => $levelId,
+            'subscription_id' => $unlinked['subscription_id'],
+            'access_type'     => 'one_time',
+            'status'          => 'active',
+            'created_at'      => current_time('mysql'),
+            'updated_at'      => current_time('mysql'),
+        ]);
+
+        // Two stale access caches, so the purge phase needs two bounded batches.
+        buymecoffee_update_supporter_meta($recurring['supporter_id'], 'active_level_ids', ['level_ids' => [$levelId]]);
+        buymecoffee_update_supporter_meta($oneTime['supporter_id'], 'active_level_ids', ['level_ids' => [$levelId]]);
+
+        $activator = new Activator();
+        $phases    = [];
+
+        for ($i = 0; $i < 12; $i++) {
+            $state = $activator->runMigrationBatch();
+            $test->assertFalse(is_wp_error($state), 'Batch ' . ($i + 1) . ' failed: ' . (is_wp_error($state) ? $state->get_error_message() : ''));
+            $phases[] = $state['phase'];
+
+            if ($state['phase'] === Activator::PHASE_COMPLETE) {
+                break;
+            }
+
+            $test->assertSame('1.0', get_option('buymecoffee_db_version'), 'The DB version moved before the pipeline finished');
+        }
+
+        $test->assertSame([
+            Activator::PHASE_NORMALIZE_ACCESS,
+            Activator::PHASE_BACKFILL_ACCESS,
+            Activator::PHASE_BACKFILL_ACCESS,
+            Activator::PHASE_PURGE_ACCESS_CACHE,
+            Activator::PHASE_PURGE_ACCESS_CACHE,
+            Activator::PHASE_VERIFY,
+            Activator::PHASE_COMPLETE,
+        ], $phases, 'Each invocation must advance exactly one bounded phase or cursor range');
+
+        // Legacy normalization.
+        $test->assertSame(null, $wpdb->get_var($wpdb->prepare(
+            "SELECT stripe_subscription_id FROM {$wpdb->prefix}buymecoffee_subscriptions WHERE id = %d",
+            $recurring['subscription_id']
+        )), 'An empty remote subscription ID must become NULL');
+        $test->assertSame(null, $wpdb->get_var($wpdb->prepare(
+            "SELECT subscription_id FROM {$wpdb->prefix}buymecoffee_membership_access WHERE id = %d",
+            $legacyAccessId
+        )), 'A one-time access row must not keep a subscription link');
+        $test->assertSame('0', $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}buymecoffee_supporters_meta WHERE meta_key = 'active_level_ids'"), 'Every stale access cache must be purged');
+
+        // Exactly one correct access row per migrated source.
+        $recurringRows = $bmcAccessRowsFor($recurring['supporter_id']);
+        $test->assertSame(1, count($recurringRows), 'The recurring source must produce exactly one access row');
+        $test->assertSame('subscription', $recurringRows[0]->access_type);
+        $test->assertSame((int) $recurring['subscription_id'], (int) $recurringRows[0]->subscription_id);
+        $test->assertSame((int) $recurring['transaction_ids'][0], (int) $recurringRows[0]->transaction_id, 'The earliest transaction must win');
+        $test->assertSame('active', $recurringRows[0]->status);
+        $test->assertSame($expires, $recurringRows[0]->expires_at);
+        $test->assertSame($created, $recurringRows[0]->starts_at);
+        $test->assertSame(null, $recurringRows[0]->wp_user_id, 'A zero wp_user_id must be stored as NULL, as production does');
+
+        $oneTimeRows = $bmcAccessRowsFor($oneTime['supporter_id']);
+        $test->assertSame(1, count($oneTimeRows), 'The one-time source must produce exactly one access row');
+        $test->assertSame('one_time', $oneTimeRows[0]->access_type);
+        $test->assertSame(null, $oneTimeRows[0]->subscription_id, 'A one-time grant must not be linked to a subscription');
+        $test->assertSame((int) $oneTime['transaction_ids'][0], (int) $oneTimeRows[0]->transaction_id);
+        $test->assertSame(null, $oneTimeRows[0]->expires_at, 'Only subscriptions carry a period end');
+
+        $manualRows = $bmcAccessRowsFor($manual['supporter_id']);
+        $test->assertSame(1, count($manualRows), 'The manual source must produce exactly one access row');
+        $test->assertSame('manual', $manualRows[0]->access_type);
+        $test->assertSame(null, $manualRows[0]->subscription_id);
+        $test->assertSame(null, $manualRows[0]->transaction_id, 'A manual grant has no transaction');
+
+        $test->assertSame(1, count($bmcAccessRowsFor($unlinked['supporter_id'])), 'A subscription without a level must not be migrated');
+
+        // Both markers advance only after the whole pipeline verified.
+        $test->assertSame(BUYMECOFFEE_DB_VERSION, get_option('buymecoffee_db_version'));
+        $test->assertSame(BUYMECOFFEE_DB_VERSION, get_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION));
+        $test->assertSame(Activator::PHASE_COMPLETE, get_option(Activator::MIGRATION_STATE_OPTION)['phase']);
+
+        // A settled site does no further work.
+        $settled = $activator->runMigrationBatch();
+        $test->assertSame(Activator::PHASE_COMPLETE, $settled['phase'], 'A settled migration must stay complete');
+        $test->assertSame(1, count($bmcAccessRowsFor($recurring['supporter_id'])), 'A settled run must not duplicate access rows');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batchTwo);
+        $restore();
+    }
+});
+
+$suite->test('a live migration lock keeps other workers inert and an expired lock is recovered atomically', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor, $bmcReadLockRow) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+    $batch   = function () {
+        return 5;
+    };
+
+    add_filter('buymecoffee_migration_batch_size', $batch);
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $seeded = $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+        $source = $bmcMakeMigrationSource(['level_id' => 987004, 'transactions' => 1]);
+
+        $liveLock = wp_json_encode(['token' => 'bmc-live-owner', 'expires_at' => time() + 300]);
+        update_option(Activator::MIGRATION_LOCK_OPTION, $liveLock, false);
+
+        $activator = new Activator();
+
+        $test->assertFalse($activator->runMigrationBatch(), 'A worker must stay inert while another owns the lock');
+        $test->assertSame([], $bmcAccessRowsFor($source['supporter_id']), 'An inert worker must not touch data');
+        $test->assertSame($seeded, get_option(Activator::MIGRATION_STATE_OPTION), 'An inert worker must not touch progress');
+        $test->assertSame($liveLock, $bmcReadLockRow(), 'A live lock must still be owned by its holder');
+
+        // The same holds for the raw primitive: a live lock is never handed out.
+        $test->assertFalse($test->invokePrivate($activator, 'acquireMigrationLock'), 'A live lock must never be re-acquired');
+        $test->assertSame($liveLock, $bmcReadLockRow(), 'A refused acquisition must not rewrite the lock');
+
+        // An abandoned worker's lock expires and is taken over exactly once.
+        $staleLock = wp_json_encode(['token' => 'bmc-crashed-owner', 'expires_at' => time() - 1]);
+        update_option(Activator::MIGRATION_LOCK_OPTION, $staleLock, false);
+
+        $recovered = $test->invokePrivate($activator, 'acquireMigrationLock');
+        $test->assertTrue(is_string($recovered) && $recovered !== $staleLock, 'An expired lock must be taken over');
+        $test->assertSame($recovered, $bmcReadLockRow(), 'The taking-over worker must own the stored value');
+
+        // A second worker racing on the same stale value loses the CAS.
+        $test->assertFalse($test->invokePrivate($activator, 'acquireMigrationLock'), 'Only one worker may take over an expired lock');
+        $test->assertSame($recovered, $bmcReadLockRow(), 'The loser must not overwrite the winner');
+
+        // Only the exact owning value may release the lock.
+        $test->invokePrivate($activator, 'releaseMigrationLock', [$staleLock]);
+        $test->assertSame($recovered, $bmcReadLockRow(), 'A stale owner must not release the current lock');
+
+        $test->invokePrivate($activator, 'releaseMigrationLock', [$recovered]);
+        $test->assertSame(null, $bmcReadLockRow(), 'The owner must release its own lock');
+
+        // With the stale lock gone the worker runs normally again.
+        update_option(Activator::MIGRATION_LOCK_OPTION, $staleLock, false);
+        $state = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($state), 'A recovered worker must be able to migrate');
+        $test->assertSame(1, count($bmcAccessRowsFor($source['supporter_id'])), 'The recovered worker must migrate the pending source');
+        $test->assertSame(null, $bmcReadLockRow(), 'A finished batch must release its lock');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batch);
+        $restore();
+    }
+});
+
+$suite->test('replaying a backfill range after a crash never duplicates access rows', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+    $batch   = function () {
+        return 10;
+    };
+
+    add_filter('buymecoffee_migration_batch_size', $batch);
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+
+        $levelId = 987005;
+        $sources = [
+            'subscription' => $bmcMakeMigrationSource(['level_id' => $levelId, 'transactions' => 1]),
+            // The interesting replay cases: no transaction, so the unique keys
+            // on transaction_id/subscription_id cannot protect the row.
+            'manual'       => $bmcMakeMigrationSource(['level_id' => $levelId, 'payment_mode' => 'manual', 'transactions' => 0]),
+            'one_time'     => $bmcMakeMigrationSource(['level_id' => $levelId, 'interval_type' => 'one_time', 'transactions' => 0]),
+        ];
+
+        $activator = new Activator();
+        $state     = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($state), 'The first pass must succeed');
+
+        foreach ($sources as $label => $source) {
+            $test->assertSame(1, count($bmcAccessRowsFor($source['supporter_id'])), "The {$label} source must migrate once");
+        }
+
+        $firstIds = [];
+        foreach ($sources as $label => $source) {
+            $firstIds[$label] = (int) $bmcAccessRowsFor($source['supporter_id'])[0]->id;
+        }
+
+        // Simulate a worker that inserted the range and then died before it
+        // could persist the advanced cursor: the same range is replayed twice.
+        for ($replay = 0; $replay < 2; $replay++) {
+            $rewound            = get_option(Activator::MIGRATION_STATE_OPTION);
+            $rewound['phase']   = Activator::PHASE_BACKFILL_ACCESS;
+            $rewound['cursor']  = $cursor;
+            update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+            $replayed = $activator->runMigrationBatch();
+            $test->assertFalse(
+                is_wp_error($replayed),
+                'Replay ' . ($replay + 1) . ' failed: ' . (is_wp_error($replayed) ? $replayed->get_error_message() : '')
+            );
+
+            foreach ($sources as $label => $source) {
+                $rows = $bmcAccessRowsFor($source['supporter_id']);
+                $test->assertSame(1, count($rows), "Replay duplicated the {$label} access row");
+                $test->assertSame($firstIds[$label], (int) $rows[0]->id, "Replay replaced the {$label} access row");
+            }
+        }
+
+        $test->assertSame(null, $bmcAccessRowsFor($sources['manual']['supporter_id'])[0]->transaction_id, 'The manual row must stay transaction-free');
+        $test->assertSame(null, $bmcAccessRowsFor($sources['one_time']['supporter_id'])[0]->transaction_id, 'The one-time row must stay transaction-free');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batch);
+        $restore();
+    }
+});
+
+$suite->test('an access row that already owns a source transaction is reconciled to that source', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+    $batch   = function () {
+        return 10;
+    };
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+
+    add_filter('buymecoffee_migration_batch_size', $batch);
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+
+        $levelId = 987007;
+        $expires = gmdate('Y-m-d H:i:s', time() + (30 * DAY_IN_SECONDS));
+        $created = gmdate('Y-m-d H:i:s', time() - (10 * DAY_IN_SECONDS));
+
+        $source = $bmcMakeMigrationSource([
+            'level_id'           => $levelId,
+            'wp_user_id'         => 424242,
+            'interval_type'      => 'month',
+            'current_period_end' => $expires,
+            'created_at'         => $created,
+            'transactions'       => 1,
+        ]);
+        $transactionId = (int) $source['transaction_ids'][0];
+
+        // wpdb::insert() is used for the access fixtures instead of the query
+        // builder: the builder binds every null as %s, so an int column would
+        // silently store 0 and these rows have to hold real NULLs.
+        $insertAccess = function (array $row) use ($wpdb, $accessTable) {
+            $wpdb->insert($accessTable, $row);
+
+            return (int) $wpdb->insert_id;
+        };
+
+        // A legacy row that already owns this source's transaction, but with the
+        // wrong type and no subscription link. The unique key on transaction_id
+        // makes inserting the source impossible, so a cancellation of the
+        // subscription could never find the access row it has to revoke.
+        $collisionId = $insertAccess([
+            'supporter_id'    => $source['supporter_id'],
+            'wp_user_id'      => null,
+            'level_id'        => 987999,
+            'transaction_id'  => $transactionId,
+            'subscription_id' => null,
+            'access_type'     => 'one_time',
+            'status'          => 'incomplete',
+            'starts_at'       => null,
+            'expires_at'      => null,
+            'created_at'      => current_time('mysql'),
+            'updated_at'      => '2001-01-01 00:00:00',
+        ]);
+
+        $activator = new Activator();
+        $state     = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($state), 'The reconciling batch must succeed: ' . (is_wp_error($state) ? $state->get_error_message() : ''));
+
+        $rows = $bmcAccessRowsFor($source['supporter_id']);
+        $test->assertSame(1, count($rows), 'Reconciliation must repair the row instead of adding a second one');
+        $test->assertSame($collisionId, (int) $rows[0]->id, 'The colliding row must be repaired in place');
+        $test->assertSame($transactionId, (int) $rows[0]->transaction_id, 'The matched transaction must be kept');
+        $test->assertSame('subscription', $rows[0]->access_type, 'The row must take the source access type');
+        $test->assertSame((int) $source['subscription_id'], (int) $rows[0]->subscription_id, 'A recurring source must own its subscription link');
+        $test->assertSame($levelId, (int) $rows[0]->level_id, 'The row must take the source level');
+        $test->assertSame(424242, (int) $rows[0]->wp_user_id, 'The row must take the source user link');
+        $test->assertSame('active', $rows[0]->status, 'The row must take the source status');
+        $test->assertSame($created, $rows[0]->starts_at, 'The row must take the source start date');
+        $test->assertSame($expires, $rows[0]->expires_at, 'The row must take the source period end');
+        $test->assertFalse('2001-01-01 00:00:00' === $rows[0]->updated_at, 'A repaired row must be stamped as updated');
+
+        // Replaying the same range must not rewrite a row that already matches.
+        $wpdb->update($accessTable, ['updated_at' => '2002-02-02 00:00:00'], ['id' => $collisionId]);
+
+        $rewound           = get_option(Activator::MIGRATION_STATE_OPTION);
+        $rewound['phase']  = Activator::PHASE_BACKFILL_ACCESS;
+        $rewound['cursor'] = $cursor;
+        update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+        $replayed = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($replayed), 'The replay must succeed: ' . (is_wp_error($replayed) ? $replayed->get_error_message() : ''));
+
+        $rows = $bmcAccessRowsFor($source['supporter_id']);
+        $test->assertSame(1, count($rows), 'A replay must not duplicate the reconciled row');
+        $test->assertSame($collisionId, (int) $rows[0]->id, 'A replay must not replace the reconciled row');
+        $test->assertSame('2002-02-02 00:00:00', $rows[0]->updated_at, 'A row that already describes its source must not be rewritten');
+
+        // A rival row already owning the canonical subscription link is the one
+        // a cancellation finds, so the batch must skip the duplicate instead of
+        // failing this range on every retry forever.
+        $rivalUserId = 424343;
+        $rival = $bmcMakeMigrationSource([
+            'level_id'           => $levelId,
+            'wp_user_id'         => $rivalUserId,
+            'current_period_end' => $expires,
+            'transactions'       => 1,
+        ]);
+
+        // The row that wins the collision is stale: legacy data split this
+        // subscription across two rows, and the one holding the subscription_id
+        // is not the one that describes the entitlement correctly. Retiring the
+        // other and trusting this one blindly would leave the wrong level, the
+        // wrong user and no expiry in effect, with nothing left to correct it.
+        $canonicalId = $insertAccess([
+            'supporter_id'    => $rival['supporter_id'],
+            'wp_user_id'      => null,
+            'level_id'        => 987999,
+            'transaction_id'  => null,
+            'subscription_id' => $rival['subscription_id'],
+            'access_type'     => 'one_time',
+            'status'          => 'incomplete',
+            'starts_at'       => null,
+            'expires_at'      => null,
+            'created_at'      => current_time('mysql'),
+            'updated_at'      => '2004-04-04 00:00:00',
+        ]);
+        // The dangerous shape of a duplicate: 'active' and untyped as recurring,
+        // so every grant path reads it as a one-time purchase that never
+        // expires. Skipping it is not enough — a cancellation updates only the
+        // canonical row above, and this one would go on granting the level for
+        // good.
+        $duplicateId = $insertAccess([
+            'supporter_id'    => $rival['supporter_id'],
+            'wp_user_id'      => $rivalUserId,
+            'level_id'        => $levelId,
+            'transaction_id'  => $rival['transaction_ids'][0],
+            'subscription_id' => null,
+            'access_type'     => 'one_time',
+            'status'          => 'active',
+            'starts_at'       => null,
+            'expires_at'      => null,
+            'created_at'      => current_time('mysql'),
+            'updated_at'      => current_time('mysql'),
+        ]);
+
+        $rewound           = get_option(Activator::MIGRATION_STATE_OPTION);
+        $rewound['phase']  = Activator::PHASE_BACKFILL_ACCESS;
+        $rewound['cursor'] = $cursor;
+        update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+        $contested = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($contested), 'A collision on the subscription key must not fail the batch: ' . (is_wp_error($contested) ? $contested->get_error_message() : ''));
+
+        $rivalRows = $bmcAccessRowsFor($rival['supporter_id']);
+        $test->assertSame(2, count($rivalRows), 'A skipped duplicate must not become a third row');
+        $test->assertSame($canonicalId, (int) $rivalRows[0]->id, 'The canonical row must survive');
+        $test->assertSame((int) $rival['subscription_id'], (int) $rivalRows[0]->subscription_id, 'The canonical row must keep the subscription link');
+
+        // Surviving is not enough: the row that is about to become the only one
+        // answering for this subscription is brought to its source first.
+        $test->assertSame($levelId, (int) $rivalRows[0]->level_id, 'The surviving row must take the source level');
+        $test->assertSame($rivalUserId, (int) $rivalRows[0]->wp_user_id, 'And the source user link');
+        $test->assertSame('subscription', $rivalRows[0]->access_type, 'And the source access type');
+        $test->assertSame('active', $rivalRows[0]->status, 'And the source status');
+        $test->assertSame($expires, $rivalRows[0]->expires_at, 'And the period the source actually paid for');
+        $test->assertFalse('2004-04-04 00:00:00' === $rivalRows[0]->updated_at, 'A repaired owner must be stamped as updated');
+        $test->assertSame($duplicateId, (int) $rivalRows[1]->id, 'The duplicate must be skipped, not deleted');
+        $test->assertSame(null, $rivalRows[1]->subscription_id, 'The duplicate must not steal the unique subscription link');
+
+        // Skipped, but no longer granting: the canonical row is left as the one
+        // row that answers for this subscription, so a later cancellation of it
+        // actually ends the entitlement.
+        $test->assertSame('superseded', $rivalRows[1]->status, 'A duplicate the collision left behind must stop granting');
+        $test->assertSame($rival['transaction_ids'][0], (int) $rivalRows[1]->transaction_id, 'A retired duplicate stays on record');
+
+        $test->assertSame(
+            [$levelId],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'The canonical row alone grants the level'
+        );
+
+        // Cancelling the subscription and letting its paid period lapse has to
+        // take the access with it. Before the duplicate was retired, the
+        // cancellation reached only the canonical row and the level stayed
+        // granted forever through the one nothing else ever looks at.
+        $wpdb->update($accessTable, [
+            'status'     => 'cancelled',
+            'expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS),
+        ], ['id' => $canonicalId]);
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($rivalUserId, true),
+            'A cancelled subscription must not keep granting through the duplicate'
+        );
+
+        // Replaying the range must not rewrite an already retired duplicate.
+        $wpdb->update($accessTable, ['updated_at' => '2003-03-03 00:00:00'], ['id' => $duplicateId]);
+
+        $rewound           = get_option(Activator::MIGRATION_STATE_OPTION);
+        $rewound['phase']  = Activator::PHASE_BACKFILL_ACCESS;
+        $rewound['cursor'] = $cursor;
+        update_option(Activator::MIGRATION_STATE_OPTION, $rewound, false);
+
+        $settled = $activator->runMigrationBatch();
+        $test->assertFalse(is_wp_error($settled), 'A replay over a retired duplicate must succeed: ' . (is_wp_error($settled) ? $settled->get_error_message() : ''));
+
+        $settledRows = $bmcAccessRowsFor($rival['supporter_id']);
+        $test->assertSame(2, count($settledRows), 'A replay must not add a row');
+        $test->assertSame('2003-03-03 00:00:00', $settledRows[1]->updated_at, 'An already retired duplicate must not be rewritten');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batch);
+        $restore();
+    }
+});
+
+$suite->test('the request-time migration markers are repaired to autoload without running migration work', function ($test) use ($bmcMigrationRestore) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+    $markers = [
+        'buymecoffee_db_version',
+        Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION,
+        Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION,
+    ];
+
+    try {
+        // A settled site upgraded from a release that stored these markers with
+        // autoload disabled. update_option() will not repair that on its own:
+        // it returns early whenever the stored value is unchanged.
+        update_option('buymecoffee_db_version', BUYMECOFFEE_DB_VERSION, true);
+        update_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION, BUYMECOFFEE_DB_VERSION, true);
+        update_option(Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION, 'yes', true);
+
+        foreach ($markers as $marker) {
+            $wpdb->update($wpdb->options, ['autoload' => 'no'], ['option_name' => $marker], ['%s'], ['%s']);
+        }
+
+        wp_cache_flush();
+        $before = wp_load_alloptions();
+        foreach ($markers as $marker) {
+            $test->assertFalse(array_key_exists($marker, $before), "The fixture must start with {$marker} outside the autoloaded set");
+        }
+
+        (new Activator())->maybeRunMigrations();
+
+        wp_cache_delete('alloptions', 'options');
+        $after = wp_load_alloptions();
+        foreach ($markers as $marker) {
+            $test->assertTrue(array_key_exists($marker, $after), "{$marker} is read on every request and must be autoloaded");
+        }
+
+        // The repair must not turn a settled site into a migrating one.
+        $test->assertFalse((bool) wp_next_scheduled(Activator::MIGRATION_HOOK), 'A settled site must not schedule migration work');
+        $test->assertSame(BUYMECOFFEE_DB_VERSION, get_option('buymecoffee_db_version'), 'The repair must not touch marker values');
+        $test->assertSame('yes', get_option(Activator::DEFAULT_MEMBERSHIP_LEVEL_SEEDED_OPTION), 'The repair must not touch marker values');
+    } finally {
+        $restore();
+    }
+});
+
+$suite->test('a failed batch persists its error, keeps the old versions, releases the lock and still retries', function ($test) use ($bmcMigrationRestore, $bmcSeedMigrationState, $bmcMakeMigrationSource, $bmcAccessRowsFor, $bmcReadLockRow) {
+    global $wpdb;
+
+    $restore = $bmcMigrationRestore();
+    $batch   = function () {
+        return 5;
+    };
+    $fail = function () {
+        return new WP_Error('bmc_forced_migration_failure', 'Forced migration failure for HIGH-04.');
+    };
+
+    add_filter('buymecoffee_migration_batch_size', $batch);
+    add_filter('buymecoffee_migration_force_error', $fail, 10, 3);
+
+    try {
+        $cursor = (int) $wpdb->get_var("SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}buymecoffee_subscriptions");
+        $bmcSeedMigrationState(Activator::PHASE_BACKFILL_ACCESS, $cursor);
+        $source = $bmcMakeMigrationSource(['level_id' => 987006, 'transactions' => 1]);
+
+        $activator = new Activator();
+        $error     = $activator->runMigrationBatch();
+
+        $test->assertTrue(is_wp_error($error), 'A forced failure must surface as an error');
+        $test->assertSame('bmc_forced_migration_failure', $error->get_error_code());
+
+        $state = get_option(Activator::MIGRATION_STATE_OPTION);
+        $test->assertSame(Activator::PHASE_BACKFILL_ACCESS, $state['phase'], 'A failure must not advance the phase');
+        $test->assertSame($cursor, (int) $state['cursor'], 'A failure must not advance the cursor');
+        $test->assertSame(1, (int) $state['retries'], 'The first failure must record one retry');
+        $test->assertSame('bmc_forced_migration_failure', $state['last_error']['code'], 'The failure code must be durable');
+        $test->assertSame('Forced migration failure for HIGH-04.', $state['last_error']['message'], 'The failure message must be durable');
+        $test->assertNotEmpty($state['last_error']['at'], 'The failure must be timestamped');
+
+        $test->assertSame([], $bmcAccessRowsFor($source['supporter_id']), 'A failed batch must not migrate anything');
+        $test->assertSame('1.0', get_option('buymecoffee_db_version'), 'A failure must leave the DB version old');
+        $test->assertSame('', get_option(Activator::SCHEMA_VERIFIED_DB_VERSION_OPTION), 'A failure must leave the schema marker old');
+        $test->assertSame(null, $bmcReadLockRow(), 'A failed batch must still release its lock');
+        $test->assertTrue((bool) wp_next_scheduled(Activator::MIGRATION_HOOK), 'A failure must schedule a retry');
+
+        // Consecutive failures accumulate instead of resetting.
+        wp_clear_scheduled_hook(Activator::MIGRATION_HOOK);
+        $activator->runMigrationBatch();
+        $test->assertSame(2, (int) get_option(Activator::MIGRATION_STATE_OPTION)['retries'], 'Consecutive failures must accumulate');
+        $test->assertSame(null, $bmcReadLockRow(), 'The second failed batch must release its lock too');
+
+        // The retry succeeds once the fault clears.
+        remove_filter('buymecoffee_migration_force_error', $fail, 10);
+        $retried = $activator->runMigrationBatch();
+
+        $test->assertFalse(is_wp_error($retried), 'The retry must succeed once the failure clears');
+        $test->assertSame(0, (int) $retried['retries'], 'A successful batch must reset the retry counter');
+        $test->assertSame(null, $retried['last_error'], 'A successful batch must clear the stored error');
+        $test->assertSame(1, count($bmcAccessRowsFor($source['supporter_id'])), 'The retry must migrate the pending source');
+        $test->assertSame(null, $bmcReadLockRow(), 'The successful retry must release its lock');
+    } finally {
+        remove_filter('buymecoffee_migration_batch_size', $batch);
+        remove_filter('buymecoffee_migration_force_error', $fail, 10);
+        $restore();
     }
 });
 
