@@ -129,6 +129,13 @@ class PayPal extends BaseMethods
                 continue;
             }
 
+            // Legacy toggle that used to skip IPN verification in test mode.
+            // It is no longer supported, so it is never stored again.
+            if ($key === 'disable_ipn_verification') {
+                unset($settings[$key]);
+                continue;
+            }
+
             if ($key === 'paypal_email') {
                 $settings[$key] = sanitize_email($value);
             } else {
@@ -144,7 +151,6 @@ class PayPal extends BaseMethods
         $settings['enable'] = ($settings['enable'] ?? 'no') === 'yes' ? 'yes' : 'no';
         $settings['payment_mode'] = ($settings['payment_mode'] ?? 'test') === 'live' ? 'live' : 'test';
         $settings['payment_type'] = ($settings['payment_type'] ?? 'standard') === 'pro' ? 'pro' : 'standard';
-        $settings['disable_ipn_verification'] = ($settings['disable_ipn_verification'] ?? 'no') === 'yes' ? 'yes' : 'no';
         return $settings;
     }
 
@@ -400,7 +406,11 @@ class PayPal extends BaseMethods
     {
         $txnType = sanitize_text_field($data['txn_type'] ?? '');
         $paymentStatusRaw = sanitize_text_field($data['payment_status'] ?? '');
-        if ($txnType != 'web_accept' && $txnType != 'cart' && $paymentStatusRaw != 'Refunded') {
+        // Reversal IPNs arrive as txn_type=reversal / payment_status=Reversed, so
+        // 'Reversed' must pass this guard alongside 'Refunded' — otherwise reversals
+        // return early and never reach the revocation branch below.
+        if ($txnType != 'web_accept' && $txnType != 'cart'
+            && $paymentStatusRaw != 'Refunded' && $paymentStatusRaw != 'Reversed') {
             return;
         }
 
@@ -423,9 +433,11 @@ class PayPal extends BaseMethods
             return;
         }
 
-        $configuredPayee = strtolower(trim($this->getSettings('paypal_email')));
-        $receiverEmail = strtolower(trim($data['receiver_email'] ?? ($data['business'] ?? '')));
-        if ($configuredPayee && $receiverEmail && $receiverEmail !== $configuredPayee) {
+        // The payee must be present and identical to the configured account.
+        // A missing receiver, or a missing local configuration, is never a match.
+        $configuredPayee = strtolower(trim((string) $this->getSettings('paypal_email')));
+        $receiverEmail = strtolower(trim(sanitize_text_field($data['receiver_email'] ?? ($data['business'] ?? ''))));
+        if (!$configuredPayee || !$receiverEmail || $receiverEmail !== $configuredPayee) {
             $this->changeStatus('failed', $transaction);
             return;
         }
@@ -439,6 +451,14 @@ class PayPal extends BaseMethods
 
         $payment_status = strtolower($paymentStatusRaw);
 
+        // Refunds and reversals report a negative mc_gross, so they are mapped
+        // before the amount comparison and can never be read as a payment.
+        if (in_array($payment_status, array('refunded', 'reversed'), true)) {
+            $this->changeStatus('refunded', $transaction);
+            do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
+            return;
+        }
+
         $paypal_amount = isset($data['mc_gross']) ? (float)$data['mc_gross'] : 0;
         $expectedAmount = (float)number_format((float)($transaction->payment_total / 100), 2, '.', '');
         $receivedAmount = (float)number_format((float)$paypal_amount, 2, '.', '');
@@ -449,12 +469,14 @@ class PayPal extends BaseMethods
             return;
         }
 
-        if ('completed' == $payment_status || $transaction->payment_mode == 'test') {
+        // Only a completed PayPal payment may move a transaction to paid.
+        // Test mode follows exactly the same rule as live mode.
+        if ('completed' === $payment_status) {
             $this->changeStatus('paid', $transaction, $data);
             return;
         }
 
-        if ('pending' == $payment_status && isset($data['pending_reason'])) {
+        if ('pending' === $payment_status && isset($data['pending_reason'])) {
             $this->changeStatus('processing', $transaction, $data);
         }
     }
@@ -464,23 +486,29 @@ class PayPal extends BaseMethods
         $supportersModel = new Supporters();
         $transactionModel = new Transactions();
 
-        $updateData = array(
-            'payment_status' => $status,
-            'updated_at' => current_time('mysql')
+        $now = current_time('mysql');
+
+        // The transactions table uses `status`, so it needs its own payload.
+        // Reusing the supporter payload silently dropped rejection updates.
+        $transactionUpdate = array(
+            'status' => $status,
+            'updated_at' => $now
         );
 
-        $supportersModel->updateData($transaction->entry_id, $updateData);
-
         if (!empty($data) && isset($data['txn_id'])) {
-            $updateData = [
-                'status' => $status,
-                'updated_at' => current_time('mysql'),
-                'payment_note' => wp_json_encode($data),
-                'charge_id' => sanitize_text_field($data['txn_id'])
-            ];
+            $transactionUpdate['payment_note'] = wp_json_encode($data);
+            $transactionUpdate['charge_id'] = sanitize_text_field($data['txn_id']);
         }
 
-        $transactionModel->updateData($transaction->id, $updateData);
+        $transactionModel->updateData($transaction->id, $transactionUpdate);
+
+        // A refund/reversal belongs to this transaction, not automatically to
+        // the supporter as a whole. Recompute the summary after the transaction
+        // write so another paid transaction keeps the supporter paid.
+        $supportersModel->updateData($transaction->entry_id, array(
+            'payment_status' => Supporters::aggregatePaymentStatus($transaction->entry_id),
+            'updated_at' => $now
+        ));
 
     }
 

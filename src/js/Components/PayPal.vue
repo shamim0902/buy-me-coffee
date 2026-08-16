@@ -78,7 +78,7 @@
                     </div>
                 </div>
 
-                <!-- Standard: Email + IPN toggle -->
+                <!-- Standard: PayPal email -->
                 <div v-if="settings.payment_type === 'standard'" class="bmc-field-group">
                     <div class="bmc-field">
                         <label class="bmc-field__label">PayPal Email Address</label>
@@ -87,22 +87,9 @@
                             type="text"
                             placeholder="your-email@example.com"
                         />
-                    </div>
-                    <div class="bmc-ipn-toggle">
-                        <div>
-                            <span class="bmc-settings-row__label">Disable IPN Verification</span>
-                            <p class="bmc-settings-row__hint">
-                                Available in test mode only.
-                                <span v-if="settings.payment_mode === 'live'">Live mode always enforces verification.</span>
-                            </p>
-                        </div>
-                        <el-switch
-                            v-model="settings.disable_ipn_verification"
-                            active-value="yes"
-                            inactive-value="no"
-                            :disabled="settings.payment_mode === 'live'"
-                            class="ml-4 flex-shrink-0"
-                        />
+                        <p class="bmc-settings-row__hint">
+                            Must match the PayPal account that receives payments. IPN notifications are always verified with PayPal.
+                        </p>
                     </div>
                 </div>
 
@@ -157,7 +144,6 @@ export default {
                 live_public_key: '',
                 live_secret_key: '',
                 paypal_email: '',
-                disable_ipn_verification: 'no',
                 has_test_secret_key: false,
                 has_live_secret_key: false
             },
@@ -236,13 +222,6 @@ export default {
                     this.$handleError(error);
                 })
                 .always(() => { this.saving = false; });
-        }
-    },
-    watch: {
-        'settings.payment_mode'(value) {
-            if (value === 'live') {
-                this.settings.disable_ipn_verification = 'no';
-            }
         }
     },
     mounted() { this.getSettings(); }
@@ -347,16 +326,6 @@ export default {
     font-weight: 500;
     color: var(--text-secondary);
     margin-bottom: 6px;
-}
-
-.bmc-ipn-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px;
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-secondary);
 }
 
 .bmc-ext-link {

@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "node src/env/development_mode.js && vite",
     "watch": "npm run dev",
+    "test": "php tests/run.php",
+    "test:http": "bash tests/http-smoke.sh",
+    "test:all": "npm test && npm run test:http && npm run build",
     "build": "node src/env/production_mode.js && vite build",
     "build:zip": "npm run package",
     "production": "npm run build",
