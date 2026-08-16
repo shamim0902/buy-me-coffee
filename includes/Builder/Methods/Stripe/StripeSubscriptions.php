@@ -9,6 +9,7 @@ use BuyMeCoffee\Models\MembershipAccess;
 use BuyMeCoffee\Classes\ActivityLogger;
 use BuyMeCoffee\Helpers\PaymentHelper;
 use BuyMeCoffee\Services\GatewayAuditData;
+use BuyMeCoffee\Services\PaymentTransitionService;
 use BuyMeCoffee\Services\SubscriptionCancellationService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -300,11 +301,18 @@ class StripeSubscriptions
 
     /**
      * Handle invoice.payment_succeeded webhook.
-     * - If billing_reason = subscription_create: activate the subscription.
-     * - Otherwise: create a new renewal transaction.
+     * - If billing_reason = subscription_create: settle the donation the
+     *   subscription was started with, and activate the subscription.
+     * - Otherwise: record the renewal payment.
+     *
+     * Both branches go through PaymentTransitionService, so the payment status,
+     * the supporter, the canonical transition hook and everything hanging off it
+     * are written by the same code that a browser confirmation uses — once, and
+     * only when something actually moved.
      *
      * @param object $event    Validated webhook payload from IPNData()
      * @param string $apiKey   Stripe secret key
+     * @return array Outcome, see subscriptionOutcome().
      */
     public function handleRenewalWebhook($event, $apiKey)
     {
@@ -317,7 +325,7 @@ class StripeSubscriptions
 
         if (!$stripeSubId) {
             self::debugLog('handleRenewalWebhook: no subscription ID in invoice object, skipping');
-            return;
+            return self::subscriptionOutcome('no_subscription_reference');
         }
 
         $subscriptionModel = new Subscriptions();
@@ -325,7 +333,7 @@ class StripeSubscriptions
 
         if (!$subscription) {
             self::debugLog('handleRenewalWebhook: no local subscription found for stripe_sub_id: ' . $stripeSubId);
-            return;
+            return self::subscriptionOutcome('subscription_not_found');
         }
 
         self::debugLog('handleRenewalWebhook: local subscription #' . $subscription->id . ' found, status=' . $subscription->status);
@@ -342,28 +350,8 @@ class StripeSubscriptions
 
         if ($billingReason === 'subscription_create') {
             self::debugLog('handleRenewalWebhook: first payment — activating subscription #' . $subscription->id);
-            // First payment: activate the local subscription record
-            $subscriptionModel->updateData($subscription->id, [
-                'status'             => 'active',
-                'current_period_end' => $periodEnd,
-                'updated_at'         => current_time('mysql'),
-            ]);
 
-            if (!empty($subscription->level_id)) {
-                (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
-            }
-
-            ActivityLogger::logSubscription((int) $subscription->id, 'subscription_activated', 'Subscription activated', [
-                'status'     => 'success',
-                'created_by' => 'webhook:stripe',
-                'context'    => [
-                    'subscription_id' => $subscription->id,
-                    'supporter_id'    => $subscription->supporter_id,
-                    'period_end'      => $periodEnd,
-                ],
-            ]);
-            do_action('buymecoffee_subscription_activated', (int) $subscription->id);
-            return;
+            return $this->applyInitialInvoice($subscription, $object, $periodEnd);
         }
 
         // Renewal: create a new transaction record
@@ -384,27 +372,15 @@ class StripeSubscriptions
         $supportersModel = new Supporters();
         $supporter       = $supportersModel->find((int) $subscription->supporter_id);
         if (!$supporter) {
-            return;
+            return self::subscriptionOutcome('supporter_not_found');
         }
 
-        self::debugLog('handleRenewalWebhook: renewal payment — creating new transaction for subscription #' . $subscription->id);
+        self::debugLog('handleRenewalWebhook: renewal payment — recording invoice for subscription #' . $subscription->id);
 
-        // Deduplicate webhook retries/replays by invoice id for recurring renewals.
-        if ($invoiceId) {
-            $duplicate = buyMeCoffeeQuery()
-                ->table('buymecoffee_transactions')
-                ->where('subscription_id', (int) $subscription->id)
-                ->where('payment_method', 'stripe')
-                ->where('payment_note', 'like', '%"invoice_id":"' . addcslashes($invoiceId, '%_') . '"%')
-                ->first();
-
-            if ($duplicate) {
-                self::debugLog('handleRenewalWebhook: duplicate invoice_id "' . $invoiceId . '" — skipping');
-                return;
-            }
-        }
-
-        buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        // One row per invoice, whatever the delivery does: the service claims
+        // the invoice identity atomically, inserts at most once, and dispatches
+        // the canonical transition for the row it created.
+        $recorded = (new PaymentTransitionService())->recordRenewal([
             'entry_id'         => (int) $subscription->supporter_id,
             'entry_hash'       => sanitize_text_field($supporter->entry_hash),
             'subscription_id'  => (int) $subscription->id,
@@ -412,7 +388,6 @@ class StripeSubscriptions
             'payment_method'   => 'stripe',
             'charge_id'        => $chargeId,
             'payment_total'    => $storedAmount,
-            'status'           => 'paid',
             'currency'         => strtoupper($currency),
             'payment_mode'     => sanitize_text_field($subscription->payment_mode),
             'payment_note'     => GatewayAuditData::stripeInvoiceNote($invoiceId, [
@@ -420,16 +395,31 @@ class StripeSubscriptions
             ]),
             'created_at'       => current_time('mysql'),
             'updated_at'       => current_time('mysql'),
+        ], [
+            'subscription_id' => (int) $subscription->id,
+            'invoice_id'      => $invoiceId,
         ]);
 
-        $subscriptionModel->updateData($subscription->id, [
-            'status'             => 'active',
-            'current_period_end' => $periodEnd,
-            'updated_at'         => current_time('mysql'),
-        ]);
+        if (is_wp_error($recorded)) {
+            self::debugLog('handleRenewalWebhook: renewal not recorded — ' . $recorded->get_error_code());
 
-        if (!empty($subscription->level_id)) {
-            (new MembershipAccess())->upsertFromSubscription((int) $subscription->id);
+            return self::retryableOutcome($recorded);
+        }
+
+        // The billing period this invoice paid for, and the access it keeps
+        // alive, are refreshed on every renewal; the activation announcement is
+        // not, because the subscription was already active.
+        // The renewal transaction that paid for this period is what the period
+        // refresh is bound to, so a refund of it refuses the refresh as well.
+        (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd, (int) $recorded['transaction_id']);
+
+        if (empty($recorded['created'])) {
+            self::debugLog('handleRenewalWebhook: invoice "' . $invoiceId . '" was already recorded');
+
+            return self::subscriptionOutcome('duplicate_invoice', [
+                'transaction_id' => (int) $recorded['transaction_id'],
+                'changed'        => (bool) $recorded['changed'],
+            ]);
         }
 
         ActivityLogger::logSubscription((int) $subscription->id, 'subscription_renewed', 'Subscription renewed', [
@@ -444,6 +434,173 @@ class StripeSubscriptions
                 'invoice_id'      => $invoiceId,
                 'period_end'      => $periodEnd,
             ],
+        ]);
+
+        return self::subscriptionOutcome('renewal_recorded', [
+            'transaction_id' => (int) $recorded['transaction_id'],
+            'changed'        => (bool) $recorded['changed'],
+        ]);
+    }
+
+    /**
+     * Apply the invoice that pays for a subscription's first period.
+     *
+     * The browser confirmation normally settles this donation, but it only runs
+     * if the donor's browser comes back: a closed tab, a lost connection or a
+     * blocked request leaves the transaction and the supporter pending forever
+     * while the money is already taken. This invoice is Stripe's own statement
+     * that the first period was paid, so it settles the same donation through
+     * the same transition — and because that transition is idempotent, the
+     * ordinary case where the browser already settled it changes nothing.
+     *
+     * @param object      $subscription Local subscription row.
+     * @param object|null $invoice      Invoice object from the authenticated event.
+     * @param string|null $periodEnd    Billing period end, when Stripe reported one.
+     * @return array Outcome, see subscriptionOutcome().
+     */
+    private function applyInitialInvoice($subscription, $invoice, $periodEnd)
+    {
+        $original = $this->findInitialTransaction((int) $subscription->id);
+
+        // Activation grants recurring membership access. It must therefore be
+        // conditional on the same durable paid transaction as the canonical
+        // payment transition: a malformed invoice, a missing checkout row, or
+        // a terminal refund may not activate the subscription on its own.
+        if (!$original || !$this->invoiceReportsPayment($invoice)) {
+            return self::subscriptionOutcome('initial_invoice_not_applied', [
+                'transaction_id' => $original ? (int) $original->id : 0,
+            ]);
+        }
+
+        $transition = (new PaymentTransitionService())->apply($original, 'paid');
+
+        if (is_wp_error($transition)) {
+            if ($this->isRetryable($transition)) {
+                self::debugLog('handleRenewalWebhook: initial invoice could not be applied — ' . $transition->get_error_code());
+
+                return self::retryableOutcome($transition);
+            }
+
+            // A terminal refusal is a durable decision. Consume the event, but
+            // leave the subscription and its entitlements unchanged.
+            self::debugLog('handleRenewalWebhook: initial invoice refused — ' . $transition->get_error_code());
+
+            return self::subscriptionOutcome('initial_invoice_refused', [
+                'transaction_id' => (int) $original->id,
+            ]);
+        }
+
+        $activation = (new PaymentTransitionService())->activateSubscription((int) $subscription->id, $periodEnd, (int) $original->id);
+
+        if (!empty($activation['activated'])) {
+            ActivityLogger::logSubscription((int) $subscription->id, 'subscription_activated', 'Subscription activated', [
+                'status'     => 'success',
+                'created_by' => 'webhook:stripe',
+                'context'    => [
+                    'subscription_id' => $subscription->id,
+                    'supporter_id'    => $subscription->supporter_id,
+                    'period_end'      => $periodEnd,
+                ],
+            ]);
+        }
+
+        return self::subscriptionOutcome('initial_invoice_applied', [
+            'transaction_id' => (int) $transition['transaction_id'],
+            'changed'        => (bool) $transition['changed'],
+            'activated'      => !empty($activation['activated']),
+        ]);
+    }
+
+    /**
+     * The transaction the subscription was started with.
+     *
+     * Checkout creates it and links it to the subscription before Stripe is ever
+     * asked to bill, so it is the oldest row pointing at this subscription;
+     * every later row is a renewal recorded from its own invoice.
+     *
+     * @param int $subscriptionId Local subscription row ID.
+     * @return object|null
+     */
+    private function findInitialTransaction($subscriptionId)
+    {
+        return buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', absint($subscriptionId))
+            ->orderBy('id', 'ASC')
+            ->first();
+    }
+
+    /**
+     * Whether an invoice object actually states that it was paid.
+     *
+     * `invoice.payment_succeeded` says so by definition, but the money state is
+     * read from the invoice's own fields rather than from the event's name, so a
+     * malformed or unexpected object can never settle a donation.
+     *
+     * @param object|null $invoice Invoice object from the authenticated event.
+     * @return bool
+     */
+    private function invoiceReportsPayment($invoice)
+    {
+        if (!is_object($invoice)) {
+            return false;
+        }
+
+        if (!empty($invoice->paid)) {
+            return true;
+        }
+
+        return isset($invoice->amount_paid) && (int) $invoice->amount_paid > 0;
+    }
+
+    /**
+     * Whether a refused transition is worth another delivery.
+     *
+     * @param \WP_Error $error Transition error.
+     * @return bool
+     */
+    private function isRetryable($error)
+    {
+        $data = $error->get_error_data();
+
+        return is_array($data) && !empty($data['retryable']);
+    }
+
+    /**
+     * Build the record of what a subscription event decided.
+     *
+     * @param string $code  Machine-readable outcome.
+     * @param array  $extra Outcome details.
+     * @return array
+     */
+    private static function subscriptionOutcome($code, array $extra = [])
+    {
+        return array_merge([
+            'code'           => $code,
+            'retryable'      => false,
+            'transaction_id' => 0,
+            'changed'        => false,
+            'activated'      => false,
+            'message'        => '',
+            'retry_after'    => 0,
+        ], $extra);
+    }
+
+    /**
+     * Turn a transition failure into an outcome the webhook can answer with, so
+     * the provider redelivers instead of the event being marked consumed.
+     *
+     * @param \WP_Error $error Transition error.
+     * @return array
+     */
+    private static function retryableOutcome($error)
+    {
+        $data = $error->get_error_data();
+
+        return self::subscriptionOutcome($error->get_error_code(), [
+            'retryable'   => true,
+            'message'     => $error->get_error_message(),
+            'retry_after' => (is_array($data) && !empty($data['retry_after'])) ? (int) $data['retry_after'] : 0,
         ]);
     }
 

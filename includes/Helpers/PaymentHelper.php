@@ -12,6 +12,7 @@ use BuyMeCoffee\Models\Subscriptions;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PaymentTransitionService;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -188,15 +189,15 @@ class PaymentHelper
      * This runs from the browser after checkout and can be replayed at will — a
      * customer can reload the confirmation page long after the payment was
      * refunded. A refunded PaymentIntent still reports `status: succeeded`
-     * forever, so the reported status is treated as a claim, not an outcome: for
-     * one-time payments the transition is decided by
-     * OneTimePaymentStatusService, which refuses to move a refunded payment back
-     * to paid. Only the descriptive Stripe fields (card, charge reference, and
-     * the projected audit note) are written unconditionally; they describe the
-     * payment whatever became of it. The returned state is read back from
-     * storage, so a refused
-     * confirmation reports refunded and no access rather than the paid state the
-     * intent claimed.
+     * forever, so the reported status is treated as a claim, not an outcome: the
+     * transition is decided by the payment transition service, which refuses to
+     * move a refunded payment back to paid and fires the canonical payment hook
+     * only when the status really moved. Only the descriptive Stripe fields
+     * (card, charge reference, and the projected audit note) are written
+     * unconditionally; they describe the payment whatever became of it. The
+     * returned state is read back from storage, so a refused confirmation
+     * reports refunded and no access rather than the paid state the intent
+     * claimed.
      *
      * @param string $intentId Stripe PaymentIntent id.
      * @return array|\WP_Error
@@ -254,50 +255,37 @@ class PaymentHelper
             'card_brand' => sanitize_text_field($cardBand)
         ];
 
-        $status = $reportedStatus;
+        // Descriptive fields are written unconditionally; the status is decided
+        // by the transition service, for a subscription payment exactly as for a
+        // one-time one, so this confirmation cannot settle a payment twice or
+        // settle one without the side effects the canonical hook owns.
+        (new Transactions())->updateData($transactionId, $paymentDetails);
 
-        if ($subscriptionId) {
-            // Subscription-linked transactions keep their own lifecycle.
-            (new Supporters())->updateData($order->id, [
-                'payment_status' => $status,
-                'updated_at' => current_time('mysql')
-            ]);
-            (new Transactions())->updateData($transactionId, array_merge(
-                ['status' => sanitize_text_field($status)],
-                $paymentDetails
-            ));
-        } else {
-            (new Transactions())->updateData($transactionId, $paymentDetails);
+        $applied = $subscriptionId
+            ? (new PaymentTransitionService())->apply($order->transaction, $reportedStatus)
+            : (new OneTimePaymentStatusService())->apply($order->transaction, $reportedStatus);
 
-            $applied = (new OneTimePaymentStatusService())->apply($order->transaction, $reportedStatus);
-
-            if (is_wp_error($applied) && $applied->get_error_code() === 'bmc_payment_write_failed') {
-                // The status could not be stored at all, so nothing may be
-                // reported about it — the caller retries instead.
-                return $applied;
-            }
-
-            // Whatever the intent claimed, the stored status is the truth: a
-            // refused transition leaves the refund in place.
-            $status = $this->storedTransactionStatus($transactionId) ?: $reportedStatus;
+        if (is_wp_error($applied) && $applied->get_error_code() === 'bmc_payment_write_failed') {
+            // The status could not be stored at all, so nothing may be
+            // reported about it — the caller retries instead.
+            return $applied;
         }
+
+        // Whatever the intent claimed, the stored status is the truth: a
+        // refused transition leaves the refund in place.
+        $status = $this->storedTransactionStatus($transactionId) ?: $reportedStatus;
 
         // If this transaction belongs to a subscription, activate it now.
         // Webhooks also do this, but the frontend confirmation fires first and
-        // without this the subscription stays 'incomplete' until the webhook arrives.
+        // without this the subscription stays 'incomplete' until the webhook
+        // arrives. Activation is idempotent, so whichever of the two runs second
+        // announces nothing.
         if ($status === 'paid' && $subscriptionId) {
-            $subscriptionUpdate = [
-                'status'     => 'active',
-                'updated_at' => current_time('mysql'),
-            ];
-
-            $periodEnd = $this->resolveStripeSubscriptionPeriodEnd($subscriptionId);
-            if ($periodEnd) {
-                $subscriptionUpdate['current_period_end'] = $periodEnd;
-            }
-
-            (new Subscriptions())->updateData($subscriptionId, $subscriptionUpdate);
-            do_action('buymecoffee_subscription_activated', $subscriptionId);
+            (new PaymentTransitionService())->activateSubscription(
+                $subscriptionId,
+                $this->resolveStripeSubscriptionPeriodEnd($subscriptionId),
+                $transactionId
+            );
         }
 
         // Read after the transition: for a one-time payment the service has
@@ -307,10 +295,6 @@ class PaymentHelper
 
         $subscription = null;
         if ($subscriptionId) {
-            // One-time transitions fire this from the service instead, exactly
-            // once and only when the status actually moved.
-            do_action('buymecoffee_payment_status_updated', $transactionId, $status);
-
             $subscription = buyMeCoffeeQuery()
                 ->table('buymecoffee_subscriptions')
                 ->where('id', $subscriptionId)

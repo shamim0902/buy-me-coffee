@@ -35,6 +35,35 @@ class UserManager
             return;
         }
 
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->first();
+
+        if (!$transaction) {
+            return;
+        }
+
+        // Subscription entitlement follows the subscription lifecycle and its
+        // billing period, so the linked transaction is not handled here the way
+        // a one-time payment is: activation belongs to subscription_activated,
+        // and a single failed renewal must not cut off a member Stripe is still
+        // retrying.
+        //
+        // A refund is the exception, because nothing else ends it. The
+        // cancellation hook only fires when the agreement itself ends, and the
+        // period would otherwise simply run to term — so a refunded subscriber
+        // keeps the content they were refunded for. Only the payment covering
+        // the current period may decide that, so an older refunded renewal
+        // cannot revoke a period a later payment has already covered.
+        if (!empty($transaction->subscription_id)) {
+            if ($status === 'refunded' && $this->coversCurrentPeriod($transaction)) {
+                (new MembershipAccess())->revokeBySubscription((int) $transaction->subscription_id, $status);
+            }
+
+            return;
+        }
+
         if (in_array($status, ['refunded', 'failed'], true)) {
             (new MembershipAccess())->revokeByTransaction($transactionId, $status);
             return;
@@ -45,6 +74,31 @@ class UserManager
         if ($status === 'paid') {
             (new MembershipAccess())->activateByTransaction($transactionId);
         }
+    }
+
+    /**
+     * Whether a transaction is the payment that bought the period now running.
+     *
+     * Asked as "has anything since actually paid?", because only a later
+     * payment that succeeded can supersede this one. Reading the newest row of
+     * any status instead would let a renewal still sitting at pending — one
+     * whose paid transition never completed — stand in for a payment that was
+     * never made, and a refund of the payment that really did advance the
+     * period would then be waved through as superseded.
+     *
+     * @param object $transaction Transaction row, carrying a subscription_id.
+     * @return bool
+     */
+    private function coversCurrentPeriod($transaction)
+    {
+        $laterPayment = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', (int) $transaction->subscription_id)
+            ->where('status', 'paid')
+            ->where('id', '>', (int) $transaction->id)
+            ->first();
+
+        return !$laterPayment;
     }
 
     private function isEnabled(): bool

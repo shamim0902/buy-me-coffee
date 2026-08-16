@@ -27,6 +27,7 @@ use BuyMeCoffee\Models\Supporters;
 use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Services\GatewayAuditData;
 use BuyMeCoffee\Services\OneTimePaymentStatusService;
+use BuyMeCoffee\Services\PaymentTransitionService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 use BuyMeCoffee\Services\SupporterDeletionService;
 
@@ -558,6 +559,10 @@ $suite->test('PayPal IPN verification cannot be disabled by any stored setting',
 $suite->test('PayPal IPN status updates require a present, exactly matching receiver', function ($test) {
     global $wpdb;
 
+    add_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+
+    try {
+
     update_option('buymecoffee_payment_settings_paypal', [
         'enable' => 'yes',
         'payment_mode' => 'test',
@@ -656,10 +661,17 @@ $suite->test('PayPal IPN status updates require a present, exactly matching rece
     list($supporterId, $transactionId) = $makeTransaction();
     $paypal->updateStatus(array_merge($completedIpn, ['receiver_email' => 'merchant@example.com']), $transactionId);
     $test->assertSame('failed', $statusOf($transactionId), 'An unconfigured payee must never match a receiver');
+    } finally {
+        remove_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+    }
 });
 
 $suite->test('only a completed PayPal payment can transition a transaction to paid', function ($test) {
     global $wpdb;
+
+    add_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+
+    try {
 
     update_option('buymecoffee_payment_settings_paypal', [
         'enable' => 'yes',
@@ -750,6 +762,9 @@ $suite->test('only a completed PayPal payment can transition a transaction to pa
     $transactionId = $makeTransaction('test');
     $paypal->updateStatus(array_merge($baseIpn, ['payment_status' => 'Completed', 'mc_gross' => '0.01']), $transactionId);
     $test->assertSame('failed', $statusOf($transactionId), 'A tampered amount must not settle');
+    } finally {
+        remove_filter('buymecoffee_payment_status_manages_transaction', '__return_false');
+    }
 });
 
 // ── HIGH-02: supporter deletion must never leave a live Stripe subscription ──
@@ -4285,7 +4300,7 @@ $suite->test('unauthenticated Stripe deliveries are bounded per address without 
     }
 });
 
-$suite->test('a duplicate VERIFIED PayPal notification is applied once, and a distinct one is never mistaken for it', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+$suite->test('a duplicate VERIFIED PayPal notification is applied once, and a distinct one is never mistaken for it', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus, $bmcServiceSharesTestTransaction) {
     global $wpdb;
 
     $bmcClearGuard();
@@ -4293,6 +4308,7 @@ $suite->test('a duplicate VERIFIED PayPal notification is applied once, and a di
     $_SERVER['REMOTE_ADDR']    = '173.0.93.10';
     $_SERVER['REQUEST_METHOD'] = 'POST';
 
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
     $donation      = $bmcMakePayPalDonation();
     $transactionId = $donation['transaction_id'];
 
@@ -4314,7 +4330,7 @@ $suite->test('a duplicate VERIFIED PayPal notification is applied once, and a di
         $completed = [
             'txn_type'       => 'web_accept',
             'payment_status' => 'Completed',
-            'txn_id'         => 'BMC-IPN-REPLAY-1',
+            'txn_id'         => 'BMC-IPN-REPLAY-' . $transactionId,
             'receiver_email' => 'merchant@example.com',
             'mc_currency'    => 'USD',
             'mc_gross'       => '25.00',
@@ -4381,15 +4397,17 @@ $suite->test('a duplicate VERIFIED PayPal notification is applied once, and a di
         $test->assertSame('duplicate_ipn', (new IPN())->processIncomingIpn(http_build_query($noTrack))['code']);
     } finally {
         remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
     }
 });
 
-$suite->test('a PayPal notification that could not be applied, or is being applied elsewhere, stays redeliverable', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+$suite->test('a PayPal notification that could not be applied, or is being applied elsewhere, stays redeliverable', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus, $bmcServiceSharesTestTransaction) {
     $bmcClearGuard();
     $bmcPayPalStandardSettings();
     $_SERVER['REMOTE_ADDR']    = '173.0.93.11';
     $_SERVER['REQUEST_METHOD'] = 'POST';
 
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
     $donation      = $bmcMakePayPalDonation();
     $transactionId = $donation['transaction_id'];
 
@@ -4415,7 +4433,7 @@ $suite->test('a PayPal notification that could not be applied, or is being appli
         $body = http_build_query([
             'txn_type'       => 'web_accept',
             'payment_status' => 'Completed',
-            'txn_id'         => 'BMC-IPN-FAIL-1',
+            'txn_id'         => 'BMC-IPN-FAIL-' . $transactionId,
             'receiver_email' => 'merchant@example.com',
             'mc_currency'    => 'USD',
             'mc_gross'       => '25.00',
@@ -4441,7 +4459,7 @@ $suite->test('a PayPal notification that could not be applied, or is being appli
         $busyBody = http_build_query([
             'txn_type'       => 'web_accept',
             'payment_status' => 'Completed',
-            'txn_id'         => 'BMC-IPN-BUSY-1',
+            'txn_id'         => 'BMC-IPN-BUSY-' . $busyDonation['transaction_id'],
             'receiver_email' => 'merchant@example.com',
             'mc_currency'    => 'USD',
             'mc_gross'       => '25.00',
@@ -4465,14 +4483,16 @@ $suite->test('a PayPal notification that could not be applied, or is being appli
     } finally {
         remove_action('buymecoffee_paypal_action_web_accept', $failing, 1);
         remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
     }
 });
 
-$suite->test('a replayed PayPal body is throttled, and verified notifications are never charged to a shared address', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus) {
+$suite->test('a replayed PayPal body is throttled, and verified notifications are never charged to a shared address', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus, $bmcServiceSharesTestTransaction) {
     $bmcClearGuard();
     $bmcPayPalStandardSettings();
     $_SERVER['REQUEST_METHOD'] = 'POST';
 
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
     $answer = 'INVALID';
     $calls  = [];
 
@@ -4538,7 +4558,7 @@ $suite->test('a replayed PayPal body is throttled, and verified notifications ar
             $outcome = (new IPN())->processIncomingIpn(http_build_query([
                 'txn_type'       => 'web_accept',
                 'payment_status' => 'Completed',
-                'txn_id'         => 'BMC-IPN-REAL-' . $notification,
+                'txn_id'         => 'BMC-IPN-REAL-' . $donation['transaction_id'],
                 'receiver_email' => 'merchant@example.com',
                 'mc_currency'    => 'USD',
                 'mc_gross'       => '25.00',
@@ -4554,6 +4574,7 @@ $suite->test('a replayed PayPal body is throttled, and verified notifications ar
     } finally {
         remove_filter('buymecoffee_public_request_rate_limit', $tighten, 10);
         remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
     }
 });
 
@@ -5520,6 +5541,789 @@ $suite->test('a settled PayPal order still replays from its minimized note', fun
     );
 });
 
+// ── MEDIUM-03: every successful provider event settles through one transition ──
+
+/**
+ * A recurring checkout as it exists the moment the donor is handed the payment
+ * intent: the subscription is incomplete, the transaction and the supporter are
+ * pending, and nothing has been confirmed by anyone yet.
+ *
+ * `with_level` adds the membership a recurring plan sells, so the entitlement
+ * side of a settlement can be observed too.
+ */
+$bmcMakeSubscriptionCheckout = function (array $options = []) {
+    $suffix    = wp_generate_password(12, false, false);
+    $hash      = 'bmc_med03_' . $suffix;
+    $withLevel = !empty($options['with_level']);
+
+    $userId = (int) wp_insert_user([
+        'user_login' => 'bmc_med03_' . $suffix,
+        'user_email' => 'bmc-med03-' . $suffix . '@example.com',
+        'user_pass'  => wp_generate_password(24),
+        'role'       => 'subscriber',
+    ]);
+
+    $levelId = 0;
+    if ($withLevel) {
+        $levelId = (int) (new MembershipLevel())->create([
+            'name'          => 'MED03 Recurring Level',
+            'description'   => '',
+            'price'         => 2500,
+            'payment_type'  => 'subscription',
+            'interval_type' => 'month',
+            'status'        => 'active',
+            'rewards'       => '[]',
+            'access_rules'  => '[]',
+            'sort_order'    => 999,
+            'created_at'    => current_time('mysql'),
+            'updated_at'    => current_time('mysql'),
+        ]);
+    }
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'MED03 Donor',
+        'supporters_email' => 'bmc-med03-' . $suffix . '@example.com',
+        'payment_status'   => 'pending',
+        'entry_hash'       => $hash,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+        'wp_user_id'       => $userId,
+    ]);
+
+    $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+        'supporter_id'           => $supporterId,
+        'stripe_subscription_id' => 'sub_med03_' . $suffix,
+        'stripe_customer_id'     => 'cus_med03_' . $suffix,
+        'interval_type'          => 'month',
+        'amount'                 => 2500,
+        'currency'               => 'usd',
+        'status'                 => 'incomplete',
+        'payment_mode'           => 'test',
+        'level_id'               => $levelId ?: null,
+        'created_at'             => current_time('mysql'),
+        'updated_at'             => current_time('mysql'),
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => $hash,
+        'subscription_id'  => $subscriptionId,
+        'transaction_type' => 'recurring',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => 'pending',
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'charge_id'        => 'pi_med03_' . $suffix,
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    if ($levelId) {
+        // Checkout creates the access row up front, still incomplete.
+        (new MembershipAccess())->upsertFromSubscription($subscriptionId, false);
+    }
+
+    return [
+        'suffix'            => $suffix,
+        'hash'              => $hash,
+        'user_id'           => $userId,
+        'level_id'          => $levelId,
+        'supporter_id'      => $supporterId,
+        'subscription_id'   => $subscriptionId,
+        'transaction_id'    => $transactionId,
+        'stripe_sub_id'     => 'sub_med03_' . $suffix,
+        'intent_id'         => 'pi_med03_' . $suffix,
+    ];
+};
+
+/** A Stripe invoice as the subscription events carry it. */
+$bmcStripeInvoice = function ($stripeSubId, array $overrides = []) {
+    return array_merge([
+        'id'             => 'in_med03_' . wp_generate_password(10, false, false),
+        'object'         => 'invoice',
+        'subscription'   => $stripeSubId,
+        'billing_reason' => 'subscription_cycle',
+        'amount_paid'    => 2500,
+        'amount_due'     => 2500,
+        'currency'       => 'usd',
+        'paid'           => true,
+        'status'         => 'paid',
+        'payment_intent' => 'pi_med03_invoice_' . wp_generate_password(8, false, false),
+    ], $overrides);
+};
+
+/**
+ * Answer the two calls a subscription invoice makes — the subscription itself
+ * (for the billing period) and the invoice's payment intent (for the charge
+ * reference) — without any request leaving the process.
+ */
+$bmcStripeSubscriptionStub = function (&$requests, $periodEndTs) use ($bmcStripeBody) {
+    return function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            return $bmcStripeBody([
+                'id'            => 'pi_med03_fetched',
+                'object'        => 'payment_intent',
+                'status'        => 'succeeded',
+                'latest_charge' => 'ch_med03_' . substr(md5($url), 0, 8),
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            return $bmcStripeBody([
+                'id'                 => 'sub_med03_stub',
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request: ' . $url]], 404);
+    };
+};
+
+/** Every row state a subscription payment is expected to touch. */
+$bmcSubscriptionState = function (array $checkout) {
+    global $wpdb;
+
+    $prefix = $wpdb->prefix;
+
+    return [
+        'transaction' => $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$prefix}buymecoffee_transactions WHERE id = %d",
+            $checkout['transaction_id']
+        )),
+        'supporter' => $wpdb->get_var($wpdb->prepare(
+            "SELECT payment_status FROM {$prefix}buymecoffee_supporters WHERE id = %d",
+            $checkout['supporter_id']
+        )),
+        'subscription' => $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$prefix}buymecoffee_subscriptions WHERE id = %d",
+            $checkout['subscription_id']
+        )),
+        'period_end' => $wpdb->get_var($wpdb->prepare(
+            "SELECT current_period_end FROM {$prefix}buymecoffee_subscriptions WHERE id = %d",
+            $checkout['subscription_id']
+        )),
+        'transactions' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_transactions WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        )),
+        'paid_transactions' => (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}buymecoffee_transactions WHERE subscription_id = %d AND status = 'paid'",
+            $checkout['subscription_id']
+        )),
+    ];
+};
+
+/** Count the activity-log entries written for a subscription. */
+$bmcSubscriptionActivityCount = function ($subscriptionId, $event) {
+    global $wpdb;
+
+    return (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}buymecoffee_activities
+         WHERE object_type = 'subscription' AND object_id = %d AND event = %s",
+        $subscriptionId,
+        $event
+    ));
+};
+
+/** Record every subscription activation announcement. */
+$bmcWatchSubscriptionActivations = function () {
+    $activated = new ArrayObject(['ids' => []]);
+
+    $watcher = function ($subscriptionId) use ($activated) {
+        $activated['ids'] = array_merge($activated['ids'], [(int) $subscriptionId]);
+    };
+
+    add_action('buymecoffee_subscription_activated', $watcher, 99, 1);
+
+    return [$activated, function () use ($watcher) {
+        remove_action('buymecoffee_subscription_activated', $watcher, 99);
+    }];
+};
+
+$suite->test('a first subscription invoice settles the donation a closed browser never confirmed', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcPaymentActivityCount, $bmcSubscriptionActivityCount, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $before = $bmcSubscriptionState($checkout);
+        $test->assertSame('pending', $before['transaction'], 'The browser never confirmed this donation');
+        $test->assertSame('incomplete', $before['subscription']);
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        $invoice = $bmcStripeInvoice($checkout['stripe_sub_id'], [
+            'id'             => 'in_med03_first_' . $checkout['suffix'],
+            'billing_reason' => 'subscription_create',
+        ]);
+
+        $event = $bmcStripeEvent(
+            'evt_med03_first_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        );
+
+        $outcome = (new Stripe())->processAuthenticatedEvent($event);
+
+        $test->assertSame('subscription_event_processed', $outcome['code']);
+        $test->assertSame(200, $outcome['http']);
+        $test->assertSame($checkout['transaction_id'], $outcome['transaction_id'], 'The original donation is what settled');
+        $test->assertTrue($outcome['changed']);
+
+        $settled = $bmcSubscriptionState($checkout);
+        $test->assertSame('paid', $settled['transaction'], 'The genuine first invoice must settle the original transaction');
+        $test->assertSame('paid', $settled['supporter'], 'The supporter must not be left pending');
+        $test->assertSame('active', $settled['subscription']);
+        $test->assertSame(gmdate('Y-m-d H:i:s', $periodEndTs), $settled['period_end']);
+        $test->assertSame(1, $settled['transactions'], 'A first invoice must not create a second transaction');
+
+        $test->assertSame([[$checkout['transaction_id'], 'paid']], $log['status'], 'The canonical transition fires exactly once');
+        $test->assertSame([$checkout['subscription_id']], $activated['ids'], 'The subscription is activated exactly once');
+        $test->assertSame(2, count($log['mail']), 'The donor and admin are each notified once');
+        $test->assertSame(1, $bmcPaymentActivityCount($checkout['transaction_id'], 'payment_completed'));
+        $test->assertSame(1, $bmcSubscriptionActivityCount($checkout['subscription_id'], 'subscription_activated'));
+        $test->assertSame(
+            [$checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The membership the subscription sells must be live'
+        );
+
+        // Stripe redelivers events, and announces the same invoice again under a
+        // new event id when it retries a whole delivery batch. Neither may repeat
+        // a single side effect.
+        $replay = (new Stripe())->processAuthenticatedEvent($event);
+        $test->assertSame('duplicate_event', $replay['code']);
+        $test->assertSame(200, $replay['http']);
+
+        $resent = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_first_again_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+        $test->assertSame('subscription_event_processed', $resent['code']);
+        $test->assertFalse($resent['changed'], 'A repeated invoice moves nothing');
+
+        $test->assertSame($settled, $bmcSubscriptionState($checkout), 'A replayed invoice must not change any row');
+        $test->assertSame(1, count($log['status']), 'A replay must not re-fire the payment transition');
+        $test->assertSame(1, count($activated['ids']), 'A replay must not announce the activation again');
+        $test->assertSame(2, count($log['mail']), 'A replay must not email the donor again');
+        $test->assertSame(1, count($log['activated']), 'A replay must not re-grant the membership');
+        $test->assertSame(1, $bmcPaymentActivityCount($checkout['transaction_id'], 'payment_completed'));
+        $test->assertSame(1, $bmcSubscriptionActivityCount($checkout['subscription_id'], 'subscription_activated'));
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a first payment already confirmed in the browser is not settled a second time by its invoice', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcStripeBody, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $checkout, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            return $bmcStripeBody([
+                'id'              => $checkout['intent_id'],
+                'object'          => 'payment_intent',
+                'status'          => 'succeeded',
+                'amount'          => 2500,
+                'amount_received' => 2500,
+                'currency'        => 'usd',
+                'livemode'        => false,
+                'latest_charge'   => 'ch_med03_browser',
+                'metadata'        => ['ref_id' => $checkout['hash']],
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            return $bmcStripeBody([
+                'id'                 => $checkout['stripe_sub_id'],
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request']], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $confirmed = (new PaymentHelper())->updatePaymentData($checkout['intent_id']);
+
+        $test->assertFalse(is_wp_error($confirmed), 'The browser confirmation itself must still work');
+        $test->assertSame('paid', $confirmed['payment_status']);
+        $test->assertSame($checkout['subscription_id'], $confirmed['subscription_id']);
+        $test->assertTrue($confirmed['access_active'], 'A confirmed subscription grants its membership');
+
+        $afterBrowser = $bmcSubscriptionState($checkout);
+        $test->assertSame('paid', $afterBrowser['transaction']);
+        $test->assertSame('paid', $afterBrowser['supporter']);
+        $test->assertSame('active', $afterBrowser['subscription']);
+
+        $test->assertSame([[$checkout['transaction_id'], 'paid']], $log['status'], 'The browser path fires the transition once');
+        $test->assertSame([$checkout['subscription_id']], $activated['ids']);
+        $test->assertSame(2, count($log['mail']));
+
+        // The webhook for the very same first invoice arrives afterwards, which
+        // is the ordinary case: it must change nothing at all.
+        $outcome = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_confirmed_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $bmcStripeInvoice($checkout['stripe_sub_id'], [
+                'id'             => 'in_med03_confirmed_' . $checkout['suffix'],
+                'billing_reason' => 'subscription_create',
+            ])
+        ));
+
+        $test->assertSame('subscription_event_processed', $outcome['code']);
+        $test->assertFalse($outcome['changed'], 'The donation was already settled');
+
+        $test->assertSame($afterBrowser, $bmcSubscriptionState($checkout), 'The webhook must not rewrite settled state');
+        $test->assertSame(1, count($log['status']), 'The canonical transition must not fire twice for one payment');
+        $test->assertSame(1, count($activated['ids']), 'The subscription must not be announced active twice');
+        $test->assertSame(2, count($log['mail']), 'The donor must not be thanked twice');
+        $test->assertSame(1, $bmcPaymentActivityCount($checkout['transaction_id'], 'payment_completed'));
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a Stripe renewal records one paid transaction and dispatches the transition once', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcPaymentActivityCount, $bmcSubscriptionActivityCount, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout();
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    // A subscription that is already live: its first payment settled long ago.
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_supporters', ['payment_status' => 'paid'], ['id' => $checkout['supporter_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'active'], ['id' => $checkout['subscription_id']]);
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $invoice = $bmcStripeInvoice($checkout['stripe_sub_id'], [
+            'id' => 'in_med03_renewal_' . $checkout['suffix'],
+        ]);
+
+        $outcome = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_renewal_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+
+        $test->assertSame('subscription_event_processed', $outcome['code']);
+        $test->assertSame(200, $outcome['http']);
+        $test->assertTrue($outcome['changed'], 'A renewal is a new payment');
+
+        $renewalId = (int) $outcome['transaction_id'];
+        $test->assertTrue($renewalId > 0 && $renewalId !== $checkout['transaction_id'], 'The renewal is its own transaction');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame(2, $state['transactions'], 'A renewal adds exactly one transaction');
+        $test->assertSame(2, $state['paid_transactions']);
+        $test->assertSame('active', $state['subscription']);
+        $test->assertSame(gmdate('Y-m-d H:i:s', $periodEndTs), $state['period_end'], 'The paid billing period is recorded');
+
+        $renewal = buyMeCoffeeQuery()->table('buymecoffee_transactions')->where('id', $renewalId)->first();
+        $test->assertSame('paid', $renewal->status);
+        $test->assertSame(2500, (int) $renewal->payment_total);
+        $test->assertSame('recurring', $renewal->transaction_type);
+        $test->assertContains('in_med03_renewal_' . $checkout['suffix'], (string) $renewal->payment_note);
+        $test->assertContains('ch_med03_', (string) $renewal->charge_id, 'The charge behind the invoice is recorded');
+
+        $test->assertSame([[$renewalId, 'paid']], $log['status'], 'A renewal dispatches the canonical transition once');
+        $test->assertSame(2, count($log['mail']), 'A renewal receipt goes out once');
+        $test->assertSame(1, $bmcPaymentActivityCount($renewalId, 'payment_completed'));
+        $test->assertSame(1, $bmcSubscriptionActivityCount($checkout['subscription_id'], 'subscription_renewed'));
+        $test->assertSame([], $activated['ids'], 'A live subscription must not be announced active again');
+
+        // The same invoice again — once as the identical event, once as a fresh
+        // event id carrying the same invoice.
+        $duplicateEvent = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_renewal_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+        $test->assertSame('duplicate_event', $duplicateEvent['code']);
+
+        $duplicateInvoice = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_renewal_again_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+        $test->assertSame('subscription_event_processed', $duplicateInvoice['code']);
+        $test->assertFalse($duplicateInvoice['changed'], 'A recorded invoice moves nothing');
+        $test->assertSame($renewalId, (int) $duplicateInvoice['transaction_id']);
+
+        $test->assertSame($state, $bmcSubscriptionState($checkout), 'A replayed invoice must not change any row');
+        $test->assertSame(1, count($log['status']), 'A replayed invoice must not re-dispatch the transition');
+        $test->assertSame(2, count($log['mail']), 'A replayed invoice must not send the receipt again');
+        $test->assertSame(1, $bmcPaymentActivityCount($renewalId, 'payment_completed'));
+        $test->assertSame(1, $bmcSubscriptionActivityCount($checkout['subscription_id'], 'subscription_renewed'));
+
+        // A genuinely different invoice for the next period is still recorded.
+        $next = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_renewal_next_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $bmcStripeInvoice($checkout['stripe_sub_id'], [
+                'id' => 'in_med03_renewal_next_' . $checkout['suffix'],
+            ])
+        ));
+
+        $test->assertTrue($next['changed'], 'The next period is a new payment');
+        $test->assertSame(3, $bmcSubscriptionState($checkout)['transactions']);
+        $test->assertSame(2, count($log['status']), 'Each distinct renewal dispatches its own transition');
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a renewal being recorded elsewhere stays redeliverable, and an interrupted one is finished', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout();
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'active'], ['id' => $checkout['subscription_id']]);
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $invoiceId = 'in_med03_busy_' . $checkout['suffix'];
+        $invoice   = $bmcStripeInvoice($checkout['stripe_sub_id'], ['id' => $invoiceId]);
+
+        // Another worker is already recording this invoice.
+        $inFlight = PublicRequestGuard::claim('stripe_invoice', 'invoice|' . $invoiceId);
+        $test->assertTrue($inFlight['acquired'], 'The first worker takes the invoice');
+
+        $busy = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_busy_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+
+        $test->assertSame('event_in_progress', $busy['code']);
+        $test->assertSame(409, $busy['http'], 'A conflicted renewal must stay redeliverable');
+        $test->assertSame(1, $bmcSubscriptionState($checkout)['transactions'], 'It must write no transaction');
+        $test->assertSame([], $log['status'], 'It must dispatch nothing');
+
+        PublicRequestGuard::releaseClaim($inFlight['key'], $inFlight['owner']);
+
+        $afterRelease = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_busy_retry_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+
+        $test->assertSame('subscription_event_processed', $afterRelease['code']);
+        $test->assertTrue($afterRelease['changed'], 'Once released, the redelivery records the renewal');
+        $test->assertSame(2, $bmcSubscriptionState($checkout)['transactions'], 'Still exactly one row for the invoice');
+        $test->assertSame(1, count($log['status']));
+
+        // A delivery interrupted between writing the row and settling it leaves
+        // an unsettled renewal behind. The next delivery must finish that row
+        // rather than record the payment a second time.
+        $strandedInvoice = 'in_med03_stranded_' . $checkout['suffix'];
+        $strandedId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $checkout['supporter_id'],
+            'entry_hash'       => $checkout['hash'],
+            'subscription_id'  => $checkout['subscription_id'],
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'pending',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'payment_note'     => GatewayAuditData::stripeInvoiceNote($strandedInvoice, [
+                'event_type' => 'invoice.payment_succeeded',
+            ]),
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+
+        $finished = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_stranded_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $bmcStripeInvoice($checkout['stripe_sub_id'], ['id' => $strandedInvoice])
+        ));
+
+        $test->assertSame('subscription_event_processed', $finished['code']);
+        $test->assertSame($strandedId, (int) $finished['transaction_id'], 'The stranded row is what settles');
+        $test->assertTrue($finished['changed']);
+        $test->assertSame(3, $bmcSubscriptionState($checkout)['transactions'], 'No duplicate row may be written');
+        $test->assertSame('paid', $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}buymecoffee_transactions WHERE id = %d",
+            $strandedId
+        )));
+        $test->assertSame(2, count($log['status']), 'The finished row dispatches its transition once');
+        $test->assertSame(1, $bmcPaymentActivityCount($strandedId, 'payment_completed'));
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('no subscription invoice can revive a refunded payment', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'refunded'], ['id' => $checkout['transaction_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_supporters', ['payment_status' => 'refunded'], ['id' => $checkout['supporter_id']]);
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $outcome = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_refunded_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $bmcStripeInvoice($checkout['stripe_sub_id'], [
+                'id'             => 'in_med03_refunded_' . $checkout['suffix'],
+                'billing_reason' => 'subscription_create',
+            ])
+        ));
+
+        $test->assertSame('subscription_event_processed', $outcome['code']);
+        $test->assertSame(200, $outcome['http'], 'A refused transition is a decision, not a redelivery');
+        $test->assertFalse($outcome['changed']);
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('refunded', $state['transaction'], 'A refund is final for a subscription payment too');
+        $test->assertSame('refunded', $state['supporter']);
+        $test->assertSame('incomplete', $state['subscription'], 'A refunded payment must not activate its subscription');
+        $test->assertSame('', (string) $state['period_end'], 'A refused invoice must not advance the billing period');
+        $test->assertSame(1, $state['transactions'], 'A refused invoice must not create a replacement row');
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true), 'A refused invoice must not grant membership access');
+        $test->assertSame([], $log['status'], 'A refused transition must not fire the payment hook');
+        $test->assertSame([], $log['mail'], 'A refused transition must not email the donor');
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a verified PayPal notification dispatches the canonical transition exactly once', function ($test) use ($bmcClearGuard, $bmcPayPalStandardSettings, $bmcMakePayPalDonation, $bmcTransactionStatus, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcPayPalStandardSettings();
+    $_SERVER['REMOTE_ADDR']    = '173.0.93.20';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $donation            = $bmcMakePayPalDonation();
+    $transactionId       = $donation['transaction_id'];
+
+    $stub = function ($pre, $args, $url) {
+        return [
+            'headers'  => [],
+            'body'     => 'VERIFIED',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies'  => [],
+            'filename' => null,
+        ];
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    $completed = [
+        'txn_type'       => 'web_accept',
+        'payment_status' => 'Completed',
+        'txn_id'         => 'BMC-IPN-MED03',
+        'receiver_email' => 'merchant@example.com',
+        'mc_currency'    => 'USD',
+        'mc_gross'       => '25.00',
+        'custom'         => $transactionId,
+        'ipn_track_id'   => 'trackMed03A',
+    ];
+
+    try {
+        $first = (new IPN())->processIncomingIpn(http_build_query($completed));
+
+        $test->assertSame('ipn_processed', $first['code']);
+        $test->assertSame('paid', $bmcTransactionStatus($transactionId));
+        $test->assertSame('paid', $wpdb->get_var($wpdb->prepare(
+            "SELECT payment_status FROM {$wpdb->prefix}buymecoffee_supporters WHERE id = %d",
+            $donation['supporter_id']
+        )), 'The supporter settles with the payment');
+
+        $test->assertSame([[$transactionId, 'paid']], $log['status'], 'A verified IPN dispatches the transition once');
+        $test->assertSame(2, count($log['mail']), 'The donor and admin are each notified once');
+        $test->assertSame(1, $bmcPaymentActivityCount($transactionId, 'payment_completed'));
+
+        $reference = buyMeCoffeeQuery()->table('buymecoffee_transactions')->where('id', $transactionId)->first();
+        $test->assertSame('BMC-IPN-MED03', $reference->charge_id, 'The provider reference is still recorded');
+
+        // PayPal redelivers until it gets a 200, and sends further notifications
+        // for the same payment. Neither may repeat a side effect.
+        $duplicate = (new IPN())->processIncomingIpn(http_build_query($completed));
+        $test->assertSame('duplicate_ipn', $duplicate['code']);
+
+        $distinct = (new IPN())->processIncomingIpn(http_build_query(array_merge($completed, [
+            'ipn_track_id' => 'trackMed03B',
+            'payment_date' => '11:00:00 Jan 01, 2026 PST',
+        ])));
+        $test->assertSame('ipn_processed', $distinct['code'], 'A distinct notification is still applied');
+
+        $test->assertSame('paid', $bmcTransactionStatus($transactionId));
+        $test->assertSame(1, count($log['status']), 'A repeated outcome must not re-fire the transition');
+        $test->assertSame(2, count($log['mail']), 'A repeated outcome must not email the donor again');
+        $test->assertSame(1, $bmcPaymentActivityCount($transactionId, 'payment_completed'));
+
+        // And a completed notification arriving after a refund must never
+        // restore the payment.
+        $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'refunded'], ['id' => $transactionId]);
+
+        $afterRefund = (new IPN())->processIncomingIpn(http_build_query(array_merge($completed, [
+            'ipn_track_id' => 'trackMed03C',
+            'payment_date' => '12:00:00 Jan 01, 2026 PST',
+        ])));
+
+        $test->assertSame('ipn_processed', $afterRefund['code']);
+        $test->assertSame('refunded', $bmcTransactionStatus($transactionId), 'A refund is final');
+        $test->assertSame(1, count($log['status']), 'A refused transition fires nothing');
+        $test->assertSame(2, count($log['mail']));
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a PayPal capture and its notification settle one donation once between them', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcPayPalProSettings, $bmcMakePayPalDonation, $bmcPayPalBody, $bmcPayPalOrder, $bmcTransactionStatus, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcPayPalProSettings();
+    $_SERVER['REMOTE_ADDR']    = '203.0.113.88';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $donation            = $bmcMakePayPalDonation();
+    $hash                = $donation['hash'];
+
+    $stub = function ($pre, $args, $url) use ($bmcPayPalBody, $bmcPayPalOrder, $hash) {
+        if (strpos($url, 'oauth2/token') !== false) {
+            return $bmcPayPalBody(['access_token' => 'test-token']);
+        }
+
+        if (strpos($url, 'ipnpb') !== false) {
+            return $bmcPayPalBody('VERIFIED');
+        }
+
+        return $bmcPayPalBody($bmcPayPalOrder('PAYPAL-ORDER-MED03', $hash, 'COMPLETED'));
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'charge_id'         => 'PAYPAL-ORDER-MED03',
+            'hash'              => $hash,
+        ];
+
+        $captured = $bmcCapturePublicResponse(function () {
+            (new PayPal())->paymentConfirmation();
+        });
+
+        $test->assertSame(200, $captured['status']);
+        $test->assertSame('paid', $bmcTransactionStatus($donation['transaction_id']));
+        $test->assertSame([[$donation['transaction_id'], 'paid']], $log['status'], 'The capture dispatches the transition once');
+        $test->assertSame(2, count($log['mail']));
+
+        // PayPal also notifies the site about the very same payment.
+        $ipn = (new IPN())->processIncomingIpn(http_build_query([
+            'txn_type'       => 'web_accept',
+            'payment_status' => 'Completed',
+            'txn_id'         => 'CAPTURE-PAYPAL-ORDER-MED03',
+            'receiver_email' => 'merchant@example.com',
+            'mc_currency'    => 'USD',
+            'mc_gross'       => '25.00',
+            'custom'         => $donation['transaction_id'],
+            'ipn_track_id'   => 'trackMed03Capture',
+        ]));
+
+        $test->assertSame('ipn_processed', $ipn['code']);
+        $test->assertSame('paid', $bmcTransactionStatus($donation['transaction_id']));
+        $test->assertSame(1, count($log['status']), 'One donation may only be announced settled once');
+        $test->assertSame(2, count($log['mail']), 'The donor must not be thanked by both paths');
+        $test->assertSame(1, $bmcPaymentActivityCount($donation['transaction_id'], 'payment_completed'));
+    } finally {
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
 $suite->test('a payment left unbound by the upgrade is refused in the browser and still settled by the webhook', function ($test) use ($bmcCapturePublicResponse, $bmcStripeSettings, $bmcStripeBody, $bmcMakeOneTimePurchase, $bmcStripeEvent, $bmcStripeCharge, $bmcPaymentState, $bmcClearGuard, $bmcGuardRows, $bmcServiceSharesTestTransaction) {
     global $wpdb;
 
@@ -5641,6 +6445,98 @@ $suite->test('a stale paid announcement cannot re-open the access a refund has a
     }
 });
 
+$suite->test('a refund landing during a browser confirmation must not activate the subscription', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcStripeSettings, $bmcStripeBody, $bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.91';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    // The confirmation reads the transaction before it reaches Stripe, so the
+    // refund is landed while the intent is being fetched: exactly the window in
+    // which the confirmation's own copy of the payment goes stale.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $checkout, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            $transaction = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('id', $checkout['transaction_id'])
+                ->first();
+
+            (new PaymentTransitionService())->apply($transaction, 'refunded');
+
+            // A refunded PaymentIntent keeps reporting "succeeded" for good.
+            return $bmcStripeBody([
+                'id'              => $checkout['intent_id'],
+                'object'          => 'payment_intent',
+                'status'          => 'succeeded',
+                'amount'          => 2500,
+                'amount_received' => 2500,
+                'currency'        => 'usd',
+                'livemode'        => false,
+                'metadata'        => ['ref_id' => $checkout['hash']],
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            return $bmcStripeBody([
+                'id'                 => $checkout['stripe_sub_id'],
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request: ' . $url]], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $checkout['intent_id'],
+            'subscriptionId'    => $checkout['subscription_id'],
+        ];
+
+        $captured = $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $test->assertSame(403, $captured['status'], 'A confirmation of a payment that is no longer live is refused');
+        $test->assertFalse($captured['body']['success'], 'A refused confirmation must not report success');
+        $test->assertSame(1, count($requests), 'The refusal happens on the transition, before any further Stripe call');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame('incomplete', $state['subscription'], 'A terminal refusal must not activate the subscription');
+        $test->assertSame('', (string) $state['period_end'], 'A refused confirmation must not advance the billing period');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded first payment must not hand back membership access'
+        );
+        $test->assertSame([], $activated['ids'], 'No subscription activation may be announced');
+        $test->assertSame([], $log['activated'], 'No entitlement may be announced');
+        $test->assertSame(
+            [[$checkout['transaction_id'], 'refunded']],
+            $log['status'],
+            'The refund is the only transition this request produced'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
 $suite->test('a refund landing before the announcement is what gets announced, not the paid it replaced', function ($test) use ($bmcMakeOneTimePurchase, $bmcPaymentState, $bmcWatchPaymentSideEffects, $bmcPaymentActivityCount, $bmcServiceSharesTestTransaction) {
     global $wpdb;
 
@@ -5693,6 +6589,364 @@ $suite->test('a refund landing before the announcement is what gets announced, n
         $test->assertSame([], $state['levels'], 'And the access it revoked stays revoked');
     } finally {
         remove_filter('query', $injectRefund);
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a renewal redelivered after a cancellation cannot bring the subscription back', function ($test) use ($bmcClearGuard, $bmcStripeSettings, $bmcMakeSubscriptionCheckout, $bmcStripeEvent, $bmcStripeInvoice, $bmcStripeSubscriptionStub, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $bmcClearGuard();
+    $bmcStripeSettings();
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    $wpdb->update($wpdb->prefix . 'buymecoffee_transactions', ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+    $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'active'], ['id' => $checkout['subscription_id']]);
+
+    $requests = [];
+    $stub     = $bmcStripeSubscriptionStub($requests, $periodEndTs);
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        // A renewal is recorded while the membership is live.
+        $invoiceId = 'in_med03_cancelled_' . $checkout['suffix'];
+        $invoice   = $bmcStripeInvoice($checkout['stripe_sub_id'], ['id' => $invoiceId]);
+
+        $recorded = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_cancel_1_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+        $test->assertSame('subscription_event_processed', $recorded['code']);
+
+        // The customer then cancels, and the entitlement ends with the agreement.
+        $wpdb->update($wpdb->prefix . 'buymecoffee_subscriptions', ['status' => 'cancelled'], ['id' => $checkout['subscription_id']]);
+        $wpdb->update(
+            $wpdb->prefix . 'buymecoffee_membership_access',
+            ['status' => 'cancelled', 'expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS)],
+            ['subscription_id' => $checkout['subscription_id']]
+        );
+
+        $test->assertSame('cancelled', $bmcSubscriptionState($checkout)['subscription']);
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true), 'The cancellation ends the entitlement');
+
+        $activated['ids'] = [];
+
+        // Stripe redelivers the renewal it already delivered. A payment event
+        // for an agreement that has ended cannot restart it.
+        $redelivered = (new Stripe())->processAuthenticatedEvent($bmcStripeEvent(
+            'evt_med03_cancel_2_' . $checkout['suffix'],
+            'invoice.payment_succeeded',
+            $invoice
+        ));
+
+        $test->assertFalse(is_wp_error($redelivered), 'The redelivery is answered, not failed');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('cancelled', $state['subscription'], 'A cancelled agreement must stay cancelled');
+        $test->assertSame([], $activated['ids'], 'No activation may be announced for it');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A cancelled member must not get the level back from a redelivered invoice'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a refund landing after the transition still cannot activate the subscription', function ($test) use ($bmcCapturePublicResponse, $bmcClearGuard, $bmcStripeSettings, $bmcStripeBody, $bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    $bmcClearGuard();
+    $bmcStripeSettings();
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.92';
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $periodEndTs         = time() + 30 * DAY_IN_SECONDS;
+
+    // The intent confirms cleanly, so the paid transition succeeds and releases
+    // its lock. The refund is landed on the *next* Stripe call — the period
+    // lookup that sits between the transition and the activation — which is
+    // precisely the window the transition can no longer hold closed.
+    $requests = [];
+    $stub = function ($pre, $args, $url) use (&$requests, $bmcStripeBody, $checkout, $periodEndTs) {
+        $requests[] = $url;
+
+        if (strpos($url, 'payment_intents/') !== false) {
+            return $bmcStripeBody([
+                'id'              => $checkout['intent_id'],
+                'object'          => 'payment_intent',
+                'status'          => 'succeeded',
+                'amount'          => 2500,
+                'amount_received' => 2500,
+                'currency'        => 'usd',
+                'livemode'        => false,
+                'metadata'        => ['ref_id' => $checkout['hash']],
+            ]);
+        }
+
+        if (strpos($url, 'subscriptions/') !== false) {
+            $transaction = buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->where('id', $checkout['transaction_id'])
+                ->first();
+
+            (new PaymentTransitionService())->apply($transaction, 'refunded');
+
+            return $bmcStripeBody([
+                'id'                 => $checkout['stripe_sub_id'],
+                'object'             => 'subscription',
+                'status'             => 'active',
+                'current_period_end' => $periodEndTs,
+            ]);
+        }
+
+        return $bmcStripeBody(['error' => ['message' => 'unexpected request: ' . $url]], 404);
+    };
+    add_filter('pre_http_request', $stub, 10, 3);
+
+    list($log, $stopWatching)          = $bmcWatchPaymentSideEffects();
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $_REQUEST = [
+            'buymecoffee_nonce' => wp_create_nonce('buymecoffee_nonce'),
+            'intentId'          => $checkout['intent_id'],
+            'subscriptionId'    => $checkout['subscription_id'],
+        ];
+
+        $bmcCapturePublicResponse(function () {
+            (new Stripe())->paymentConfirmation();
+        });
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('refunded', $state['transaction'], 'The refund stands');
+        $test->assertSame('incomplete', $state['subscription'], 'A refunded payment must not leave the subscription active');
+        $test->assertSame('', (string) $state['period_end'], 'Nor may it advance the billing period');
+        $test->assertSame([], $activated['ids'], 'No activation may be announced');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded first payment must not hand back membership access'
+        );
+    } finally {
+        $stopActivations();
+        $stopWatching();
+        remove_filter('pre_http_request', $stub, 10);
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a refunded payment cannot be projected back into access by its subscription', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+    $access    = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        // A live membership: the subscription is active, its period is paid for.
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+
+        $test->assertNotEmpty($access->upsertFromSubscription($checkout['subscription_id']), 'A paid subscription projects its entitlement');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The paid period grants the level'
+        );
+
+        // The payment is refunded and the access it bought is revoked.
+        $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $checkout['transaction_id']]);
+        $access->revokeByTransaction($checkout['transaction_id']);
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true), 'The refund ends the entitlement');
+
+        $revoked = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+
+        // The subscription row still says 'active' and still carries the period
+        // the payment bought — it knows nothing about the refund. Projecting it
+        // is exactly what would hand the content back.
+        $test->assertSame('active', $bmcSubscriptionState($checkout)['subscription'], 'The subscription itself is unchanged by the refund');
+
+        $test->assertSame(0, $access->upsertFromSubscription($checkout['subscription_id']), 'A refunded payment may not project a granting row');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded renewal must not extend or restore access'
+        );
+
+        $after = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+        $test->assertSame($revoked->status, $after->status, 'The access row is left exactly as the refund left it');
+        $test->assertSame($revoked->expires_at, $after->expires_at, 'And its expiry is not advanced');
+
+        // The same guard has to hold on the announcement path, where
+        // UserManager projects the subscription off the activation hook without
+        // consulting the payment either.
+        do_action('buymecoffee_subscription_activated', (int) $checkout['subscription_id']);
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The activation hook must not restore a refunded subscriber either'
+        );
+
+        // A later payment covering a new period is what legitimately restores
+        // it — the guard is on the money, not on the access row.
+        $renewalId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $checkout['supporter_id'],
+            'entry_hash'       => $checkout['hash'],
+            'subscription_id'  => $checkout['subscription_id'],
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'paid',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+        $test->assertNotEmpty($renewalId);
+
+        $test->assertNotEmpty($access->upsertFromSubscription($checkout['subscription_id']), 'A fresh payment projects again');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The period the new payment covers grants the level'
+        );
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('refunding the payment a subscription is running on ends its access', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+    $access    = new MembershipAccess();
+
+    $addRenewal = function ($status) use ($wpdb, $checkout) {
+        return (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $checkout['supporter_id'],
+            'entry_hash'       => $checkout['hash'],
+            'subscription_id'  => $checkout['subscription_id'],
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => $status,
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+    };
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The live subscription grants the level'
+        );
+
+        // A renewal pays for the period now running, and is then refunded. The
+        // subscription is not cancelled — the agreement is untouched — so
+        // nothing in its own lifecycle will end the entitlement, and the period
+        // would otherwise simply run to term.
+        $renewalId = $addRenewal('paid');
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'paid');
+
+        $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $renewalId]);
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'refunded');
+
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'Refunding the payment the current period rests on ends the access'
+        );
+        $test->assertSame(1, count($log['revoked']), 'The revocation is announced once');
+
+        // An older payment losing its money says nothing about a period a later
+        // payment has since covered: a new renewal restores the entitlement,
+        // and refunding the superseded one must not take it away again.
+        $laterId = $addRenewal('paid');
+        do_action('buymecoffee_payment_status_updated', $laterId, 'paid');
+        $access->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The newer payment covers the period again'
+        );
+
+        do_action('buymecoffee_payment_status_updated', $renewalId, 'refunded');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A superseded refund must not revoke a period a later payment covers'
+        );
+
+        // A renewal still sitting at pending is not a payment. It must not be
+        // mistaken for one that superseded an earlier period, or a refund of
+        // the payment that really did advance that period would be waved
+        // through as already superseded.
+        $stalledId = $addRenewal('pending');
+        do_action('buymecoffee_payment_status_updated', $laterId, 'refunded');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A pending renewal must not shield a refund of the paid period'
+        );
+        $test->assertNotEmpty($stalledId);
+
+        // Put it back for the dunning case below.
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $laterId]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        // A failed renewal is dunning, not a refund: Stripe retries, and the
+        // subscription lifecycle owns that outcome. It must not cut the member
+        // off on the first miss.
+        $failedId = $addRenewal('failed');
+        do_action('buymecoffee_payment_status_updated', $failedId, 'failed');
+
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A failed renewal must not revoke a live subscription'
+        );
+    } finally {
         $stopWatching();
         $restoreTransactions();
     }
@@ -5765,6 +7019,143 @@ $suite->test('an intent is only handed to the browser once its binding is confir
         $wpdb->get_var($wpdb->prepare("SELECT transaction_type FROM {$txTable} WHERE id = %d", $second['transaction_id'])),
         'The columns bound with the intent are stored too'
     );
+});
+
+$suite->test('a refund committing during a projection still wins it', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable   = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable     = $wpdb->prefix . 'buymecoffee_transactions';
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $access      = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+        $access->upsertFromSubscription($checkout['subscription_id']);
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        // The refund lands after the projection has decided the payment was
+        // good and before it writes — the one window a check made beforehand
+        // can never cover. It revokes the access on its way through.
+        $injected = false;
+        $injectRefund = function ($query) use (&$injected, $wpdb, $txTable, $accessTable, $checkout) {
+            if (!$injected && stripos($query, 'UPDATE') === 0 && strpos($query, $accessTable) !== false) {
+                $injected = true;
+                $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $checkout['transaction_id']]);
+                $wpdb->update($accessTable, ['status' => 'refunded'], ['subscription_id' => $checkout['subscription_id']]);
+            }
+
+            return $query;
+        };
+        add_filter('query', $injectRefund);
+
+        try {
+            $written = $access->upsertFromSubscription($checkout['subscription_id']);
+        } finally {
+            remove_filter('query', $injectRefund);
+        }
+
+        $test->assertTrue($injected, 'The refund must have been injected at the write');
+        $test->assertSame(0, $written, 'A write the refund overtook must not report an access row');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The refund wins: no projection may restore the access it revoked'
+        );
+        $test->assertSame(
+            'refunded',
+            $wpdb->get_var($wpdb->prepare("SELECT status FROM {$accessTable} WHERE subscription_id = %d", $checkout['subscription_id'])),
+            'The access row is left exactly as the refund left it'
+        );
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
+$suite->test('a cancellation landing mid-renewal takes the extra period with it', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchSubscriptionActivations, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $paidPeriod = gmdate('Y-m-d H:i:s', time() + 5 * DAY_IN_SECONDS);
+    $newPeriod  = gmdate('Y-m-d H:i:s', time() + 35 * DAY_IN_SECONDS);
+
+    list($activated, $stopActivations) = $bmcWatchSubscriptionActivations();
+
+    try {
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $paidPeriod], ['id' => $checkout['subscription_id']]);
+        (new MembershipAccess())->upsertFromSubscription($checkout['subscription_id']);
+
+        $test->assertSame([(int) $checkout['level_id']], buymecoffee_user_get_active_level_ids($checkout['user_id'], true));
+
+        // The renewal arrives and the member cancels at the same moment. The
+        // cancellation commits after the activation has been refused — the
+        // subscription is already active — and before the period is advanced.
+        $updates   = 0;
+        $injecting = false;
+        $injectCancel = function ($query) use (&$updates, &$injecting, $wpdb, $subsTable, $checkout) {
+            if ($injecting || stripos($query, 'UPDATE') !== 0 || strpos($query, $subsTable) === false) {
+                return $query;
+            }
+
+            $updates++;
+            if ($updates === 2) {
+                $injecting = true;
+                $wpdb->update($subsTable, ['status' => 'cancelled'], ['id' => $checkout['subscription_id']]);
+                $injecting = false;
+            }
+
+            return $query;
+        };
+        add_filter('query', $injectCancel);
+
+        try {
+            (new PaymentTransitionService())->activateSubscription(
+                (int) $checkout['subscription_id'],
+                $newPeriod,
+                (int) $checkout['transaction_id']
+            );
+        } finally {
+            remove_filter('query', $injectCancel);
+        }
+
+        $test->assertSame(2, $updates, 'The renewal must have reached the period statement');
+
+        $state = $bmcSubscriptionState($checkout);
+        $test->assertSame('cancelled', $state['subscription'], 'The cancellation stands');
+        $test->assertSame($paidPeriod, $state['period_end'], 'A cancelled agreement must not take the renewal period');
+        $test->assertSame([], $activated['ids'], 'Nothing may be announced as activated');
+
+        // The member keeps only what they had already paid for, and it ends when
+        // that period ends rather than a month later.
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The period already paid for is still honoured'
+        );
+
+        $expiry = $wpdb->get_var($wpdb->prepare(
+            "SELECT expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+        $test->assertSame($paidPeriod, $expiry, 'The entitlement must not be extended by the refused renewal');
+    } finally {
+        $stopActivations();
+        $restoreTransactions();
+    }
 });
 
 $suite->test('a subscription checkout that cannot finish leaves nothing behind at Stripe or locally', function ($test) use ($bmcStripeSettings, $bmcStripeBody, $bmcCapturePublicResponse, $bmcMakeOneTimePurchase) {
@@ -5861,6 +7252,160 @@ $suite->test('a subscription checkout that cannot finish leaves nothing behind a
         remove_filter('query', $swallow);
         remove_filter('pre_http_request', $stub, 10);
     }
+});
+
+$suite->test('a conditional grant stores its empty columns as NULL, not as zero', function ($test) {
+    global $wpdb;
+
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $access      = new MembershipAccess();
+
+    // Two one-time "subscriptions": granting, so each is written conditionally
+    // on its payment, and each stores no subscription link at all. Passing that
+    // null through a %s placeholder would store 0 in an int column, and the
+    // unique key on subscription_id would then reject the second row — two
+    // donors, one grant.
+    $make = function ($levelId) use ($wpdb) {
+        $suffix = wp_generate_password(12, false, false);
+
+        $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+            'supporters_name'  => 'NULLCOL Donor',
+            'supporters_email' => 'bmc-nullcol-' . $suffix . '@example.com',
+            'payment_status'   => 'paid',
+            'entry_hash'       => 'bmc_nullcol_' . $suffix,
+            'payment_total'    => 2500,
+            'coffee_count'     => 1,
+            'payment_mode'     => 'test',
+            'payment_method'   => 'stripe',
+            'status'           => 'new',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+
+        $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+            'supporter_id'           => $supporterId,
+            'stripe_subscription_id' => 'sub_nullcol_' . $suffix,
+            'stripe_customer_id'     => 'cus_nullcol_' . $suffix,
+            'interval_type'          => 'one_time',
+            'amount'                 => 2500,
+            'currency'               => 'usd',
+            'status'                 => 'active',
+            'payment_mode'           => 'test',
+            'current_period_end'     => null,
+            'level_id'               => $levelId,
+            'created_at'             => current_time('mysql'),
+            'updated_at'             => current_time('mysql'),
+        ]);
+
+        buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $supporterId,
+            'entry_hash'       => 'bmc_nullcol_tx_' . $suffix,
+            'subscription_id'  => $subscriptionId,
+            'transaction_type' => 'one_time',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'paid',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+
+        return ['supporter_id' => $supporterId, 'subscription_id' => $subscriptionId];
+    };
+
+    $levelId = 987123;
+    $first   = $make($levelId);
+    $second  = $make($levelId);
+
+    $firstId = $access->upsertFromSubscription($first['subscription_id']);
+    $test->assertNotEmpty($firstId, 'The first one-time grant is written');
+
+    $secondId = $access->upsertFromSubscription($second['subscription_id']);
+    $test->assertNotEmpty($secondId, 'The second must not be rejected by the unique key on subscription_id');
+    $test->assertFalse($firstId === $secondId, 'They are two distinct grants');
+
+    foreach ([$firstId, $secondId] as $accessId) {
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT subscription_id, expires_at, access_type, status FROM {$accessTable} WHERE id = %d",
+            $accessId
+        ));
+
+        $test->assertSame('one_time', $row->access_type);
+        $test->assertSame('active', $row->status, 'The grant is written, so the conditional path really ran');
+        $test->assertSame(null, $row->subscription_id, 'An absent subscription link is NULL, never 0');
+        $test->assertSame(null, $row->expires_at, 'An absent expiry is NULL, never an empty date');
+    }
+});
+
+$suite->test('refunding a subscription billed once revokes the access it granted', function ($test) {
+    global $wpdb;
+
+    $suffix      = wp_generate_password(12, false, false);
+    $accessTable = $wpdb->prefix . 'buymecoffee_membership_access';
+    $txTable     = $wpdb->prefix . 'buymecoffee_transactions';
+
+    $supporterId = (int) buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+        'supporters_name'  => 'ONESHOT Donor',
+        'supporters_email' => 'bmc-oneshot-' . $suffix . '@example.com',
+        'payment_status'   => 'paid',
+        'entry_hash'       => 'bmc_oneshot_' . $suffix,
+        'payment_total'    => 2500,
+        'coffee_count'     => 1,
+        'payment_mode'     => 'test',
+        'payment_method'   => 'stripe',
+        'status'           => 'new',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    // Billed once, so its access row is keyed to the payment and carries no
+    // subscription link at all — the shape a subscription-scoped revoke walks
+    // straight past.
+    $subscriptionId = (int) buyMeCoffeeQuery()->table('buymecoffee_subscriptions')->insert([
+        'supporter_id'           => $supporterId,
+        'stripe_subscription_id' => 'sub_oneshot_' . $suffix,
+        'stripe_customer_id'     => 'cus_oneshot_' . $suffix,
+        'interval_type'          => 'one_time',
+        'amount'                 => 2500,
+        'currency'               => 'usd',
+        'status'                 => 'active',
+        'payment_mode'           => 'test',
+        'current_period_end'     => null,
+        'level_id'               => 987456,
+        'created_at'             => current_time('mysql'),
+        'updated_at'             => current_time('mysql'),
+    ]);
+
+    $transactionId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+        'entry_id'         => $supporterId,
+        'entry_hash'       => 'bmc_oneshot_tx_' . $suffix,
+        'subscription_id'  => $subscriptionId,
+        'transaction_type' => 'one_time',
+        'payment_method'   => 'stripe',
+        'payment_total'    => 2500,
+        'status'           => 'paid',
+        'currency'         => 'USD',
+        'payment_mode'     => 'test',
+        'created_at'       => current_time('mysql'),
+        'updated_at'       => current_time('mysql'),
+    ]);
+
+    $accessId = (new MembershipAccess())->upsertFromSubscription($subscriptionId);
+    $test->assertNotEmpty($accessId);
+
+    $row = $wpdb->get_row($wpdb->prepare("SELECT subscription_id, status FROM {$accessTable} WHERE id = %d", $accessId));
+    $test->assertSame(null, $row->subscription_id, 'This is the shape under test: no subscription link');
+    $test->assertSame('active', $row->status);
+
+    $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $transactionId]);
+    do_action('buymecoffee_payment_status_updated', $transactionId, 'refunded');
+
+    $test->assertSame(
+        'refunded',
+        $wpdb->get_var($wpdb->prepare("SELECT status FROM {$accessTable} WHERE id = %d", $accessId)),
+        'The refund must reach an access row keyed to the payment rather than the subscription'
+    );
 });
 
 $suite->test('a PayPal reversal does not refund a supporter with another paid transaction', function ($test) {

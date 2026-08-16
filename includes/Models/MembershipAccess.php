@@ -8,6 +8,49 @@ class MembershipAccess extends Model
 {
     protected $table = 'buymecoffee_membership_access';
 
+    /**
+     * Statuses this projection may write that actually hand out content.
+     *
+     * Mirrors the grant paths in getActiveLevelIdsForUser(): only 'active' and
+     * 'cancelled' are ever read as entitlement.
+     *
+     * @var string[]
+     */
+    const GRANTING_STATUSES = ['active', 'cancelled'];
+
+    /**
+     * Payment states that mean the money behind a period is gone.
+     *
+     * @var string[]
+     */
+    const DEAD_PAYMENT_STATUSES = ['refunded', 'failed'];
+
+    /**
+     * Payment states that have settled one way or the other.
+     *
+     * A transaction still pending has not paid for anything, so it can neither
+     * fund a grant nor stand in for the payment that did.
+     *
+     * @var string[]
+     */
+    const SETTLED_PAYMENT_STATUSES = ['paid', 'refunded', 'failed'];
+
+    /**
+     * Project a subscription onto the access row it entitles.
+     *
+     * This reads the subscription and writes what it implies, which is why it
+     * cannot be trusted on its own to grant: the subscription row says nothing
+     * about whether the payment that bought the current period survived. A
+     * refund committing between a caller's own checks and this call would
+     * otherwise be undone here — the projection re-reads a subscription that is
+     * still active, carrying a period just advanced, and writes the access row
+     * back to granting. Every caller has that window, so the check lives here
+     * rather than in any of them.
+     *
+     * @param int  $subscriptionId Local subscription row ID.
+     * @param bool $fireAction     Whether the upsert announces itself.
+     * @return int Access row ID, 0 when nothing was written.
+     */
     public function upsertFromSubscription($subscriptionId, $fireAction = true)
     {
         $subscriptionId = absint($subscriptionId);
@@ -63,6 +106,28 @@ class MembershipAccess extends Model
             }
         }
 
+        $status = sanitize_text_field($subscription->status ?: 'incomplete');
+
+        // A projection that would hand out content has to answer for the money
+        // behind it. The period this grants was paid for by the subscription's
+        // most recent payment, so that payment is what the granting write is
+        // made conditional on — checking it here and writing afterwards would
+        // leave the same gap one step further down, where a refund committing
+        // in between revokes the row and this write restores it. Nothing else
+        // is refused: a projection that grants nothing still keeps the row in
+        // step with its subscription.
+        $funding = $this->latestPayment($subscriptionId);
+
+        if (in_array(sanitize_key($status), self::GRANTING_STATUSES, true)) {
+            if (!$funding) {
+                // Nothing ever paid for this — a manual or admin grant. There is
+                // no payment to invalidate it, so it is written unconditionally.
+                $funding = null;
+            } elseif (in_array(sanitize_key((string) $funding->status), self::DEAD_PAYMENT_STATUSES, true)) {
+                return 0;
+            }
+        }
+
         return $this->upsert([
             'supporter_id'    => (int) $subscription->supporter_id,
             'wp_user_id'      => !empty($supporter->wp_user_id) ? (int) $supporter->wp_user_id : null,
@@ -70,10 +135,34 @@ class MembershipAccess extends Model
             'transaction_id'  => $transaction ? (int) $transaction->id : null,
             'subscription_id' => $storedSubscriptionId,
             'access_type'     => $accessType,
-            'status'          => sanitize_text_field($subscription->status ?: 'incomplete'),
+            'status'          => $status,
             'starts_at'       => !empty($subscription->created_at) ? $subscription->created_at : current_time('mysql'),
             'expires_at'      => $expiresAt,
-        ], $identity, $fireAction);
+        ], $identity, $fireAction, $funding ? (int) $funding->id : 0);
+    }
+
+    /**
+     * The payment that bought a subscription's current period.
+     *
+     * The most recent settled transaction is the one that paid for the period
+     * being granted, so it is the one that decides. A renewal still pending has
+     * not paid for anything and is skipped, or it would stand in for the
+     * payment that actually advanced the period. An older refund is not allowed to
+     * revoke a period a later payment has since covered, and a subscription
+     * with no payments at all — a manual or admin grant — has nothing here to
+     * invalidate it.
+     *
+     * @param int $subscriptionId Local subscription row ID.
+     * @return object|null
+     */
+    private function latestPayment($subscriptionId)
+    {
+        return buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', absint($subscriptionId))
+            ->whereIn('status', self::SETTLED_PAYMENT_STATUSES)
+            ->orderBy('id', 'DESC')
+            ->first();
     }
 
     public function createPendingForTransaction($transactionId, $supporterId, $levelId, $accessType = 'one_time')
@@ -244,6 +333,74 @@ class MembershipAccess extends Model
         return (int) $access->id;
     }
 
+    /**
+     * End the access a subscription grants.
+     *
+     * A subscription's access row is keyed by the subscription, not by whichever
+     * payment happened to fund the period, so a refunded renewal cannot be
+     * revoked through revokeByTransaction(): that looks the row up by
+     * transaction_id, which holds the subscription's first payment and not the
+     * renewal at all.
+     *
+     * @param int    $subscriptionId Local subscription row ID.
+     * @param string $status         Status to leave the access row in.
+     * @return int Access row ID, 0 when there was nothing to revoke.
+     */
+    public function revokeBySubscription($subscriptionId, $status = 'refunded')
+    {
+        $subscriptionId = absint($subscriptionId);
+        if (!$subscriptionId) {
+            return 0;
+        }
+
+        $access = $this->getQuery()
+            ->where('subscription_id', $subscriptionId)
+            ->first();
+
+        if (!$access) {
+            // A subscription billed once, or granted by hand, stores no
+            // subscription link on its access row — it is keyed to the payment
+            // instead — so the row is reached through the subscription's own
+            // transactions rather than missed entirely.
+            $transactionIds = [];
+            foreach (buyMeCoffeeQuery()
+                ->table('buymecoffee_transactions')
+                ->select(['id'])
+                ->where('subscription_id', $subscriptionId)
+                ->get() as $transaction) {
+                $transactionIds[] = (int) $transaction->id;
+            }
+
+            if (!$transactionIds) {
+                return 0;
+            }
+
+            $access = $this->getQuery()
+                ->whereIn('transaction_id', $transactionIds)
+                ->first();
+        }
+
+        if (!$access) {
+            return 0;
+        }
+
+        $status = sanitize_key($status) ?: 'refunded';
+
+        if (sanitize_key((string) $access->status) === $status) {
+            return (int) $access->id;
+        }
+
+        $this->updateData((int) $access->id, [
+            'status'     => $status,
+            'updated_at' => current_time('mysql'),
+        ]);
+
+        $this->invalidateSupporterAccessCache((int) $access->supporter_id);
+        do_action('buymecoffee_membership_access_revoked', (int) $access->id, $status);
+
+        return (int) $access->id;
+    }
+
     public function getActiveLevelIdsForUser($userId)
     {
         $userId = absint($userId);
@@ -329,7 +486,15 @@ class MembershipAccess extends Model
         return ($row && !empty($row->expires_at)) ? $row->expires_at : null;
     }
 
-    private function upsert(array $data, array $identity, $fireAction)
+    /**
+     * @param array $data      Row to write.
+     * @param array $identity  Columns that identify the row to write it onto.
+     * @param bool  $fireAction Whether a granting write announces itself.
+     * @param int   $fundedBy  Transaction that must still be paid for a granting
+     *                         write to land. 0 when no payment backs this row.
+     * @return int Access row ID, 0 when nothing was written.
+     */
+    private function upsert(array $data, array $identity, $fireAction, $fundedBy = 0)
     {
         global $wpdb;
 
@@ -349,12 +514,24 @@ class MembershipAccess extends Model
             'updated_at'      => $now,
         ];
 
+        // A write that hands out content has to be decided against the payment
+        // as it stands at the moment of writing, not as it stood when the caller
+        // looked. A refund committing in between would otherwise revoke the row
+        // and have this write restore it, so the condition travels into the
+        // statement and the database arbitrates.
+        $conditional = $fundedBy && $this->rowGrantsAccess((object) $row);
+
         if ($existing) {
-            $this->updateData((int) $existing->id, $row);
-            $accessId = (int) $existing->id;
+            $written = $conditional
+                ? $this->updateWhilePaid((int) $existing->id, $row, $fundedBy)
+                : (false !== $this->updateData((int) $existing->id, $row));
+
+            $accessId = $written ? (int) $existing->id : 0;
         } else {
             $row['created_at'] = $now;
-            $inserted = $wpdb->insert($wpdb->prefix . $this->table, $row);
+            $inserted = $conditional
+                ? $this->insertWhilePaid($row, $fundedBy)
+                : $wpdb->insert($wpdb->prefix . $this->table, $row);
             $accessId = $inserted ? (int) $wpdb->insert_id : 0;
         }
 
@@ -366,6 +543,116 @@ class MembershipAccess extends Model
         }
 
         return $accessId;
+    }
+
+    /**
+     * Write a granting row onto an existing one, but only while its payment stands.
+     *
+     * @param int   $accessId Access row ID.
+     * @param array $row      Columns to write.
+     * @param int   $fundedBy Transaction that must still be 'paid'.
+     * @return bool Whether the row now holds this write.
+     */
+    private function updateWhilePaid($accessId, array $row, $fundedBy)
+    {
+        global $wpdb;
+
+        // A null has to reach the column as NULL. Passing it through %s would
+        // store an empty string, which the int columns take as 0 — and a
+        // subscription_id of 0 is a real value that collides on its unique key
+        // where a NULL would not have.
+        $sets   = [];
+        $values = [];
+        foreach ($row as $column => $value) {
+            if ($value === null) {
+                $sets[] = 'a.' . sanitize_key($column) . ' = NULL';
+                continue;
+            }
+
+            $sets[]   = 'a.' . sanitize_key($column) . ' = %s';
+            $values[] = $value;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; column names are sanitized keys of a fixed row shape.
+        $written = $wpdb->query($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix.
+            "UPDATE {$wpdb->prefix}{$this->table} a
+               INNER JOIN {$wpdb->prefix}buymecoffee_transactions t
+                    ON t.id = %d AND t.status = 'paid'
+                SET " . implode(', ', $sets) . "
+              WHERE a.id = %d",
+            array_merge([(int) $fundedBy], $values, [(int) $accessId])
+        ));
+
+        if ($written === false) {
+            return false;
+        }
+
+        if ($written > 0) {
+            return true;
+        }
+
+        // No rows changed, which is either "the row already held exactly this"
+        // or "the join refused because the payment is gone". Only the payment
+        // can tell those apart, so it is asked rather than inferred.
+        return $this->transactionIsPaid($fundedBy);
+    }
+
+    /**
+     * Whether a transaction is stored as paid right now.
+     *
+     * @param int $transactionId Transaction row ID.
+     * @return bool
+     */
+    private function transactionIsPaid($transactionId)
+    {
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', absint($transactionId))
+            ->first();
+
+        return $transaction && sanitize_key((string) $transaction->status) === 'paid';
+    }
+
+    /**
+     * Insert a granting row, but only while the payment behind it stands.
+     *
+     * @param array $row      Columns to write.
+     * @param int   $fundedBy Transaction that must still be 'paid'.
+     * @return bool Whether a row was inserted.
+     */
+    private function insertWhilePaid(array $row, $fundedBy)
+    {
+        global $wpdb;
+
+        // Same reason as updateWhilePaid(): a null column must be inserted as
+        // NULL, not as the empty string %s would produce.
+        $columns      = [];
+        $placeholders = [];
+        $values       = [];
+        foreach ($row as $column => $value) {
+            $columns[] = sanitize_key($column);
+
+            if ($value === null) {
+                $placeholders[] = 'NULL';
+                continue;
+            }
+
+            $placeholders[] = '%s';
+            $values[]       = $value;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared below; column names are sanitized keys of a fixed row shape.
+        $inserted = $wpdb->query($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from $wpdb->prefix.
+            "INSERT INTO {$wpdb->prefix}{$this->table} (" . implode(', ', $columns) . ")
+             SELECT " . implode(', ', $placeholders) . "
+               FROM {$wpdb->prefix}buymecoffee_transactions t
+              WHERE t.id = %d AND t.status = 'paid'",
+            array_merge($values, [(int) $fundedBy])
+        ));
+
+        return (bool) $inserted;
     }
 
     private function findExisting(array $identity)

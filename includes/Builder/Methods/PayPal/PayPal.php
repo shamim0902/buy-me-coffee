@@ -9,6 +9,7 @@ use BuyMeCoffee\Models\Transactions;
 use BuyMeCoffee\Builder\Methods\BaseMethods;
 use BuyMeCoffee\Classes\Vite;
 use BuyMeCoffee\Services\GatewayAuditData;
+use BuyMeCoffee\Services\PaymentTransitionService;
 use BuyMeCoffee\Services\PublicRequestGuard;
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -445,14 +446,14 @@ class PayPal extends BaseMethods
         $configuredPayee = strtolower(trim((string) $this->getSettings('paypal_email')));
         $receiverEmail = strtolower(trim(sanitize_text_field($data['receiver_email'] ?? ($data['business'] ?? ''))));
         if (!$configuredPayee || !$receiverEmail || $receiverEmail !== $configuredPayee) {
-            $this->changeStatus('failed', $transaction);
+            $this->applyIpnStatus('failed', $transaction);
             return;
         }
 
         $currency_code = strtolower(sanitize_text_field($data['mc_currency'] ?? ''));
 
         if ($currency_code != strtolower($transaction->currency)) {
-            $this->changeStatus('failed', $transaction);
+            $this->applyIpnStatus('failed', $transaction);
             return;
         }
 
@@ -461,8 +462,7 @@ class PayPal extends BaseMethods
         // Refunds and reversals report a negative mc_gross, so they are mapped
         // before the amount comparison and can never be read as a payment.
         if (in_array($payment_status, array('refunded', 'reversed'), true)) {
-            $this->changeStatus('refunded', $transaction);
-            do_action('buymecoffee_payment_status_updated', $transaction->id, 'refunded');
+            $this->applyIpnStatus('refunded', $transaction);
             return;
         }
 
@@ -472,54 +472,82 @@ class PayPal extends BaseMethods
         $isMismatchAmount = abs($expectedAmount - $receivedAmount) > 0.01;
 
         if ($isMismatchAmount) {
-            $this->changeStatus('failed', $transaction);
+            $this->applyIpnStatus('failed', $transaction);
             return;
         }
 
         // Only a completed PayPal payment may move a transaction to paid.
         // Test mode follows exactly the same rule as live mode.
         if ('completed' === $payment_status) {
-            $this->changeStatus('paid', $transaction, $data);
+            $this->applyIpnStatus('paid', $transaction, $data);
             return;
         }
 
         if ('pending' === $payment_status && isset($data['pending_reason'])) {
-            $this->changeStatus('processing', $transaction, $data);
+            $this->applyIpnStatus('processing', $transaction, $data);
         }
     }
 
+    /**
+     * Apply a verified notification's outcome, and keep it redeliverable when it
+     * could not be stored.
+     *
+     * A transition the database refused was never applied, so the notification
+     * must not be recorded as consumed: the IPN listener treats a throw as
+     * exactly that and hands the claim back for PayPal's redelivery. A refusal
+     * that is a decision — a refunded donation that may not be settled again —
+     * is not a failure and is deliberately not retried.
+     *
+     * @param string $status      Local payment status the notification means.
+     * @param object $transaction Local transaction row.
+     * @param array  $data        Verified IPN fields.
+     * @return array|\WP_Error|null
+     */
+    private function applyIpnStatus($status, $transaction, $data = array())
+    {
+        $result = $this->changeStatus($status, $transaction, $data);
+
+        if (is_wp_error($result) && $result->get_error_code() === 'bmc_payment_write_failed') {
+            throw new \RuntimeException(esc_html($result->get_error_message()));
+        }
+
+        return $result;
+    }
+
+    /**
+     * Apply the outcome a verified PayPal notification reports.
+     *
+     * The reference PayPal sent is recorded straight away — it describes the
+     * payment whatever became of it — but the status itself, the supporter it
+     * rolls up to and the canonical payment transition belong to
+     * PaymentTransitionService. That is what stops a redelivered notification
+     * from re-sending the donor's receipt, re-writing the payment activity and
+     * re-granting entitlements, and what stops a refunded donation from being
+     * settled again by a notification that arrives out of order.
+     *
+     * @param string      $status      Local payment status the notification means.
+     * @param object|null $transaction Local transaction row.
+     * @param array       $data        Verified IPN fields.
+     * @return array|\WP_Error|null Transition result, or null without a transaction.
+     */
     public function changeStatus($status, $transaction = null,  $data = array())
     {
-        $supportersModel = new Supporters();
-        $transactionModel = new Transactions();
-
-        $now = current_time('mysql');
-
-        // The transactions table uses `status`, so it needs its own payload.
-        // Reusing the supporter payload silently dropped rejection updates.
-        $transactionUpdate = array(
-            'status' => $status,
-            'updated_at' => $now
-        );
+        if (!is_object($transaction) || empty($transaction->id)) {
+            return null;
+        }
 
         if (!empty($data) && isset($data['txn_id'])) {
             // A verified IPN body is a PayPal account record — payer name,
             // email and address included. Only the transaction and status
             // fields this plugin reasons about are kept.
-            $transactionUpdate['payment_note'] = GatewayAuditData::payPalIpnNote($data);
-            $transactionUpdate['charge_id'] = sanitize_text_field($data['txn_id']);
+            (new Transactions())->updateData($transaction->id, array(
+                'payment_note' => GatewayAuditData::payPalIpnNote($data),
+                'charge_id'    => sanitize_text_field($data['txn_id']),
+                'updated_at'   => current_time('mysql'),
+            ));
         }
 
-        $transactionModel->updateData($transaction->id, $transactionUpdate);
-
-        // A refund/reversal belongs to this transaction, not automatically to
-        // the supporter as a whole. Recompute the summary after the transaction
-        // write so another paid transaction keeps the supporter paid.
-        $supportersModel->updateData($transaction->entry_id, array(
-            'payment_status' => Supporters::aggregatePaymentStatus($transaction->entry_id),
-            'updated_at' => $now
-        ));
-
+        return (new PaymentTransitionService())->apply($transaction, $status);
     }
 
     public function maybeLoadModalScript()
@@ -696,6 +724,8 @@ class PayPal extends BaseMethods
             ), 400);
         }
 
+        // What the capture was, in which mode, and for how much: descriptive, so
+        // it is recorded whatever the transition below decides.
         $updateData = array(
             'charge_id' => sanitize_text_field($vendorChargeId),
             'payment_mode' => sanitize_text_field($mode),
@@ -704,7 +734,6 @@ class PayPal extends BaseMethods
             // settledOrderMatches() replays against, and the payer block it
             // arrives with is never stored.
             'payment_note' => GatewayAuditData::payPalOrderNote($payment_intent),
-            'status' => 'paid',
             'updated_at' => current_time('mysql'),
         );
 
@@ -712,12 +741,35 @@ class PayPal extends BaseMethods
 
         (new Supporters())->updateData($transaction->entry_id, [
             'payment_total' => $amount,
-            'payment_status' => 'paid',
             'payment_mode' => sanitize_text_field($mode),
             'updated_at' => current_time('mysql')
         ]);
 
-        do_action('buymecoffee_payment_status_updated', $transactionId, 'paid');
+        // The status, the supporter's aggregate and the canonical transition are
+        // the transition service's to write, so a capture cannot settle a
+        // payment the site already settled — or already refunded — twice.
+        $applied = (new PaymentTransitionService())->apply($transaction, 'paid');
+
+        if (is_wp_error($applied)) {
+            if ($applied->get_error_code() === 'bmc_payment_write_failed') {
+                // Nothing was stored, so the confirmation stays retryable.
+                PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
+
+                wp_send_json_error(array(
+                    'message' => __('This payment could not be recorded. Please try again in a moment.', 'buy-me-coffee'),
+                    'code'    => 'payment_not_recorded',
+                ), 500);
+            }
+
+            // A decision rather than a failure: the donation is in a state this
+            // capture may not overwrite, and repeating it would not change that.
+            PublicRequestGuard::completeClaim($claim['key'], $claim['owner'], [], 'paypal_confirmation');
+
+            wp_send_json_error(array(
+                'message' => __('This donation has already been completed.', 'buy-me-coffee'),
+                'code'    => 'payment_already_completed',
+            ), 409);
+        }
 
         // Settled before the response is written, because the response ends the
         // request: nothing after it would run.
