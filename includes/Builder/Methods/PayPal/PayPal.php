@@ -488,11 +488,6 @@ class PayPal extends BaseMethods
 
         $now = current_time('mysql');
 
-        $supportersModel->updateData($transaction->entry_id, array(
-            'payment_status' => $status,
-            'updated_at' => $now
-        ));
-
         // The transactions table uses `status`, so it needs its own payload.
         // Reusing the supporter payload silently dropped rejection updates.
         $transactionUpdate = array(
@@ -506,6 +501,14 @@ class PayPal extends BaseMethods
         }
 
         $transactionModel->updateData($transaction->id, $transactionUpdate);
+
+        // A refund/reversal belongs to this transaction, not automatically to
+        // the supporter as a whole. Recompute the summary after the transaction
+        // write so another paid transaction keeps the supporter paid.
+        $supportersModel->updateData($transaction->entry_id, array(
+            'payment_status' => Supporters::aggregatePaymentStatus($transaction->entry_id),
+            'updated_at' => $now
+        ));
 
     }
 
