@@ -8,6 +8,39 @@ class MembershipAccess extends Model
 {
     protected $table = 'buymecoffee_membership_access';
 
+    /**
+     * Statuses this projection may write that actually hand out content.
+     *
+     * Mirrors the grant paths in getActiveLevelIdsForUser(): only 'active' and
+     * 'cancelled' are ever read as entitlement.
+     *
+     * @var string[]
+     */
+    const GRANTING_STATUSES = ['active', 'cancelled'];
+
+    /**
+     * Payment states that mean the money behind a period is gone.
+     *
+     * @var string[]
+     */
+    const DEAD_PAYMENT_STATUSES = ['refunded', 'failed'];
+
+    /**
+     * Project a subscription onto the access row it entitles.
+     *
+     * This reads the subscription and writes what it implies, which is why it
+     * cannot be trusted on its own to grant: the subscription row says nothing
+     * about whether the payment that bought the current period survived. A
+     * refund committing between a caller's own checks and this call would
+     * otherwise be undone here — the projection re-reads a subscription that is
+     * still active, carrying a period just advanced, and writes the access row
+     * back to granting. Every caller has that window, so the check lives here
+     * rather than in any of them.
+     *
+     * @param int  $subscriptionId Local subscription row ID.
+     * @param bool $fireAction     Whether the upsert announces itself.
+     * @return int Access row ID, 0 when nothing was written.
+     */
     public function upsertFromSubscription($subscriptionId, $fireAction = true)
     {
         $subscriptionId = absint($subscriptionId);
@@ -63,6 +96,18 @@ class MembershipAccess extends Model
             }
         }
 
+        $status = sanitize_text_field($subscription->status ?: 'incomplete');
+
+        // A projection that would hand out content has to answer for the money
+        // behind it. The period this grants was paid for by the subscription's
+        // most recent payment, so if that payment is gone the grant is refused
+        // outright and the access row is left exactly as the refund left it.
+        // Nothing else here is refused: a projection that grants nothing still
+        // keeps the row in step with its subscription.
+        if (in_array(sanitize_key($status), self::GRANTING_STATUSES, true) && $this->latestPaymentIsDead($subscriptionId)) {
+            return 0;
+        }
+
         return $this->upsert([
             'supporter_id'    => (int) $subscription->supporter_id,
             'wp_user_id'      => !empty($supporter->wp_user_id) ? (int) $supporter->wp_user_id : null,
@@ -70,10 +115,37 @@ class MembershipAccess extends Model
             'transaction_id'  => $transaction ? (int) $transaction->id : null,
             'subscription_id' => $storedSubscriptionId,
             'access_type'     => $accessType,
-            'status'          => sanitize_text_field($subscription->status ?: 'incomplete'),
+            'status'          => $status,
             'starts_at'       => !empty($subscription->created_at) ? $subscription->created_at : current_time('mysql'),
             'expires_at'      => $expiresAt,
         ], $identity, $fireAction);
+    }
+
+    /**
+     * Whether the payment that bought a subscription's current period is gone.
+     *
+     * The most recent transaction is the one that paid for the period being
+     * granted, so it is the one that decides. An older refund is not allowed to
+     * revoke a period a later payment has since covered, and a subscription
+     * with no payments at all — a manual or admin grant — has nothing here to
+     * invalidate it.
+     *
+     * @param int $subscriptionId Local subscription row ID.
+     * @return bool
+     */
+    private function latestPaymentIsDead($subscriptionId)
+    {
+        $latest = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('subscription_id', absint($subscriptionId))
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        if (!$latest) {
+            return false;
+        }
+
+        return in_array(sanitize_key((string) $latest->status), self::DEAD_PAYMENT_STATUSES, true);
     }
 
     public function createPendingForTransaction($transactionId, $supporterId, $levelId, $accessType = 'one_time')

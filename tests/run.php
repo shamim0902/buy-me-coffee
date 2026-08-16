@@ -6746,4 +6746,97 @@ $suite->test('a refund landing after the transition still cannot activate the su
     }
 });
 
+$suite->test('a refunded payment cannot be projected back into access by its subscription', function ($test) use ($bmcMakeSubscriptionCheckout, $bmcSubscriptionState, $bmcWatchPaymentSideEffects, $bmcServiceSharesTestTransaction) {
+    global $wpdb;
+
+    $restoreTransactions = $bmcServiceSharesTestTransaction();
+    $checkout            = $bmcMakeSubscriptionCheckout(['with_level' => true]);
+    $expires             = gmdate('Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS);
+
+    $subsTable = $wpdb->prefix . 'buymecoffee_subscriptions';
+    $txTable   = $wpdb->prefix . 'buymecoffee_transactions';
+    $access    = new MembershipAccess();
+
+    list($log, $stopWatching) = $bmcWatchPaymentSideEffects();
+
+    try {
+        // A live membership: the subscription is active, its period is paid for.
+        $wpdb->update($txTable, ['status' => 'paid'], ['id' => $checkout['transaction_id']]);
+        $wpdb->update($subsTable, ['status' => 'active', 'current_period_end' => $expires], ['id' => $checkout['subscription_id']]);
+
+        $test->assertNotEmpty($access->upsertFromSubscription($checkout['subscription_id']), 'A paid subscription projects its entitlement');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The paid period grants the level'
+        );
+
+        // The payment is refunded and the access it bought is revoked.
+        $wpdb->update($txTable, ['status' => 'refunded'], ['id' => $checkout['transaction_id']]);
+        $access->revokeByTransaction($checkout['transaction_id']);
+        $test->assertSame([], buymecoffee_user_get_active_level_ids($checkout['user_id'], true), 'The refund ends the entitlement');
+
+        $revoked = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+
+        // The subscription row still says 'active' and still carries the period
+        // the payment bought — it knows nothing about the refund. Projecting it
+        // is exactly what would hand the content back.
+        $test->assertSame('active', $bmcSubscriptionState($checkout)['subscription'], 'The subscription itself is unchanged by the refund');
+
+        $test->assertSame(0, $access->upsertFromSubscription($checkout['subscription_id']), 'A refunded payment may not project a granting row');
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'A refunded renewal must not extend or restore access'
+        );
+
+        $after = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, expires_at FROM {$wpdb->prefix}buymecoffee_membership_access WHERE subscription_id = %d",
+            $checkout['subscription_id']
+        ));
+        $test->assertSame($revoked->status, $after->status, 'The access row is left exactly as the refund left it');
+        $test->assertSame($revoked->expires_at, $after->expires_at, 'And its expiry is not advanced');
+
+        // The same guard has to hold on the announcement path, where
+        // UserManager projects the subscription off the activation hook without
+        // consulting the payment either.
+        do_action('buymecoffee_subscription_activated', (int) $checkout['subscription_id']);
+        $test->assertSame(
+            [],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The activation hook must not restore a refunded subscriber either'
+        );
+
+        // A later payment covering a new period is what legitimately restores
+        // it — the guard is on the money, not on the access row.
+        $renewalId = (int) buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id'         => $checkout['supporter_id'],
+            'entry_hash'       => $checkout['hash'],
+            'subscription_id'  => $checkout['subscription_id'],
+            'transaction_type' => 'recurring',
+            'payment_method'   => 'stripe',
+            'payment_total'    => 2500,
+            'status'           => 'paid',
+            'currency'         => 'USD',
+            'payment_mode'     => 'test',
+            'created_at'       => current_time('mysql'),
+            'updated_at'       => current_time('mysql'),
+        ]);
+        $test->assertNotEmpty($renewalId);
+
+        $test->assertNotEmpty($access->upsertFromSubscription($checkout['subscription_id']), 'A fresh payment projects again');
+        $test->assertSame(
+            [(int) $checkout['level_id']],
+            buymecoffee_user_get_active_level_ids($checkout['user_id'], true),
+            'The period the new payment covers grants the level'
+        );
+    } finally {
+        $stopWatching();
+        $restoreTransactions();
+    }
+});
+
 exit($suite->run());
