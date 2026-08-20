@@ -337,6 +337,65 @@ class PaymentHelper
         return ($transaction && !empty($transaction->status)) ? sanitize_text_field($transaction->status) : '';
     }
 
+    /**
+     * Tell the browser when the buyer must log in to use what they just bought.
+     *
+     * A membership purchase is linked to a WP account by email. A brand-new
+     * account is logged in on the spot, but an address that already has an
+     * account is never auto-logged-in — the checkout email is unverified, so
+     * that would hand any account to whoever pays with its address. The buyer
+     * is instead told to log in, with a link that returns them to the content
+     * they came from.
+     *
+     * @param array  $result    Confirmation result (needs transaction_id / is_membership).
+     * @param string $returnUrl Where to land after login, validated to this site.
+     * @return array Same result, with login_required and login_url added.
+     */
+    public function withMemberLoginHint(array $result, $returnUrl = '')
+    {
+        $result['login_required'] = false;
+        $result['login_url']      = '';
+
+        if (empty($result['is_membership']) || is_user_logged_in()) {
+            return $result;
+        }
+
+        $transactionId = (int) ($result['transaction_id'] ?? 0);
+        if (!$transactionId) {
+            return $result;
+        }
+
+        $transaction = buyMeCoffeeQuery()
+            ->table('buymecoffee_transactions')
+            ->where('id', $transactionId)
+            ->first();
+
+        if (!$transaction || empty($transaction->entry_id)) {
+            return $result;
+        }
+
+        $supporter = buyMeCoffeeQuery()
+            ->table('buymecoffee_supporters')
+            ->where('id', (int) $transaction->entry_id)
+            ->first();
+
+        if (!$supporter || empty($supporter->wp_user_id) || !get_user_by('ID', (int) $supporter->wp_user_id)) {
+            return $result;
+        }
+
+        $redirect = $returnUrl ? wp_validate_redirect(esc_url_raw($returnUrl), '') : '';
+        if (!$redirect) {
+            $settings      = get_option('buymecoffee_payment_setting', []);
+            $accountPageId = !empty($settings['account_page_id']) ? (int) $settings['account_page_id'] : 0;
+            $redirect      = $accountPageId ? (string) get_permalink($accountPageId) : home_url('/');
+        }
+
+        $result['login_required'] = true;
+        $result['login_url']      = wp_login_url($redirect);
+
+        return $result;
+    }
+
     private function getMembershipAccessByTransaction(int $transactionId)
     {
         if (!$transactionId) {

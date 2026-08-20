@@ -365,6 +365,7 @@ $suite->test('paywall hides paid content from guests and reveals it to entitled 
     $postId = wp_insert_post([
         'post_title' => 'BMC Paywall Feature Test',
         'post_content' => 'one two three four five six',
+        'post_excerpt' => 'manual excerpt contains private words',
         'post_status' => 'publish',
         'post_type' => 'post',
     ]);
@@ -385,9 +386,95 @@ $suite->test('paywall hides paid content from guests and reveals it to entitled 
     $test->assertContains('bmc-paywall', $guestContent);
     $test->assertContains('Paywall Feature Test', $guestContent);
 
+    // Archive/search/feed renderers must not rely on is_singular(). Themes and
+    // feed consumers may render either the full body or a hand-written excerpt.
+    foreach (['archive', 'search'] as $context) {
+        $wp_query->is_singular = false;
+        $wp_query->is_archive = $context === 'archive';
+        $wp_query->is_search = $context === 'search';
+
+        $listingContent = $controller->filterContent($post->post_content);
+        $test->assertContains('one two three', $listingContent, "{$context} teaser is missing");
+        $test->assertNotContains('four five six', $listingContent, "{$context} leaked paid content");
+    }
+
+    $guestExcerpt = $controller->filterExcerpt($post->post_excerpt, $post);
+    $test->assertContains('one two three', $guestExcerpt);
+    $test->assertNotContains('private words', $guestExcerpt, 'Custom excerpt leaked paid content');
+
+    $feedContent = $controller->filterFeedContent($post->post_content, 'rss2');
+    $test->assertContains('one two three', $feedContent);
+    $test->assertNotContains('four five six', $feedContent, 'Full-content feed leaked paid content');
+    $test->assertNotContains('bmc-paywall__levels', $feedContent, 'Feed should contain a teaser, not the interactive CTA');
+
+    $feedExcerpt = $controller->filterFeedExcerpt($post->post_excerpt);
+    $test->assertContains('one two three', $feedExcerpt);
+    $test->assertNotContains('private words', $feedExcerpt, 'Excerpt feed leaked paid content');
+
+    // REST may expose both rendered and raw representations depending on
+    // context and extensions. The response filter must sanitize every field
+    // that is present, even if another REST controller supplied raw content.
+    $unsafeRestResponse = new WP_REST_Response([
+        'content' => [
+            'raw' => $post->post_content,
+            'rendered' => $post->post_content,
+        ],
+        'excerpt' => [
+            'raw' => $post->post_excerpt,
+            'rendered' => $post->post_excerpt,
+        ],
+    ]);
+    $restResponse = $controller->filterRestResponse(
+        $unsafeRestResponse,
+        $post,
+        new WP_REST_Request('GET', '/wp/v2/posts/' . $postId)
+    );
+    $restData = $restResponse->get_data();
+    $test->assertContains('one two three', $restData['content']['raw']);
+    $test->assertNotContains('four five six', $restData['content']['raw'], 'REST raw content leaked paid content');
+    $test->assertNotContains('four five six', $restData['content']['rendered'], 'REST rendered content leaked paid content');
+    $test->assertNotContains('private words', $restData['excerpt']['raw'], 'REST raw excerpt leaked paid content');
+    $test->assertNotContains('private words', $restData['excerpt']['rendered'], 'REST rendered excerpt leaked paid content');
+
+    $publicRestResponse = rest_do_request(new WP_REST_Request('GET', '/wp/v2/posts/' . $postId));
+    $test->assertSame(200, $publicRestResponse->get_status(), 'Public post REST request failed');
+    $test->assertNotEmpty(has_filter('rest_prepare_post'), 'Paid-content REST response filter is missing');
+    $publicRestData = $publicRestResponse->get_data();
+    $test->assertContains('one two three', $publicRestData['content']['rendered']);
+    $test->assertNotContains('four five six', $publicRestData['content']['rendered'], 'Live REST endpoint leaked paid content');
+
     wp_set_current_user($userId);
     $memberContent = $controller->filterContent($post->post_content);
     $test->assertSame($post->post_content, $memberContent);
+
+    $memberRestResponse = $controller->filterRestResponse(
+        new WP_REST_Response(['content' => ['raw' => $post->post_content]]),
+        $post,
+        new WP_REST_Request('GET', '/wp/v2/posts/' . $postId)
+    );
+    $test->assertSame($post->post_content, $memberRestResponse->get_data()['content']['raw']);
+
+    $editorId = wp_insert_user([
+        'user_login' => 'bmc_paywall_editor_' . wp_generate_password(8, false, false),
+        'user_email' => 'bmc-paywall-editor-' . wp_generate_password(8, false, false) . '@example.com',
+        'user_pass' => wp_generate_password(24),
+        'role' => 'editor',
+    ]);
+    $test->assertFalse(is_wp_error($editorId), 'Could not create paywall editor');
+    wp_set_current_user($editorId);
+    $test->assertSame($post->post_content, $controller->filterContent($post->post_content));
+
+    $editorRestResponse = $controller->filterRestResponse(
+        new WP_REST_Response(['content' => ['raw' => $post->post_content]]),
+        $post,
+        new WP_REST_Request('GET', '/wp/v2/posts/' . $postId)
+    );
+    $test->assertSame($post->post_content, $editorRestResponse->get_data()['content']['raw']);
+
+    update_post_meta($postId, '_buymecoffee_access', 'free');
+    wp_set_current_user(0);
+    $test->assertSame($post->post_content, $controller->filterContent($post->post_content));
+    $test->assertSame($post->post_excerpt, $controller->filterExcerpt($post->post_excerpt, $post));
 });
 
 $suite->test('shortcodes render escaped public and account markup', function ($test) {

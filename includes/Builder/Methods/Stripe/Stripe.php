@@ -139,11 +139,17 @@ class Stripe extends BaseMethods
 
         // A confirmation whose local result is already final is answered from
         // storage: no customer, intent, invoice or subscription lookup at Stripe.
+        // Where the buyer came from (a gated post), so a login prompt can send
+        // them straight back. Per-visitor, so it is added after any cached
+        // result is read or stored — never kept with it.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stripe payment confirmation callback
+        $returnUrl = isset($_REQUEST['bmc_return_url']) ? esc_url_raw(wp_unslash($_REQUEST['bmc_return_url'])) : '';
+
         $replayed = $helper->replayConfirmationResult($intentId, $requestedSubscriptionId);
         if ($replayed) {
-            wp_send_json_success(wp_parse_args($replayed, [
+            wp_send_json_success($helper->withMemberLoginHint(wp_parse_args($replayed, [
                 'message' => __('Payment confirmation received', 'buy-me-coffee'),
-            ]), 200);
+            ]), $returnUrl), 200);
         }
 
         // Two browser tabs, a reload during 3-D Secure, or a retry from a second
@@ -153,7 +159,7 @@ class Stripe extends BaseMethods
         $claim = PublicRequestGuard::claim('stripe_confirmation', 'intent|' . $intentId);
 
         if (!$claim['acquired']) {
-            $this->refuseUnclaimedConfirmation($claim, $helper, $intentId, $requestedSubscriptionId);
+            $this->refuseUnclaimedConfirmation($claim, $helper, $intentId, $requestedSubscriptionId, $returnUrl);
         }
 
         if ($requestedSubscriptionId && !$this->activateMatchedSubscription($intentId, $requestedSubscriptionId)) {
@@ -191,7 +197,7 @@ class Stripe extends BaseMethods
             PublicRequestGuard::releaseClaim($claim['key'], $claim['owner']);
         }
 
-        wp_send_json_success($response, 200);
+        wp_send_json_success($helper->withMemberLoginHint($response, $returnUrl), 200);
     }
 
     /**
@@ -204,9 +210,10 @@ class Stripe extends BaseMethods
      * @param PaymentHelper $helper                  Shared helper instance.
      * @param string        $intentId                Stripe PaymentIntent id.
      * @param int           $requestedSubscriptionId Subscription the caller claims.
+     * @param string        $returnUrl               Where a login prompt should send the buyer back to.
      * @return void
      */
-    private function refuseUnclaimedConfirmation(array $claim, PaymentHelper $helper, $intentId, $requestedSubscriptionId)
+    private function refuseUnclaimedConfirmation(array $claim, PaymentHelper $helper, $intentId, $requestedSubscriptionId, $returnUrl = '')
     {
         if (!$claim['available']) {
             $decision = PublicRequestGuard::unavailable();
@@ -221,13 +228,13 @@ class Stripe extends BaseMethods
         if ($claim['state'] === PublicRequestGuard::STATE_COMPLETED) {
             $replayed = $helper->replayConfirmationResult($intentId, $requestedSubscriptionId);
             if ($replayed) {
-                wp_send_json_success(wp_parse_args($replayed, [
+                wp_send_json_success($helper->withMemberLoginHint(wp_parse_args($replayed, [
                     'message' => __('Payment confirmation received', 'buy-me-coffee'),
-                ]), 200);
+                ]), $returnUrl), 200);
             }
 
             if (is_array($claim['payload'])) {
-                wp_send_json_success($claim['payload'], 200);
+                wp_send_json_success($helper->withMemberLoginHint($claim['payload'], $returnUrl), 200);
             }
         }
 
