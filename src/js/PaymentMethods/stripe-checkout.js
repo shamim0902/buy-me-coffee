@@ -61,6 +61,10 @@ class StripeCheckout {
                     if (self.subscriptionId) {
                         confirmPayload.subscriptionId = self.subscriptionId;
                     }
+                    const confirmReturnUrl = self.form.find('input[name="bmc_return_url"]').val();
+                    if (confirmReturnUrl) {
+                        confirmPayload.bmc_return_url = confirmReturnUrl;
+                    }
 
                     const confirmation = await jQuery.post(window.buymecoffee_general.ajax_url, confirmPayload);
                     self.afterPaymentSuccess(confirmation?.data || {});
@@ -94,6 +98,10 @@ class StripeCheckout {
         const isPaid = confirmation.payment_status === 'paid';
         const accessActive = confirmation.access_active === true || confirmation.access_active === '1';
         const isActive = isPaid && (!isMembership || accessActive);
+        // The buyer's email already has an account here and they are not logged
+        // in: the server never auto-logs-in an existing account, so they must
+        // sign in before the content unlocks.
+        const loginUrl = (isMembership && confirmation.login_required) ? this.getSafeReceiptUrl(confirmation.login_url) : null;
         const messageTitle = isActive
             ? (isSubscription ? "Recurring donation set up successfully" : (isMembership ? "Membership activated" : "Thanks for your contribution"))
             : "Payment is processing";
@@ -110,6 +118,18 @@ class StripeCheckout {
         receiptText.append(jQuery("<p class='bmc-receipt-success__subtitle'></p>").text(messageSubtitle));
         receiptHeader.append(receiptBadge, receiptText);
         receiptCard.append(receiptHeader);
+
+        if (loginUrl) {
+            const loginNotice = jQuery("<div class='bmc-receipt-success__notice'></div>");
+            loginNotice.append(jQuery('<p></p>').text("This email already has an account here, so we did not sign you in automatically. Log in to unlock your member content."));
+            loginNotice.append(
+                jQuery('<a></a>')
+                    .addClass('bmc-receipt-success__link bmc-receipt-success__link--primary')
+                    .attr('href', loginUrl)
+                    .text('Log in to unlock')
+            );
+            receiptCard.append(loginNotice);
+        }
 
         const actions = jQuery("<div class='bmc-receipt-success__actions'></div>");
 
@@ -143,8 +163,12 @@ class StripeCheckout {
                     .attr('href', safeReturnUrl)
                     .text('Return to article');
                 actions.prepend(returnLink);
-                // Auto-redirect after 3 seconds
-                setTimeout(() => { window.location.href = safeReturnUrl; }, 3000);
+                // Auto-redirect after 3 seconds — unless the buyer must log in
+                // first, in which case sending them back would only show the
+                // paywall again; the login link carries them back instead.
+                if (!loginUrl) {
+                    setTimeout(() => { window.location.href = safeReturnUrl; }, 3000);
+                }
             }
         }
 
