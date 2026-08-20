@@ -7564,4 +7564,136 @@ $suite->test('a PayPal reversal does not refund a supporter with another paid tr
     $test->assertSame('paid', $supporterStatus, 'One reversal must not hide another settled payment');
 });
 
+$suite->test('the paywall CTA offers only the levels the post allows', function ($test) {
+    global $post, $wp_query;
+
+    update_option('buymecoffee_membership_settings', [
+        'membership_active' => true,
+        'default_preview_words' => 2,
+    ], false);
+
+    $makeLevel = function ($name) {
+        return (new MembershipLevel())->create([
+            'name' => $name,
+            'description' => '',
+            'price' => 700,
+            'payment_type' => 'subscription',
+            'interval_type' => 'month',
+            'status' => 'active',
+            'rewards' => '[]',
+            'access_rules' => '{"post_types":["post"],"categories":[],"access_level":"full"}',
+            'sort_order' => 998,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql'),
+        ]);
+    };
+    $allowedName = 'CTA Allowed ' . wp_generate_password(6, false, false);
+    $otherName   = 'CTA Other ' . wp_generate_password(6, false, false);
+    $allowedId   = $makeLevel($allowedName);
+    $makeLevel($otherName);
+
+    $postId = wp_insert_post([
+        'post_title' => 'BMC CTA Levels Feature Test',
+        'post_content' => 'one two three four five six',
+        'post_status' => 'publish',
+        'post_type' => 'post',
+    ]);
+    update_post_meta($postId, '_buymecoffee_access', 'paid');
+    update_post_meta($postId, '_buymecoffee_level_ids', [(int) $allowedId]);
+
+    $post = get_post($postId);
+    $wp_query->is_singular = true;
+    $wp_query->queried_object = $post;
+    $wp_query->queried_object_id = $postId;
+    wp_set_current_user(0);
+
+    $controller = new MonetizationController();
+
+    $selected = $controller->filterContent($post->post_content);
+    $test->assertContains('bmc-paywall__levels', $selected);
+    $test->assertContains($allowedName, $selected, 'The selected level must be offered');
+    $test->assertNotContains($otherName, $selected, 'A level the editor did not tick must not be offered');
+
+    // With no explicit selection every level whose own rules match is offered.
+    update_post_meta($postId, '_buymecoffee_level_ids', []);
+    $unselected = $controller->filterContent($post->post_content);
+    $test->assertContains($allowedName, $unselected);
+    $test->assertContains($otherName, $unselected, 'Without a selection, rule-matching levels are offered');
+});
+
+$suite->test('a membership buyer whose email already has an account is told to log in, never auto-logged-in', function ($test) {
+    $userId = wp_insert_user([
+        'user_login' => 'bmc_hint_' . wp_generate_password(8, false, false),
+        'user_email' => 'bmc-hint-' . wp_generate_password(8, false, false) . '@example.com',
+        'user_pass' => wp_generate_password(24),
+        'role' => 'subscriber',
+    ]);
+    $test->assertFalse(is_wp_error($userId));
+
+    $now = current_time('mysql');
+    $makeSupporter = function ($wpUserId) use ($now) {
+        return buyMeCoffeeQuery()->table('buymecoffee_supporters')->insert([
+            'supporters_name' => 'Login Hint',
+            'supporters_email' => 'bmc-hint-' . wp_generate_password(8, false, false) . '@example.com',
+            'payment_status' => 'paid',
+            'entry_hash' => 'bmc_hint_' . wp_generate_password(20, false, false),
+            'payment_total' => 700,
+            'coffee_count' => 1,
+            'payment_mode' => 'test',
+            'payment_method' => 'stripe',
+            'status' => 'new',
+            'wp_user_id' => $wpUserId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    };
+    $makeTransaction = function ($supporterId) use ($now) {
+        return buyMeCoffeeQuery()->table('buymecoffee_transactions')->insert([
+            'entry_id' => $supporterId,
+            'entry_hash' => 'bmc_hint_' . wp_generate_password(20, false, false),
+            'transaction_type' => 'one_time',
+            'payment_method' => 'stripe',
+            'charge_id' => 'pi_hint_' . wp_generate_password(12, false, false),
+            'payment_total' => 700,
+            'status' => 'paid',
+            'currency' => 'USD',
+            'payment_mode' => 'test',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    };
+
+    $linkedSupporterId   = $makeSupporter($userId);
+    $linkedTransactionId = $makeTransaction($linkedSupporterId);
+    $unlinkedSupporterId = $makeSupporter(null);
+    $unlinkedTransactionId = $makeTransaction($unlinkedSupporterId);
+
+    $helper  = new PaymentHelper();
+    $article = home_url('/members-only-article/');
+    $base    = ['is_membership' => true, 'payment_status' => 'paid', 'access_active' => true];
+
+    wp_set_current_user(0);
+
+    $hint = $helper->withMemberLoginHint($base + ['transaction_id' => $linkedTransactionId], $article);
+    $test->assertTrue($hint['login_required'], 'A guest buying with an existing account email must be asked to log in');
+    $test->assertContains('wp-login.php', $hint['login_url']);
+    $test->assertContains(rawurlencode($article), $hint['login_url'], 'Login must send the buyer back to the gated content');
+    $test->assertFalse(is_user_logged_in(), 'The existing account must never be logged in by the purchase');
+
+    $offsite = $helper->withMemberLoginHint($base + ['transaction_id' => $linkedTransactionId], 'https://evil.example/phish');
+    $test->assertTrue($offsite['login_required']);
+    $test->assertNotContains('evil.example', $offsite['login_url'], 'An off-site return URL must not become the login redirect');
+
+    $unlinked = $helper->withMemberLoginHint($base + ['transaction_id' => $unlinkedTransactionId], $article);
+    $test->assertFalse($unlinked['login_required'], 'No linked account, nothing to log in to');
+
+    $donation = $helper->withMemberLoginHint(['is_membership' => false, 'transaction_id' => $linkedTransactionId], $article);
+    $test->assertFalse($donation['login_required'], 'Plain donations never prompt for login');
+
+    wp_set_current_user($userId);
+    $loggedIn = $helper->withMemberLoginHint($base + ['transaction_id' => $linkedTransactionId], $article);
+    $test->assertFalse($loggedIn['login_required'], 'An already logged-in buyer is not prompted');
+    wp_set_current_user(0);
+});
+
 exit($suite->run());

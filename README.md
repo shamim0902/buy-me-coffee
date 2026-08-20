@@ -50,6 +50,10 @@
 
 ## What's New in 1.2.x
 
+### 1.2.9
+- **Paywall** — offers only the membership levels selected for that post
+- **Membership checkout** — shows a log in link when the email already has an account
+
 ### 1.2.8
 - **Payment handling** — smoother Stripe payments for zero-decimal currencies like JPY and KRW
 - **Membership access** — improved handling for refunds, restored payments, removed supporters, and subscription period changes

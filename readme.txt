@@ -3,7 +3,7 @@ Contributors: wpminers, hasanuzzamanshamim
 Tags: membership, paywall, donations, subscriptions, stripe payments
 Requires at least: 5.7
 Tested up to: 7.0
-Stable tag: 1.2.8
+Stable tag: 1.2.9
 Requires PHP: 7.4
 License: GPLv2 or later
 Text Domain: buy-me-coffee
@@ -236,6 +236,10 @@ Yes. Every payment, renewal, refund, cancellation, and webhook event is recorded
 7. Global Settings — Form fields, currency, appearance, and email notification templates
 
 == Changelog ==
+
+= 1.2.9 August 20, 2026 =
+- Improves Paywall so it offers only the membership levels selected for that post.
+- Improves Membership checkout by showing a log in link when the email already has an account.
 
 = 1.2.8 August 15, 2026 =
 - Improves Stripe payment handling for zero-decimal currencies such as JPY and KRW.
