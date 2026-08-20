@@ -275,6 +275,16 @@ class MonetizationController
             return $levels;
         }
 
+        // Explicit per-post selection wins: only show the levels the editor ticked.
+        $allowedLevelIds = get_post_meta($postId, '_buymecoffee_level_ids', true);
+        if (!empty($allowedLevelIds) && is_array($allowedLevelIds)) {
+            $allowedLevelIds = array_map('absint', $allowedLevelIds);
+
+            return array_values(array_filter($levels, function ($level) use ($allowedLevelIds) {
+                return in_array((int) $level->id, $allowedLevelIds, true);
+            }));
+        }
+
         return $this->getMatchingLevelsForPost($postId, $levels, false);
     }
 
